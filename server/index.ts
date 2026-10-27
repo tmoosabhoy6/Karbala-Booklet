@@ -26,6 +26,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_URL = process.env.APP_URL ?? (PROD ? `http://127.0.0.1:${PORT}` : 'http://127.0.0.1:5173');
 
 const app = express();
+// Bound native image caches on the free host; keep OCR and the PDF renderer
+// from holding their peak allocations at the same time.
+sharp.cache({ memory: 16, files: 0, items: 16 });
+sharp.concurrency(1);
 
 // For the host's uptime checks; the only route open without the password.
 app.get('/api/health', (_req, res) => res.send('ok'));
@@ -116,6 +120,7 @@ const pdfs = new Map<string, Buffer>();
 const PDF_TTL = 15 * 60_000;
 const completed = new Map<string, { id: string; expires: number }>();
 const exporting = new Map<string, Promise<string>>();
+let printQueue = Promise.resolve();
 app.get('/api/pdf/:id/:filename', (req, res) => {
   const pdf = pdfs.get(req.params.id);
   if (!pdf) return res.status(404).send('This PDF has expired. Download it again from the editor.');
@@ -147,12 +152,14 @@ app.post(
     const key = createHash('sha256').update(JSON.stringify({ doc, assets, title })).digest('hex');
     const cached = completed.get(key);
     if (cached && cached.expires > Date.now() && pdfs.has(cached.id)) return res.json({ url: `/api/pdf/${cached.id}/${encodeURIComponent(filename)}` });
-    if (!exporting.has(key)) exporting.set(key, (async () => {
+    if (!exporting.has(key)) {
+      const job = printQueue.then(async () => {
+      await closeRecognition();
       const id = randomUUID();
-      pending.set(id, { doc, assets });
       const context = await (await getBrowser()).newContext(PASSWORD ? { httpCredentials: { username: 'print', password: PASSWORD } } : {});
-      const page = await context.newPage();
+      pending.set(id, { doc, assets });
       try {
+      const page = await context.newPage();
       await page.goto(`${APP_URL}/?print=${id}`);
       await page.waitForFunction(() => window.__BOOKLET_READY__ === true || !!window.__BOOKLET_ERROR__, null, { timeout: 30_000 });
       const error = await page.evaluate(() => window.__BOOKLET_ERROR__);
@@ -175,7 +182,10 @@ app.post(
         pending.delete(id);
         await context.close();
       }
-    })().finally(() => exporting.delete(key)));
+      });
+      printQueue = job.then(() => undefined, () => undefined);
+      exporting.set(key, job.finally(() => exporting.delete(key)));
+    }
     const id = await exporting.get(key)!;
     res.json({ url: `/api/pdf/${id}/${encodeURIComponent(filename)}` });
   }),

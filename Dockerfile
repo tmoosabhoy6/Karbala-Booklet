@@ -12,4 +12,4 @@ RUN npm run build
 # mount a persistent disk there or it is lost on every restart.
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=10000 DATA_DIR=/data
 EXPOSE 10000
-CMD ["npx", "tsx", "server/index.ts"]
+CMD ["node", "--import", "tsx", "server/index.ts"]

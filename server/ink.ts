@@ -3,7 +3,7 @@
 import sharp from 'sharp';
 import { recognize } from './recognize';
 
-export const PROCESSOR_VERSION = 4;
+export const PROCESSOR_VERSION = 5;
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface Edits { crop?: Rect; erase?: Rect[]; autoClean?: boolean }
 export interface Region extends Rect { lineHeight: number; group: number }
@@ -100,7 +100,7 @@ export function findBands(alpha: Uint8Array, W: number, H: number): [number, num
   }
   return merged;
 }
-export async function cleanScreenshot(input: Buffer, edits: Edits = {}): Promise<InkResult> {
+export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options: { ocr?: boolean } = {}): Promise<InkResult> {
   const { data, info } = await sharp(input, { limitInputPixels: 20_000_000 }).rotate().flatten({ background: '#fff' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const crop = clampRect(edits.crop ?? { x: 0, y: 0, w: info.width, h: info.height }, info.width, info.height);
   const W = crop.w, H = crop.h;
@@ -138,11 +138,11 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}): Promise
     return sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
   };
   let suggestedName = '', recognitionConfidence = 0;
-  try {
+  try { if (options.ocr !== false) {
     const recognized = await recognize(await makePng(true));
     suggestedName = recognized.name; recognitionConfidence = recognized.confidence;
     if (edits.autoClean !== false) for (const r of recognized.numbers) erase(alpha, W, H, { x: r.x - 2, y: r.y - 2, w: r.w + 4, h: r.h + 4 });
-  } catch (error) {
+  } } catch (error) {
     console.error('Index recognition unavailable:', error);
     warnings.push('Automatic page-number detection was unavailable. Check for screenshot page numbers.');
   }
@@ -167,7 +167,12 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}): Promise
     inGroup++;
     const ink = box(alpha, W, H, a + t.y, b + t.y)!;
     const x = Math.max(0, ink.x - t.x - padding), y = Math.max(0, a - padding);
-    return { x, y, w: Math.min(t.w - x, ink.w + padding * 2), h: Math.min(t.h, b + padding) - y, lineHeight: b - a, group };
+    const unresolvedRows = b - a > 80 && ink.w / (b - a) < 2.5;
+    if (unresolvedRows) warnings.push('Some closely joined lines could not be separated. Check their size; crop into complete verses if needed.');
+    // A dense multi-line image must never be mistaken for one giant glyph and
+    // shrunk to a 34pt thumbnail. Preserve it as a readable, intact group.
+    const lineHeight = unresolvedRows ? Math.min(b - a, Math.max(20, ink.w / 12)) : b - a;
+    return { x, y, w: Math.min(t.w - x, ink.w + padding * 2), h: Math.min(t.h, b + padding) - y, lineHeight, group };
   });
   const first = regions[0];
   // The index can use the actual opening words as a transparent image. This

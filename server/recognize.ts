@@ -48,6 +48,11 @@ export function recognize(png: Buffer): Promise<Recognition> {
 }
 
 export async function closeRecognition() {
-  if (worker) await (await worker).terminate();
-  worker = undefined;
+  const release = queue.then(async () => {
+    const current = worker;
+    worker = undefined;
+    if (current) await (await current).terminate();
+  });
+  queue = release.catch(() => undefined);
+  return release;
 }

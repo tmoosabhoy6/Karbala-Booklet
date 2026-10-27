@@ -40,7 +40,7 @@ function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number)
   return job;
 }
 async function processImage(id: string, original: Buffer, edits: Edits, rev: number): Promise<MediaMeta> {
-  const r = await cleanScreenshot(original, edits);
+  const r = await cleanScreenshot(original, edits, { ocr: id !== 'fixed-matam' });
   const { png, svg, ...geometry } = r;
   const meta: MediaMeta = { id, rev, ...geometry, edits, processorVersion: PROCESSOR_VERSION, format: 'png' };
   await Promise.all([
