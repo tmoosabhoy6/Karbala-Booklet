@@ -1,7 +1,7 @@
 import { Fragment, ReactNode } from 'react';
 
 // Inline markup for booklet text:
-//   {as}  → small «ع م» (alayhis-salaam), ع raised and م the same size below it
+//   {as}  → small «ع م» (alayhis-salaam), same size and baseline
 //   {saw} → small «صلع» (salla Allahu alayhi wa aalihi), same style
 //   (Latin text) → set in a Latin face; Kanz al-Marjaan draws 0–9 as Arabic digits
 const TOKEN = /(\{as\}|\{saw\}|\([A-Za-z][^)]*\))/;
@@ -9,8 +9,8 @@ const TOKEN = /(\{as\}|\{saw\}|\([A-Za-z][^)]*\))/;
 function renderToken(tok: string, key: number): ReactNode {
   if (tok === '{as}') {
     return (
-      <span className="honorific" key={key}>
-        ع<span className="m">م</span>
+      <span className="honorific as-mark" key={key}>
+        <span className="as-letter">ع</span><span className="as-letter">م</span>
       </span>
     );
   }

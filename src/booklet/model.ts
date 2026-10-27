@@ -24,6 +24,15 @@ export interface ImageBlock {
   scale: number;
   /** Fixed width in pt (used by fixed full-page content instead of line-height sizing). */
   fixedWidthPt?: number;
+  format?: 'png';
+  regions?: ImageRegion[];
+  suggestedName?: string;
+  warnings?: string[];
+  opening?: { x: number; y: number; w: number; h: number };
+}
+
+export interface ImageRegion {
+  x: number; y: number; w: number; h: number; lineHeight: number; group: number;
 }
 
 export interface TextBlock {
@@ -201,6 +210,12 @@ export interface MediaMeta {
   height: number;
   bands: [number, number][];
   lineHeight: number;
+  format?: 'png';
+  regions?: ImageRegion[];
+  suggestedName?: string;
+  recognitionConfidence?: number;
+  warnings?: string[];
+  opening?: { x: number; y: number; w: number; h: number };
 }
 
 export const imageBlockFrom = (m: MediaMeta, extra: Partial<ImageBlock> = {}): ImageBlock => ({
@@ -212,6 +227,11 @@ export const imageBlockFrom = (m: MediaMeta, extra: Partial<ImageBlock> = {}): I
   height: m.height,
   bands: m.bands,
   lineHeight: m.lineHeight,
+  format: m.format,
+  regions: m.regions,
+  suggestedName: m.suggestedName,
+  warnings: m.warnings,
+  opening: m.opening,
   scale: 1,
   ...extra,
 });

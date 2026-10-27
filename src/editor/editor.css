@@ -778,3 +778,10 @@ button.ghost.on {
     display: none;
   }
 }
+.image-warning {
+  display: block;
+  color: #804720;
+  padding: 5px 10px;
+  font-size: 12px;
+  grid-column: 1 / -1;
+}

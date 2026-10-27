@@ -2,13 +2,18 @@
 // and turns it into a PDF with headless Chromium, which renders exactly what
 // the preview shows.
 import express from 'express';
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, Browser } from 'playwright';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { addMedia, editMedia, ensureFixedMedia, getMedia, MEDIA, readJson, writeJson } from './store';
+import type { PrintPayload } from '../src/booklet/print';
+import { mediaSrc } from '../src/booklet/media';
+import { readFile } from 'node:fs/promises';
+import { PROCESSOR_VERSION } from './ink';
+import { closeRecognition } from './recognize';
 
 const PORT = Number(process.env.PORT ?? 3001);
 // 0.0.0.0 when hosted (or to reach it from a phone on the same Wi-Fi).
@@ -24,6 +29,7 @@ const app = express();
 
 // For the host's uptime checks; the only route open without the password.
 app.get('/api/health', (_req, res) => res.send('ok'));
+app.get('/api/version', (_req, res) => res.json({ processorVersion: PROCESSOR_VERSION }));
 
 const passwordOk = (header = '') => {
   const [scheme, encoded = ''] = header.split(' ');
@@ -99,12 +105,17 @@ app.get('/api/print/:id', (req, res) => {
 
 // One warm browser keeps exports fast.
 let browser: Promise<Browser> | null = null;
-const getBrowser = () => (browser ??= chromium.launch());
+const getBrowser = () => (browser ??= chromium.launch().then((b) => {
+  b.on('disconnected', () => { browser = null; });
+  return b;
+}).catch((e) => { browser = null; throw e; }));
 
 // Finished PDFs are fetched by a plain link, which phones download more
 // reliably than a script-made file. Each is kept for 15 minutes.
 const pdfs = new Map<string, Buffer>();
 const PDF_TTL = 15 * 60_000;
+const completed = new Map<string, { id: string; expires: number }>();
+const exporting = new Map<string, Promise<string>>();
 app.get('/api/pdf/:id/:filename', (req, res) => {
   const pdf = pdfs.get(req.params.id);
   if (!pdf) return res.status(404).send('This PDF has expired. Download it again from the editor.');
@@ -116,14 +127,36 @@ app.get('/api/pdf/:id/:filename', (req, res) => {
 app.post(
   '/api/export',
   route(async (req, res) => {
-    const { doc, filename, title } = req.body as { doc: unknown; filename: string; title: string };
-    const id = randomUUID();
-    pending.set(id, doc);
-    const context = await (await getBrowser()).newContext(PASSWORD ? { httpCredentials: { username: 'print', password: PASSWORD } } : {});
-    const page = await context.newPage();
-    try {
+    const { doc, assets: supplied = {}, filename, title } = req.body as PrintPayload & { filename: string; title: string };
+    if (!doc || doc.version !== 2 || !doc.kalams) return res.status(400).send('No booklet received.');
+    const assets: Record<string, string> = {};
+    const blocks = Object.values(doc.kalams).flatMap((ks) => ks.flatMap((k) => k.blocks)).filter((b) => b.kind === 'image');
+    for (const block of blocks) {
+      const src = mediaSrc(block);
+      if (assets[src]) continue;
+      if (supplied[src]?.startsWith('data:image/')) assets[src] = supplied[src];
+      else {
+        if (!/^[\w-]+$/.test(block.mediaId)) return res.status(400).send('Invalid screenshot ID.');
+        try {
+          const name = block.format === 'png' ? `${block.mediaId}.${Number(block.rev)}.png` : `${block.mediaId}.svg`;
+          const bytes = await readFile(path.join(MEDIA, name));
+          assets[src] = `data:image/${block.format === 'png' ? 'png' : 'svg+xml'};base64,${bytes.toString('base64')}`;
+        } catch { return res.status(422).send('A verse image is missing. Re-add its original screenshot before downloading.'); }
+      }
+    }
+    const key = createHash('sha256').update(JSON.stringify({ doc, assets, title })).digest('hex');
+    const cached = completed.get(key);
+    if (cached && cached.expires > Date.now() && pdfs.has(cached.id)) return res.json({ url: `/api/pdf/${cached.id}/${encodeURIComponent(filename)}` });
+    if (!exporting.has(key)) exporting.set(key, (async () => {
+      const id = randomUUID();
+      pending.set(id, { doc, assets });
+      const context = await (await getBrowser()).newContext(PASSWORD ? { httpCredentials: { username: 'print', password: PASSWORD } } : {});
+      const page = await context.newPage();
+      try {
       await page.goto(`${APP_URL}/?print=${id}`);
-      await page.waitForFunction(() => window.__BOOKLET_READY__ === true, null, { timeout: 60_000 });
+      await page.waitForFunction(() => window.__BOOKLET_READY__ === true || !!window.__BOOKLET_ERROR__, null, { timeout: 30_000 });
+      const error = await page.evaluate(() => window.__BOOKLET_ERROR__);
+      if (error) throw new Error(error);
       const raw = await page.pdf({ preferCSSPageSize: true, printBackground: true });
       const pdf = await PDFDocument.load(raw);
       pdf.setTitle(title, { showInWindowTitleBar: true });
@@ -131,12 +164,20 @@ app.post(
       pdf.setCreator('Karbala Booklet');
       pdf.setLanguage('ar');
       pdfs.set(id, Buffer.from(await pdf.save()));
+      completed.set(key, { id, expires: Date.now() + PDF_TTL });
+      while (completed.size > 2) {
+        const oldest = completed.keys().next().value!;
+        pdfs.delete(completed.get(oldest)!.id); completed.delete(oldest);
+      }
       setTimeout(() => pdfs.delete(id), PDF_TTL).unref();
-      res.json({ url: `/api/pdf/${id}/${encodeURIComponent(filename)}` });
-    } finally {
-      pending.delete(id);
-      await context.close();
-    }
+      return id;
+      } finally {
+        pending.delete(id);
+        await context.close();
+      }
+    })().finally(() => exporting.delete(key)));
+    const id = await exporting.get(key)!;
+    res.json({ url: `/api/pdf/${id}/${encodeURIComponent(filename)}` });
   }),
 );
 
@@ -145,4 +186,15 @@ if (PROD) {
 }
 
 await ensureFixedMedia();
-app.listen(PORT, HOST, () => console.log(`server on http://${HOST}:${PORT}${PASSWORD ? ' (password on)' : ''}`));
+const http = app.listen(PORT, HOST, () => console.log(`server on http://${HOST}:${PORT}${PASSWORD ? ' (password on)' : ''}`));
+void getBrowser().catch((e) => console.error('PDF browser warm-up:', e.message));
+let closing = false;
+const shutdown = async () => {
+  if (closing) return;
+  closing = true;
+  http.close();
+  await Promise.allSettled([browser?.then((b) => b.close()), closeRecognition()]);
+  process.exit(0);
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

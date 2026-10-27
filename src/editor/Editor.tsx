@@ -3,6 +3,7 @@ import { BookletView } from '../booklet/Booklet';
 import { stripMarkup } from '../booklet/RichText';
 import { Block, CATEGORY_ADDABLE, CATEGORY_HINT, CATEGORY_LABEL, Category, ImageBlock, VENUES, Venue, uid } from '../booklet/model';
 import { paginate } from '../booklet/paginate';
+import { printAssets } from '../booklet/print';
 import { dateLine, raatTitle, raatTitleLatin } from '../lib/hijri';
 import { ImageEditor } from './ImageEditor';
 import { KalamCard, uploadInto } from './KalamCard';
@@ -68,7 +69,7 @@ export function Editor() {
     };
   }, [active, upload, undo, redo]);
 
-  if (!doc || !layout) return <div className="loading">Loading…</div>;
+  if (!doc || !layout) return <div className="loading" role={state.loadError ? 'alert' : 'status'}>{state.loadError ? <>Could not load the booklet: {state.loadError} <button onClick={() => location.reload()}>Try again</button></> : 'Loading…'}</div>;
   const d = new Date(`${doc.date}T12:00:00`);
   const pageCount = layout.pages.length;
 
@@ -86,16 +87,17 @@ export function Editor() {
   const exportPdf = async () => {
     const missing = Object.values(doc.kalams)
       .flat()
-      .filter((k) => k.blocks.length && !stripMarkup(k.name));
+      .filter((k) => k.blocks.length && !stripMarkup(k.name) && !(k.blocks[0].kind === 'image' && k.blocks[0].opening));
     if (missing.length && !confirm(`${missing.length} kalam(s) have no fihrist name yet. Download anyway?`)) return;
     setBusy(true);
     setReady(null);
     try {
       const filename = `${raatTitleLatin(d)} Matam Majlis.pdf`;
+      const assets = await printAssets(doc);
       const res = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doc, filename, title: `${raatTitle(d)} – ماتم مجلس` }),
+        body: JSON.stringify({ doc, assets, filename, title: `${raatTitle(d)} – ماتم مجلس` }),
       });
       if (!res.ok) throw new Error(await res.text());
       const { url } = (await res.json()) as { url: string };
@@ -232,7 +234,7 @@ export function Editor() {
           <button className="ghost" onClick={redo} title="Redo (⇧⌘Z)">
             ↷
           </button>
-          <button className="primary" onClick={exportPdf} disabled={busy}>
+          <button className="primary" onClick={exportPdf} disabled={busy || Object.values(uploads).some((n) => n > 0)}>
             {busy ? 'Building PDF…' : 'Download PDF'}
           </button>
         </div>

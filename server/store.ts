@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { cleanScreenshot, Edits } from './ink';
+import { cleanScreenshot, Edits, PROCESSOR_VERSION, Region } from './ink';
 
 export const DATA = path.resolve(process.env.DATA_DIR ?? 'data');
 export const MEDIA = path.join(DATA, 'media');
@@ -18,6 +18,13 @@ export interface MediaMeta {
   bands: [number, number][];
   lineHeight: number;
   edits: Edits;
+  processorVersion?: number;
+  format?: 'png';
+  regions?: Region[];
+  suggestedName?: string;
+  recognitionConfidence?: number;
+  warnings?: string[];
+  opening?: { x: number; y: number; w: number; h: number };
 }
 
 const metaPath = (id: string) => path.join(MEDIA, `${id}.json`);
@@ -26,14 +33,23 @@ const safeId = (id: string) => {
   return id;
 };
 
-async function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number): Promise<MediaMeta> {
+let processQueue = Promise.resolve();
+function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number): Promise<MediaMeta> {
+  const job = processQueue.then(() => processImage(id, original, edits, rev));
+  processQueue = job.then(() => undefined, () => undefined);
+  return job;
+}
+async function processImage(id: string, original: Buffer, edits: Edits, rev: number): Promise<MediaMeta> {
   const r = await cleanScreenshot(original, edits);
-  const meta: MediaMeta = { id, rev, width: r.width, height: r.height, bands: r.bands, lineHeight: r.lineHeight, edits };
+  const { png, svg, ...geometry } = r;
+  const meta: MediaMeta = { id, rev, ...geometry, edits, processorVersion: PROCESSOR_VERSION, format: 'png' };
   await Promise.all([
-    writeFile(path.join(MEDIA, `${id}.png`), r.png),
-    writeFile(path.join(MEDIA, `${id}.svg`), r.svg),
-    writeFile(metaPath(id), JSON.stringify(meta)),
+    writeFile(path.join(MEDIA, `${id}.png`), png),
+    writeFile(path.join(MEDIA, `${id}.svg`), svg),
+    writeFile(path.join(MEDIA, `${id}.${rev}.png`), png),
   ]);
+  await writeFile(`${metaPath(id)}.tmp`, JSON.stringify(meta));
+  await (await import('node:fs/promises')).rename(`${metaPath(id)}.tmp`, metaPath(id));
   return meta;
 }
 
@@ -51,9 +67,16 @@ export async function editMedia(id: string, edits: Edits): Promise<MediaMeta> {
   return writeProcessed(id, original, edits, Math.max(Date.now(), prev.rev + 1));
 }
 
+const processing = new Map<string, Promise<MediaMeta>>();
 export async function getMedia(id: string): Promise<MediaMeta | null> {
   safeId(id);
-  return existsSync(metaPath(id)) ? JSON.parse(await readFile(metaPath(id), 'utf8')) : null;
+  if (!existsSync(metaPath(id))) return null;
+  const meta: MediaMeta = JSON.parse(await readFile(metaPath(id), 'utf8'));
+  if (meta.processorVersion === PROCESSOR_VERSION) return meta;
+  if (!processing.has(id)) processing.set(id, readFile(path.join(MEDIA, `${id}.orig`))
+    .then((original) => writeProcessed(id, original, meta.edits ?? {}, Math.max(Date.now(), meta.rev + 1)))
+    .finally(() => processing.delete(id)));
+  return processing.get(id)!;
 }
 
 /** The fixed Matam page (حسين حسين، پنجتن ماتم) is cleaned once on first start. */

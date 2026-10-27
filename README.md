@@ -20,7 +20,7 @@ The app needs a real server (it cleans screenshots with sharp/potrace and prints
 2. There is no password, so keep the link to yourself. To add one later, set `APP_PASSWORD` in the service's Environment tab (any username works).
 3. The first build takes about 10 minutes. Then open the `onrender.com` link it gives you, on your laptop or phone. On iPhone, Share → Add to Home Screen makes it an app icon.
 
-It runs on the free plan in Frankfurt, the closest region to Iraq. The free plan has no disk, so screenshots and the saved booklet are wiped whenever it restarts or redeploys (download the PDF before you leave it), and it sleeps after 15 idle minutes, so the first visit after that takes about a minute. To keep work, switch to the Starter plan ($7/month) with a 1 GB disk at `/data` (see the comment in `render.yaml`). Every push to `main` redeploys it.
+It runs on the free plan in Frankfurt. The free plan has no persistent disk, so server files can disappear on restart or redeploy. The app now keeps the working booklet, pinned defaults, and original screenshots in the browser's IndexedDB and restores missing server screenshots when that browser opens the booklet again. Keep using the same browser and do not clear its website data. This does not provide cross-device server storage: use a persistent disk at `/data` for that. The free service also sleeps when idle. Every push to `main` redeploys it.
 
 **On a phone:** Kalams / Preview tabs switch panels; tap a kalam's box to add screenshots from Photos. After **Download PDF**, tap **Save …pdf**: it goes to Files (iPhone) or Downloads (Android), ready to share on WhatsApp.
 
@@ -31,14 +31,15 @@ It runs on the free plan in Frankfurt, the closest region to Iraq. The free plan
 1. **Date and venue:** the date defaults to today and the title (e.g. ١٨ مي رات) follows it. Pick Haram Mubarak or Najmi Masjid; your content stays when you switch.
 2. **Add screenshots:**
    - Click a kalam card, then press ⌘V to paste, drag images onto it, or click its drop area to choose files.
-   - Each screenshot is cleaned to sharp black-on-white vector text: any background, dark mode, and colored ink such as red lines are handled.
-   - All screenshots are sized to the same text height. Use − / + to adjust one.
+   - Paper/dark backgrounds become transparent; original antialiased letter shapes and colored ink are preserved as lossless PNGs. Curve tracing no longer distorts the letters.
+   - Isolated straight rules, clipped edge fragments, distant specks and recognized standalone page numbers are removed. Crop/erase remains available for ambiguous marks; turn off automatic cleanup to recover anything it mistakenly removed.
+   - Each complete row is sized separately. Screenshot zoom and different source sizes no longer shrink an entire kalam. Detected stanzas stay together at page boundaries; uniformly spaced verses fall back to pairs.
 3. **Order:** each screenshot has a numbered badge. Drag to reorder, or click the number and type a new position. Kalams move with ↑ ↓.
-4. **Name:** type the fihrist name (the first words of the first verse) in each kalam card.
+4. **Name:** unnamed kalams automatically show a clean crop of their opening verse/words in the fihrist, including Urdu, with the correct page link. Type a name in the card or click the entry in **Edit text** to replace it. Local Arabic/Urdu OCR helps detect page numbers; uncertain recognition is flagged for review. The app never substitutes recognized words into the actual verse artwork.
 5. **Clean up:** ✎ opens the crop/erase editor. Drag boxes over verse-number badges, timestamps or other marks.
 6. **Defaults:** ★ pins a kalam (name + screenshots) as the default for new booklets. Click again to unpin.
 7. **Edit text:** click **✎ Edit text** above the preview, then click any text on the pages to retype it in Kanz al-Marjaan: cover title, date line and location, the fihrist (headings, section titles, kalam names, page numbers), page headings, Salam Arz lines and page numbers. Enter saves, Esc cancels; A− / A+ resize it and ↺ Original undoes the edit. **+ Text box** then a click on a page adds your own text there: drag to move it, click to type (Shift+Enter for a new line), pick a size and colour, or 🗑 to delete. Edited text has a blue dashed outline. Edits to generated text (e.g. the title) drop away by themselves if the date or venue changes it. **New booklet** keeps your cover and fihrist wording and clears headings, page-number edits and text boxes.
-8. **Download PDF:** the file is named after the title, e.g. `18mi Raat Matam Majlis.pdf`.
+8. **Download PDF:** the file is named after the title, e.g. `18mi Raat Matam Majlis.pdf`. The download carries the preview's artwork into a self-contained print snapshot, checks every image and font, and fails explicitly if something is missing. A warm print browser and a small completed-PDF cache speed up repeat downloads; no screenshot processing or OCR happens during export.
 
 Kalams without screenshots are left out of the booklet and the fihrist. Work autosaves to `data/` (git-ignored). Undo with ⌘Z and redo with ⇧⌘Z.
 
@@ -46,8 +47,14 @@ Kalams without screenshots are left out of the booklet and the fihrist. Work aut
 
 - `src/booklet/`: the document model, venue templates, pagination and page components (`Editable.tsx`: typing on the pages)
 - `src/lib/hijri.ts`: the Fatemi (Misri) Hijri calendar and the title and date-line wording
-- `server/`: screenshot cleaning and tracing (`ink.ts`), storage (`store.ts`) and PDF export (Playwright + pdf-lib)
+- `server/`: lossless screenshot cleanup and row/stanza geometry (`ink.ts`), packaged offline Arabic/Urdu OCR (`recognize.ts`), storage (`store.ts`) and PDF export (Playwright + pdf-lib)
 - `src/editor/`: the input panel, crop/erase editor, autosave and undo
 - `public/assets/`: the recolored artwork, generated by `tools/build_assets.py` (cover, border, ornaments) and `tools/build-logos.mjs` (logos)
 - `public/fonts/`: Kanz al-Marjaan v0.1.7 (SIL OFL)
 - `docs/PLAN.md`: the full plan and recorded decisions
+
+## Verification and source quality
+
+`npm run verify` builds the production app and tests an isolated data directory: actual uploads and downloads, Arabic typography, automatic fihrist entries, whole-stanza pagination, A4 bounds, embedded artwork surviving missing server files, repeat-export caching, and explicit rejection of missing/corrupt images. Test artifacts stay in ignored `work/verify-*` folders.
+
+Existing screenshots are reprocessed once from their untouched originals when opened. Sources deleted by an older free-hosting instance can sometimes be rescued from the old browser's cached preview; this cannot recover detail already lost by the old tracer. If both the original and the browser copy are gone, re-add the screenshot. Very small screenshots are flagged: upscaling cannot reconstruct missing dots or letter detail. Larger originals or the source PDF give the best print quality.

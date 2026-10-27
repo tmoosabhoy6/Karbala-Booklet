@@ -87,7 +87,7 @@
 
 .cover-title.date {
   top: 470pt;
-  font-size: 25pt;
+  font-size: 27.5pt;
   color: var(--sanat-blue);
 }
 
@@ -105,7 +105,7 @@
   white-space: nowrap;
 }
 
-/* The small «ع م» (alayhis-salaam) mark: ع raised, م the same size and lower. */
+/* Both letters share exactly the meem's previous size and lower baseline. */
 .honorific {
   font-size: 62%;
   display: inline-block;
@@ -114,9 +114,12 @@
   margin: 0 0.3em 0 0.55em;
 }
 
-.honorific .m {
+.honorific.as-mark { vertical-align: -0.2em; }
+
+.honorific .as-letter {
   display: inline-block;
-  vertical-align: -0.55em;
+  vertical-align: baseline;
+  font-size: 1em;
   margin-right: 0.15em;
 }
 
@@ -193,7 +196,7 @@
 }
 
 .separator {
-  height: 24pt;
+  height: 26pt;
   display: flex;
   align-items: center;
 }
@@ -293,6 +296,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.opening-words { display: inline-block; position: relative; overflow: hidden; vertical-align: middle; }
+.fihrist .row .name .opening-words img { flex: initial; }
 
 .fihrist .tartib.cont {
   opacity: 0.55;

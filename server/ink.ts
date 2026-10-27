@@ -1,294 +1,194 @@
-// Screenshot → print-quality ink.
-//
-// 1. Find the screenshot's background colour (median of its edge pixels), so
-//    cream, coloured or dark-mode screenshots all work.
-// 2. Turn every pixel into ink coverage (alpha) by its distance from that
-//    background, then "un-mix" the background out to recover the true ink
-//    colour. Neutral ink becomes pure black; coloured ink (e.g. a red line)
-//    keeps its colour.
-// 3. Apply the user's erase boxes and crop, trim to the ink, and find the
-//    text lines (bands) so pages can break between lines.
-// 4. Trace each colour layer with potrace into one SVG: razor-sharp at any
-//    size, on a clean white page, with the letters exactly as in the source.
+// Recover source ink without tracing, smoothing, or inventing letter shapes.
+// Each verse row gets its own geometry, independent of screenshot zoom.
 import sharp from 'sharp';
-import potrace from 'potrace';
+import { recognize } from './recognize';
 
-export interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-export interface Edits {
-  crop?: Rect;
-  erase?: Rect[];
-}
-
+export const PROCESSOR_VERSION = 4;
+export interface Rect { x: number; y: number; w: number; h: number }
+export interface Edits { crop?: Rect; erase?: Rect[]; autoClean?: boolean }
+export interface Region extends Rect { lineHeight: number; group: number }
 export interface InkResult {
-  width: number;
-  height: number;
-  /** Text-line bands [top, bottom] in output pixels. */
-  bands: [number, number][];
-  /** Median line height in px, used to normalise text size. */
-  lineHeight: number;
-  png: Buffer;
-  svg: string;
+  width: number; height: number; bands: [number, number][]; lineHeight: number;
+  regions: Region[]; opening: Rect; suggestedName: string; recognitionConfidence: number;
+  warnings: string[]; png: Buffer; svg: string;
 }
-
-const ALPHA_LO = 22; // colour distance below which a pixel is background
-const ALPHA_HI = 120; // distance at which a pixel is solid ink
-const COLOUR_CHROMA = 70; // un-mixed chroma above which ink keeps its colour
-
-export async function cleanScreenshot(input: Buffer, edits: Edits = {}): Promise<InkResult> {
-  const { data, info } = await sharp(input)
-    .rotate()
-    .flatten({ background: '#ffffff' })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  let W = info.width;
-  let H = info.height;
-  let rgb: Uint8Array = data;
-
-  if (edits.crop) {
-    const c = clampRect(edits.crop, W, H);
-    const out = new Uint8Array(c.w * c.h * 3);
-    for (let y = 0; y < c.h; y++) {
-      out.set(rgb.subarray(((c.y + y) * W + c.x) * 3, ((c.y + y) * W + c.x + c.w) * 3), y * c.w * 3);
-    }
-    rgb = out;
-    W = c.w;
-    H = c.h;
-  }
-
-  const bg = backgroundColour(rgb, W, H);
-  const n = W * H;
-  const alpha = new Float32Array(n);
-  const ink = new Uint8Array(n * 3);
-  const coloured = new Uint8Array(n);
-  for (let i = 0; i < n; i++) {
-    const r = rgb[i * 3];
-    const g = rgb[i * 3 + 1];
-    const b = rgb[i * 3 + 2];
-    const d = Math.hypot(r - bg[0], g - bg[1], b - bg[2]);
-    const a = Math.min(1, Math.max(0, (d - ALPHA_LO) / (ALPHA_HI - ALPHA_LO)));
-    alpha[i] = a;
-    if (a <= 0) continue;
-    // Un-mix: observed = a·ink + (1−a)·bg  →  ink = (observed − (1−a)·bg) / a
-    const ur = clamp255((r - (1 - a) * bg[0]) / a);
-    const ug = clamp255((g - (1 - a) * bg[1]) / a);
-    const ub = clamp255((b - (1 - a) * bg[2]) / a);
-    const chroma = Math.max(ur, ug, ub) - Math.min(ur, ug, ub);
-    if (chroma > COLOUR_CHROMA && a > 0.35) {
-      coloured[i] = 1;
-      ink[i * 3] = ur;
-      ink[i * 3 + 1] = ug;
-      ink[i * 3 + 2] = ub;
-    }
-  }
-
-  // Erase boxes are in original-screenshot pixels; shift them into the crop.
-  const ox = edits.crop ? clampRect(edits.crop, info.width, info.height).x : 0;
-  const oy = edits.crop ? clampRect(edits.crop, info.width, info.height).y : 0;
-  for (const e of edits.erase ?? []) {
-    const x0 = Math.max(0, Math.round(e.x - ox));
-    const y0 = Math.max(0, Math.round(e.y - oy));
-    const x1 = Math.min(W, Math.round(e.x - ox + e.w));
-    const y1 = Math.min(H, Math.round(e.y - oy + e.h));
-    for (let y = y0; y < y1; y++) if (x1 > x0) alpha.fill(0, y * W + x0, y * W + x1);
-  }
-
-  // Trim to the ink with a small margin.
-  const box = inkBox(alpha, W, H);
-  if (!box) throw new Error('No text found in this screenshot.');
-  const pad = Math.round(Math.max(4, (box.h > 0 ? box.h : H) * 0.02));
-  const t = clampRect({ x: box.x - pad, y: box.y - pad, w: box.w + 2 * pad, h: box.h + 2 * pad }, W, H);
-
-  const OW = t.w;
-  const OH = t.h;
-  const outA = new Float32Array(OW * OH);
-  const outRGBA = Buffer.alloc(OW * OH * 4);
-  const colourHist = new Map<number, { n: number; r: number; g: number; b: number }>();
-  for (let y = 0; y < OH; y++) {
-    for (let x = 0; x < OW; x++) {
-      const si = (t.y + y) * W + (t.x + x);
-      const oi = y * OW + x;
-      const a = alpha[si];
-      outA[oi] = a;
-      if (coloured[si]) {
-        outRGBA[oi * 4] = ink[si * 3];
-        outRGBA[oi * 4 + 1] = ink[si * 3 + 1];
-        outRGBA[oi * 4 + 2] = ink[si * 3 + 2];
-        // Bucket by coarse hue so each ink colour becomes one vector layer.
-        const key = hueBucket(ink[si * 3], ink[si * 3 + 1], ink[si * 3 + 2]);
-        const h = colourHist.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
-        h.n++;
-        h.r += ink[si * 3];
-        h.g += ink[si * 3 + 1];
-        h.b += ink[si * 3 + 2];
-        colourHist.set(key, h);
-      }
-      outRGBA[oi * 4 + 3] = Math.round(a * 255);
-    }
-  }
-
-  const bands = findBands(outA, OW, OH);
-  const heights = bands.map(([a, b]) => b - a).sort((p, q) => p - q);
-  const lineHeight = heights.length ? heights[heights.length >> 1] : OH;
-
-  const png = await sharp(outRGBA, { raw: { width: OW, height: OH, channels: 4 } }).png().toBuffer();
-  const svg = await traceLayers(outA, outRGBA, OW, OH, colourHist);
-  return { width: OW, height: OH, bands, lineHeight, png, svg };
-}
-
-const clamp255 = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
-
+const median = (a: number[]) => a.length ? [...a].sort((p, q) => p - q)[a.length >> 1] : 1;
+const clamp = (v: number) => Math.min(255, Math.max(0, Math.round(v)));
 function clampRect(r: Rect, W: number, H: number): Rect {
-  const x = Math.max(0, Math.min(W - 1, Math.round(r.x)));
-  const y = Math.max(0, Math.min(H - 1, Math.round(r.y)));
-  const w = Math.max(1, Math.min(W - x, Math.round(r.w)));
-  const h = Math.max(1, Math.min(H - y, Math.round(r.h)));
-  return { x, y, w, h };
+  const x = Math.min(W - 1, Math.max(0, Math.round(r.x)));
+  const y = Math.min(H - 1, Math.max(0, Math.round(r.y)));
+  return { x, y, w: Math.max(1, Math.min(W - x, Math.round(r.w))), h: Math.max(1, Math.min(H - y, Math.round(r.h))) };
 }
-
-function backgroundColour(rgb: Uint8Array, W: number, H: number): [number, number, number] {
-  const idx: number[] = [];
-  for (let x = 0; x < W; x++) idx.push(x, (H - 1) * W + x);
-  for (let y = 0; y < H; y++) idx.push(y * W, y * W + W - 1);
-  return [0, 1, 2].map((c) => {
-    const v = idx.map((i) => rgb[i * 3 + c]).sort((a, b) => a - b);
-    return v[v.length >> 1];
-  }) as [number, number, number];
+function background(rgb: Uint8Array, W: number, H: number): number[] {
+  const edges: number[] = [];
+  for (let x = 0; x < W; x++) edges.push(x, (H - 1) * W + x);
+  for (let y = 0; y < H; y++) edges.push(y * W, y * W + W - 1);
+  return [0, 1, 2].map((c) => median(edges.map((i) => rgb[i * 3 + c])));
 }
-
-function inkBox(alpha: Float32Array, W: number, H: number): Rect | null {
-  let x0 = W;
-  let y0 = H;
-  let x1 = -1;
-  let y1 = -1;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      if (alpha[y * W + x] > 0.3) {
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (y < y0) y0 = y;
-        if (y > y1) y1 = y;
-      }
-    }
+function box(alpha: Uint8Array, W: number, H: number, top = 0, bottom = H): Rect | null {
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = top; y < bottom; y++) for (let x = 0; x < W; x++) if (alpha[y * W + x] > 40) {
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
   }
   return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
 }
-
-/** Rows containing ink, grouped into text lines. */
-function findBands(alpha: Float32Array, W: number, H: number): [number, number][] {
-  // Columns that are inked over most of the height are rules (e.g. the bar
-  // between two misra columns); they would join every line, so skip them.
-  const skip = new Uint8Array(W);
+function erase(alpha: Uint8Array, W: number, H: number, r: Rect) {
+  const x0 = Math.max(0, Math.floor(r.x)), x1 = Math.min(W, Math.ceil(r.x + r.w));
+  for (let y = Math.max(0, Math.floor(r.y)); y < Math.min(H, Math.ceil(r.y + r.h)); y++) if (x1 > x0) alpha.fill(0, y * W + x0, y * W + x1);
+}
+/** Only long uninterrupted strokes qualify as rules. */
+function removeRules(alpha: Uint8Array, W: number, H: number) {
+  const vertical = Math.max(50, H * 0.23), horizontal = Math.max(100, W * 0.52);
+  const clear: Rect[] = [];
   for (let x = 0; x < W; x++) {
-    let c = 0;
-    for (let y = 0; y < H; y++) if (alpha[y * W + x] > 0.3) c++;
-    if (H > 60 && c > H * 0.55) skip[x] = 1;
+    let start = -1;
+    for (let y = 0; y <= H; y++) {
+      if (y < H && alpha[y * W + x] > 25) { if (start < 0) start = y; }
+      else if (start >= 0) { if (y - start > vertical) clear.push({ x: x - 1, y: start, w: 3, h: y - start }); start = -1; }
+    }
   }
-  const counts = new Array<number>(H).fill(0);
   for (let y = 0; y < H; y++) {
-    let c = 0;
-    for (let x = 0; x < W; x++) if (!skip[x] && alpha[y * W + x] > 0.3) c++;
-    counts[y] = c;
+    let start = -1;
+    for (let x = 0; x <= W; x++) {
+      if (x < W && alpha[y * W + x] > 25) { if (start < 0) start = x; }
+      else if (start >= 0) { if (x - start > horizontal) clear.push({ x: start, y: y - 1, w: x - start, h: 3 }); start = -1; }
+    }
   }
-  const sorted = [...counts].sort((a, b) => a - b);
-  const busy = sorted[Math.floor(sorted.length * 0.9)] || 1;
-  const minInk = Math.max(1, busy * 0.02);
-
+  // Confirm each candidate is an isolated thin component. A long kashida
+  // connected to real Arabic letters must not be mistaken for a page rule.
+  const visited = new Uint8Array(W * H);
+  for (const r of clear) {
+    const seed = r.h > r.w ? r.y * W + Math.min(W - 1, r.x + 1) : Math.min(H - 1, r.y + 1) * W + r.x;
+    if (visited[seed] || alpha[seed] <= 25) continue;
+    const pixels = [seed]; visited[seed] = 1;
+    let x0 = seed % W, x1 = x0, y0 = Math.floor(seed / W), y1 = y0;
+    for (let i = 0; i < pixels.length; i++) {
+      const p = pixels[i], x = p % W, y = Math.floor(p / W);
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+      for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, y > 0 ? p - W : -1, y < H - 1 ? p + W : -1]) {
+        if (q >= 0 && !visited[q] && alpha[q] > 25) { visited[q] = 1; pixels.push(q); }
+      }
+    }
+    const w = x1 - x0 + 1, h = y1 - y0 + 1;
+    if ((h > vertical && h / w > 25) || (w > horizontal && w / h > 25)) for (const p of pixels) alpha[p] = 0;
+  }
+}
+/** Attach detached dots/harakat only to nearby ink. */
+export function findBands(alpha: Uint8Array, W: number, H: number): [number, number][] {
   const raw: [number, number][] = [];
   let start = -1;
   for (let y = 0; y <= H; y++) {
-    const on = y < H && counts[y] >= minInk;
+    let count = 0;
+    if (y < H) for (let x = 0; x < W; x++) if (alpha[y * W + x] > 55) count++;
+    const on = count >= Math.max(2, W * 0.0015);
     if (on && start < 0) start = y;
-    if (!on && start >= 0) {
-      raw.push([start, y]);
-      start = -1;
-    }
+    if (!on && start >= 0) { raw.push([start, y]); start = -1; }
   }
-  if (raw.length <= 1) return raw;
-
-  const hs = raw.map(([a, b]) => b - a).sort((p, q) => p - q);
-  const typical = hs[Math.floor(hs.length * 0.75)];
-  // Slivers (dots, harakat above or below a line) join whichever line is closer.
-  const lines = raw.filter(([a, b]) => b - a >= typical * 0.35).map(([a, b]) => [a, b] as [number, number]);
-  if (!lines.length) return raw;
+  const tall = raw.map(([a, b]) => b - a).filter((h) => h >= 4).sort((a, b) => a - b);
+  const typical = tall[Math.floor(tall.length * 0.7)] ?? 10;
+  const main = raw.filter(([a, b]) => b - a >= typical * 0.4).map(([a, b]) => [a, b] as [number, number]);
+  if (!main.length) return raw;
   for (const [a, b] of raw) {
-    if (b - a >= typical * 0.35) continue;
-    let best = lines[0];
-    let bestGap = Infinity;
-    for (const l of lines) {
-      const gap = a >= l[1] ? a - l[1] : l[0] >= b ? l[0] - b : 0;
-      if (gap < bestGap) {
-        bestGap = gap;
-        best = l;
-      }
-    }
-    best[0] = Math.min(best[0], a);
-    best[1] = Math.max(best[1], b);
+    if (b - a >= typical * 0.4) continue;
+    const nearest = main.map((l) => ({ l, gap: Math.max(0, a - l[1], l[0] - b) })).sort((a, b) => a.gap - b.gap)[0];
+    if (nearest.gap <= typical * 0.5) { nearest.l[0] = Math.min(nearest.l[0], a); nearest.l[1] = Math.max(nearest.l[1], b); }
   }
-  lines.sort((p, q) => p[0] - q[0]);
-  // Lines that now touch or overlap become one.
   const merged: [number, number][] = [];
-  for (const l of lines) {
-    const last = merged[merged.length - 1];
-    if (last && l[0] - last[1] < typical * 0.12) last[1] = Math.max(last[1], l[1]);
-    else merged.push(l);
+  for (const band of main.sort((a, b) => a[0] - b[0])) {
+    const last = merged.at(-1);
+    if (last && band[0] <= last[1]) last[1] = Math.max(last[1], band[1]); else merged.push(band);
   }
   return merged;
 }
-
-function hueBucket(r: number, g: number, b: number): number {
-  const mx = Math.max(r, g, b);
-  const mn = Math.min(r, g, b);
-  const d = mx - mn || 1;
-  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  h = (h * 60 + 360) % 360;
-  return Math.round(h / 30) % 12;
-}
-
-async function traceMask(mask: Uint8Array, W: number, H: number, fill: string): Promise<string> {
-  // Upscale small screenshots before tracing so curves come out smooth.
-  const scale = W < 1600 ? 2 : 1;
-  const buf = await sharp(Buffer.from(mask), { raw: { width: W, height: H, channels: 1 } })
-    .resize(W * scale, H * scale, { kernel: 'lanczos3' })
-    .png()
-    .toBuffer();
-  const p = new potrace.Potrace();
-  await new Promise<void>((res, rej) => p.loadImage(buf, (e: Error | null) => (e ? rej(e) : res())));
-  p.setParameters({ threshold: 128, turdSize: 3 * scale, optTolerance: 0.3, alphaMax: 1.0 });
-  const tag = p.getPathTag(fill);
-  return scale === 1 ? tag : `<g transform="scale(${1 / scale})">${tag}</g>`;
-}
-
-async function traceLayers(
-  alpha: Float32Array,
-  rgba: Buffer,
-  W: number,
-  H: number,
-  colours: Map<number, { n: number; r: number; g: number; b: number }>,
-): Promise<string> {
-  const n = W * H;
-  // potrace traces dark-on-light, so masks are 255 = paper, 0 = ink.
-  const neutral = new Uint8Array(n).fill(255);
-  const layers = [...colours.entries()].filter(([, c]) => c.n > 40);
-  const colourMasks = new Map(layers.map(([k]) => [k, new Uint8Array(n).fill(255)]));
-  for (let i = 0; i < n; i++) {
-    const a = alpha[i];
-    if (a <= 0) continue;
-    const v = 255 - Math.round(a * 255);
-    const hasColour = rgba[i * 4] + rgba[i * 4 + 1] + rgba[i * 4 + 2] > 0;
-    const m = hasColour ? colourMasks.get(hueBucket(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2])) : undefined;
-    (m ?? neutral)[i] = v;
+export async function cleanScreenshot(input: Buffer, edits: Edits = {}): Promise<InkResult> {
+  const { data, info } = await sharp(input, { limitInputPixels: 20_000_000 }).rotate().flatten({ background: '#fff' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const crop = clampRect(edits.crop ?? { x: 0, y: 0, w: info.width, h: info.height }, info.width, info.height);
+  const W = crop.w, H = crop.h;
+  const rgb = new Uint8Array(W * H * 3);
+  for (let y = 0; y < H; y++) rgb.set(data.subarray(((y + crop.y) * info.width + crop.x) * 3, ((y + crop.y) * info.width + crop.x + W) * 3), y * W * 3);
+  const bg = background(rgb, W, H), dark = Math.max(...bg) < 128;
+  const alpha = new Uint8Array(W * H), colors = new Uint8Array(W * H * 3);
+  for (let i = 0; i < alpha.length; i++) {
+    const channels = [rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2]];
+    // True coverage preserves grey antialiased edges rather than turning them
+    // all solid black (the former crayon effect).
+    const coverage = Math.max(...channels.map((v, c) => dark ? (v - bg[c]) / Math.max(1, 255 - bg[c]) : (bg[c] - v) / Math.max(1, bg[c])));
+    if (coverage < 0.045) continue;
+    alpha[i] = clamp(coverage * 255);
+    if (Math.max(...channels) - Math.min(...channels) > 45) {
+      const a = Math.max(coverage, 0.01);
+      for (let c = 0; c < 3; c++) colors[i * 3 + c] = clamp((channels[c] - (1 - a) * bg[c]) / a);
+    }
   }
-  const parts = [await traceMask(neutral, W, H, '#000000')];
-  for (const [k, c] of layers) {
-    const hex = '#' + [c.r, c.g, c.b].map((v) => Math.round(v / c.n).toString(16).padStart(2, '0')).join('');
-    parts.push(await traceMask(colourMasks.get(k)!, W, H, hex));
+  for (const r of edits.erase ?? []) erase(alpha, W, H, { ...r, x: r.x - crop.x, y: r.y - crop.y });
+  if (edits.autoClean !== false) removeRules(alpha, W, H);
+  const warnings: string[] = [];
+  let bands = findBands(alpha, W, H);
+  const typical = median(bands.map(([a, b]) => b - a));
+  if (edits.autoClean !== false) for (const [a, b] of bands) {
+    if ((a <= 1 || b >= H - 1) && b - a < typical * 0.55) erase(alpha, W, H, { x: 0, y: a, w: W, h: b - a });
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${parts.join('')}</svg>`;
+  const makePng = async (white: boolean) => {
+    const rgba = Buffer.alloc(W * H * 4);
+    for (let i = 0; i < alpha.length; i++) {
+      const a = alpha[i] / 255;
+      for (let c = 0; c < 3; c++) rgba[i * 4 + c] = white ? clamp(colors[i * 3 + c] * a + 255 * (1 - a)) : colors[i * 3 + c];
+      rgba[i * 4 + 3] = white ? 255 : alpha[i];
+    }
+    return sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
+  };
+  let suggestedName = '', recognitionConfidence = 0;
+  try {
+    const recognized = await recognize(await makePng(true));
+    suggestedName = recognized.name; recognitionConfidence = recognized.confidence;
+    if (edits.autoClean !== false) for (const r of recognized.numbers) erase(alpha, W, H, { x: r.x - 2, y: r.y - 2, w: r.w + 4, h: r.h + 4 });
+  } catch (error) {
+    console.error('Index recognition unavailable:', error);
+    warnings.push('Automatic page-number detection was unavailable. Check for screenshot page numbers.');
+  }
+  bands = findBands(alpha, W, H);
+  if (edits.autoClean !== false && bands.length) {
+    const keep = new Uint8Array(H);
+    for (const [a, b] of bands) keep.fill(1, a, b);
+    for (let y = 0; y < H; y++) if (!keep[y]) erase(alpha, W, H, { x: 0, y, w: W, h: 1 });
+  }
+  const bounds = box(alpha, W, H);
+  if (!bounds) throw new Error('No complete text found. Try a screenshot containing a complete verse.');
+  const padding = Math.max(3, Math.round(typical * 0.09));
+  const t = clampRect({ x: bounds.x - padding, y: bounds.y - padding, w: bounds.w + padding * 2, h: bounds.h + padding * 2 }, W, H);
+  const png = await sharp(await makePng(false)).extract({ left: t.x, top: t.y, width: t.w, height: t.h }).png().toBuffer();
+  const finalBands = bands.map(([a, b]) => [Math.max(0, a - t.y), Math.min(t.h, b - t.y)] as [number, number]).filter(([a, b]) => b > a);
+  const gaps = finalBands.slice(1).map(([a], i) => a - finalBands[i][1]);
+  const normalGap = median(gaps.filter((g) => g > 0));
+  const paragraphBreaks = gaps.some((g) => g > normalGap * 1.8);
+  let group = 0, inGroup = 0;
+  const regions = finalBands.map(([a, b], i): Region => {
+    if (i && ((!paragraphBreaks && inGroup >= 2) || a - finalBands[i - 1][1] > normalGap * 1.8)) { group++; inGroup = 0; }
+    inGroup++;
+    const ink = box(alpha, W, H, a + t.y, b + t.y)!;
+    const x = Math.max(0, ink.x - t.x - padding), y = Math.max(0, a - padding);
+    return { x, y, w: Math.min(t.w - x, ink.w + padding * 2), h: Math.min(t.h, b + padding) - y, lineHeight: b - a, group };
+  });
+  const first = regions[0];
+  // The index can use the actual opening words as a transparent image. This
+  // fills Urdu names faithfully even when OCR cannot transcribe Nastaliq.
+  const columns: [number, number][] = [];
+  let run = -1;
+  for (let x = first.x; x <= first.x + first.w; x++) {
+    let ink = 0;
+    if (x < first.x + first.w) for (let y = first.y; y < first.y + first.h; y++) if (alpha[(y + t.y) * W + x + t.x] > 55) ink++;
+    if (ink && run < 0) run = x;
+    if (!ink && run >= 0) { columns.push([run, x]); run = -1; }
+  }
+  const words: [number, number][] = [];
+  for (const c of columns) {
+    const previous = words.at(-1);
+    if (previous && c[0] - previous[1] < first.lineHeight * 0.16) previous[1] = c[1]; else words.push([...c]);
+  }
+  const selected = words.length > 6 ? words.slice(-4) : words;
+  const opening: Rect = selected.length ? { x: Math.max(0, selected[0][0] - padding), y: first.y, w: Math.min(t.w, selected.at(-1)![1] + padding) - Math.max(0, selected[0][0] - padding), h: first.h } : first;
+  if (median(finalBands.map(([a, b]) => b - a)) < 20) warnings.push('Low-resolution source: a larger original screenshot or PDF will print more clearly.');
+  // Compatibility for old thumbnails; lossless source ink, no curve fitting.
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${t.w}" height="${t.h}" viewBox="0 0 ${t.w} ${t.h}"><image width="${t.w}" height="${t.h}" href="data:image/png;base64,${png.toString('base64')}"/></svg>`;
+  return { width: t.w, height: t.h, bands: finalBands, lineHeight: median(finalBands.map(([a, b]) => b - a)), regions, opening, suggestedName, recognitionConfidence, warnings, png, svg };
 }

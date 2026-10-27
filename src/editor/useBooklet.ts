@@ -17,6 +17,7 @@ import {
   uid,
 } from '../booklet/model';
 import { api } from './api';
+import { loadBookletBackup, loadDefaultsBackup, saveBookletBackup } from './cache';
 
 export const todayIso = () => {
   const d = new Date();
@@ -24,6 +25,7 @@ export const todayIso = () => {
 };
 
 const HISTORY = 60;
+const imageGeometry = (m: MediaMeta) => ({ mediaId: m.id, rev: m.rev, width: m.width, height: m.height, bands: m.bands, lineHeight: m.lineHeight, regions: m.regions, opening: m.opening, format: m.format, suggestedName: m.suggestedName, warnings: m.warnings });
 
 const mapKalams = (d: Booklet, fn: (k: Kalam) => Kalam): Booklet => ({
   ...d,
@@ -36,31 +38,55 @@ export function useBooklet() {
   const [doc, setDocState] = useState<Booklet | null>(null);
   const [defaults, setDefaults] = useState<Defaults>({});
   const [saved, setSaved] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const past = useRef<Booklet[]>([]);
   const future = useRef<Booklet[]>([]);
   const matam = useRef<MediaMeta | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [stored, defs, m] = await Promise.all([api.loadBooklet(), api.loadDefaults(), api.media(MATAM_MEDIA_ID)]);
+      const [remoteDoc, remoteDefs, m, localDoc, localDefs] = await Promise.all([api.loadBooklet(), api.loadDefaults(), api.media(MATAM_MEDIA_ID), loadBookletBackup(), loadDefaultsBackup()]);
+      const stored = remoteDoc ?? localDoc;
+      const defs = Object.keys(remoteDefs).length ? remoteDefs : localDefs ?? remoteDefs;
       matam.current = m;
-      setDefaults(defs);
+      const ids = new Set(Object.values(stored?.kalams ?? {}).flatMap((ks) => ks.flatMap((k) => k.blocks.filter((b) => b.kind === 'image').map((b) => b.mediaId))));
+      Object.values(defs).forEach((v) => v.blocks.forEach((b) => { if (b.kind === 'image') ids.add(b.mediaId); }));
+      const allBlocks = [...Object.values(stored?.kalams ?? {}).flatMap((ks) => ks.flatMap((k) => k.blocks)), ...Object.values(defs).flatMap((d) => d.blocks)];
+      const media = new Map((await Promise.all([...ids].map(async (id) => {
+        let meta: MediaMeta | null = await api.media(id);
+        const block = allBlocks.find((b) => b.kind === 'image' && b.mediaId === id);
+        if (!meta && block?.kind === 'image') meta = await api.recover(block).catch(() => null);
+        return [id, meta] as const;
+      }))));
+      const refresh = (blocks: Block[]) => blocks.map((b): Block => {
+        if (b.kind !== 'image') return b;
+        const meta = media.get(b.mediaId);
+        return meta ? { ...b, ...imageGeometry(meta) } : { ...b, warnings: ['The original screenshot is missing. Please add it again.'] };
+      });
+      const refreshedDefaults = Object.fromEntries(Object.entries(defs).map(([key, value]) => [key, { ...value, blocks: refresh(value.blocks) }]));
+      setDefaults(refreshedDefaults);
+      if (JSON.stringify(defs) !== JSON.stringify(refreshedDefaults)) await api.saveDefaults(refreshedDefaults);
       // Each session starts on today's date; content carries over from last time.
       if (stored?.version === 2) {
         // Fixed content always follows the current version on disk.
         const fresh = createBooklet(todayIso(), stored.venue, {}, m);
-        setDocState({ ...stored, date: todayIso(), kalams: { ...stored.kalams, matam: fresh.kalams.matam, salamArz: fresh.kalams.salamArz } });
+        const refreshed = mapKalams(stored, (k) => {
+          const blocks = refresh(k.blocks);
+          return { ...k, blocks };
+        });
+        setDocState({ ...refreshed, date: todayIso(), kalams: { ...refreshed.kalams, matam: fresh.kalams.matam, salamArz: fresh.kalams.salamArz } });
       } else {
-        setDocState(createBooklet(todayIso(), 'haram', defs, m));
+        setDocState(createBooklet(todayIso(), 'haram', refreshedDefaults, m));
       }
-    })();
+    })().catch((error: Error) => setLoadError(error.message));
   }, []);
 
   // Autosave half a second after the last change.
   useEffect(() => {
     if (!doc) return;
     setSaved(false);
-    const t = setTimeout(() => api.saveBooklet(doc).then(() => setSaved(true)), 500);
+    void saveBookletBackup(doc);
+    const t = setTimeout(() => api.saveBooklet(doc).then((r) => { if (r.ok) setSaved(true); }).catch(console.error), 500);
     return () => clearTimeout(t);
   }, [doc]);
 
@@ -134,7 +160,7 @@ export function useBooklet() {
   const replaceMedia = useCallback(
     (m: MediaMeta) => {
       const patch = (b: Block): Block =>
-        b.kind === 'image' && b.mediaId === m.id ? { ...b, rev: m.rev, width: m.width, height: m.height, bands: m.bands, lineHeight: m.lineHeight } : b;
+        b.kind === 'image' && b.mediaId === m.id ? { ...b, ...imageGeometry(m) } : b;
       setDoc((d) => mapKalams(d, (k) => ({ ...k, blocks: k.blocks.map(patch) })));
       const touched = Object.values(defaults).some((v) => v.blocks.some((b) => b.kind === 'image' && b.mediaId === m.id));
       if (touched) {
@@ -190,7 +216,7 @@ export function useBooklet() {
     [setDoc],
   );
 
-  return { doc, setDoc, defaults, saved, undo, redo, updateKalams, updateKalam, pin, unpin, replaceMedia, reset, textEdits, addTextBox };
+  return { doc, loadError, setDoc, defaults, saved, undo, redo, updateKalams, updateKalam, pin, unpin, replaceMedia, reset, textEdits, addTextBox };
 }
 
 export type BookletState = ReturnType<typeof useBooklet>;

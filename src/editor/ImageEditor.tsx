@@ -21,7 +21,7 @@ export function ImageEditor({ block, onClose, onApplied }: Props) {
   const start = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    api.media(block.mediaId).then((m) => m && setEdits({ erase: m.edits?.erase ?? [], crop: m.edits?.crop }));
+    api.media(block.mediaId).then((m) => m && setEdits({ erase: m.edits?.erase ?? [], crop: m.edits?.crop, autoClean: m.edits?.autoClean }));
   }, [block.mediaId]);
 
   useEffect(() => {
@@ -74,6 +74,7 @@ export function ImageEditor({ block, onClose, onApplied }: Props) {
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-bar">
+          <label><input type="checkbox" checked={edits.autoClean !== false} onChange={(e) => setEdits((v) => ({ ...v, autoClean: e.target.checked }))} /> Remove stray marks automatically</label>
           <div className="seg">
             <button className={mode === 'erase' ? 'on' : ''} onClick={() => setMode('erase')}>
               Erase marks

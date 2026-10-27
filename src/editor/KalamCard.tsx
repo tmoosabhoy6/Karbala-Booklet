@@ -82,7 +82,7 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
             className="kalam-name"
             dir="rtl"
             value={kalam.name}
-            placeholder="Fihrist name: first words of the first verse"
+            placeholder={kalam.blocks[0]?.kind === 'image' && kalam.blocks[0].opening ? 'Opening verse fills fihrist automatically · type to replace' : 'Fihrist name: first words of the first verse'}
             onChange={(e) => updateKalam(category, kalam.id, (k) => ({ ...k, name: e.target.value }))}
           />
         )}
@@ -202,6 +202,7 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
                     ✕
                   </button>
                 </div>
+                {b.kind === 'image' && !!b.warnings?.length && <small className="image-warning">{b.warnings.join(' ')}</small>}
               </div>
             ))}
             {Array.from({ length: uploads }, (_, i) => (

@@ -1,9 +1,11 @@
 import { arabicNumber, dateLine, raatTitle } from '../lib/hijri';
-import { useMemo } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 import { EditContext, Editable, TextBoxView, TextEdits } from './Editable';
 import { Booklet as Doc, CATEGORY_LABEL, ImageBlock, TextBox, VENUES } from './model';
 import { FihristItem, Layout, PAGE, Page, PlacedItem, imageWidthPt, ptPerPx } from './paginate';
 import './booklet.css';
+import { mediaSrc } from './media';
+export { mediaSrc } from './media';
 
 // Every piece of generated text is wrapped in <Editable>. Its id says where the
 // text sits; ids starting cover./fihrist./line. are template wording that a new
@@ -11,7 +13,18 @@ import './booklet.css';
 
 const A = '/assets';
 
-export const mediaSrc = (b: ImageBlock) => `/media/${b.mediaId}.svg?v=${b.rev}`;
+const MediaContext = createContext<Record<string, string>>({});
+
+function OpeningWords({ block }: { block: ImageBlock }) {
+  const assets = useContext(MediaContext);
+  const r = block.opening;
+  if (!r) return null;
+  const s = Math.min(218 / r.w, 24 / r.h);
+  const src = mediaSrc(block);
+  return <span className="opening-words" style={{ width: `${r.w * s}pt`, height: `${r.h * s}pt` }}>
+    <img src={assets[src] ?? src} alt="Opening verse (click Edit text to replace its fihrist name)" style={{ position: 'absolute', maxWidth: 'none', width: `${block.width * s}pt`, height: `${block.height * s}pt`, left: `${-r.x * s}pt`, top: `${-r.y * s}pt` }} />
+  </span>;
+}
 
 function Logos({ karbalaWidth, faizHeight }: { karbalaWidth: number; faizHeight: number }) {
   return (
@@ -92,7 +105,7 @@ function FihristEntry({ item }: { item: FihristItem }) {
                       // Fixed content is rebuilt on load, so its name is edited as an override.
                       <Editable id={`fihrist.name.${k.id}`} text={k.name} plain />
                     ) : (
-                      <Editable text={k.name} plain onCommit={(e, t) => e.kalamName(k.id, t)} />
+                      <Editable text={k.name} plain fallback={k.opening?.opening ? <OpeningWords block={k.opening} /> : undefined} onCommit={(e, t) => e.kalamName(k.id, t)} />
                     )}
                   </span>
                 </span>
@@ -136,13 +149,17 @@ function Fihrist({ page }: { page: Extract<Page, { kind: 'fihrist' }> }) {
   );
 }
 
-function CroppedImage({ block, crop, height, anchor, titleLink }: { block: ImageBlock; crop?: [number, number]; height: number; anchor?: string; titleLink?: boolean }) {
-  const w = imageWidthPt(block);
-  const s = ptPerPx(block);
-  const top = crop ? crop[0] * s : 0;
+function CroppedImage({ item }: { item: Extract<PlacedItem, { kind: 'block' }> & { block: ImageBlock } }) {
+  const { block, crop, height, anchor, titleLink, imageRect, imageScale } = item;
+  const assets = useContext(MediaContext);
+  const s = imageScale ?? ptPerPx(block);
+  const w = imageRect ? imageRect.w * s : imageWidthPt(block);
+  const top = (imageRect?.y ?? crop?.[0] ?? 0) * s;
+  const left = (imageRect?.x ?? 0) * s;
+  const source = mediaSrc(block);
   return (
-    <div className="block-img" id={anchor} style={{ width: `${w}pt`, height: `${height}pt` }}>
-      <img src={mediaSrc(block)} style={{ width: `${w}pt`, height: `${block.height * s}pt`, marginTop: `${-top}pt` }} alt="" />
+    <div className="block-img" id={anchor} style={{ width: `${w}pt`, height: `${height}pt`, marginBottom: item.gap === undefined ? undefined : `${item.gap}pt` }}>
+      <img src={assets[source] ?? source} style={{ position: 'absolute', left: `${-left}pt`, top: `${-top}pt`, width: `${block.width * s}pt`, height: `${block.height * s}pt` }} alt="Verse artwork" />
       {titleLink && <a className="title-link" href="#fihrist" aria-label="فهرست" />}
     </div>
   );
@@ -160,12 +177,14 @@ function Item({ item }: { item: PlacedItem }) {
       );
     case 'block':
       if (item.block.kind === 'image') {
-        return <CroppedImage block={item.block} crop={item.crop} height={item.height} anchor={item.anchor} titleLink={item.titleLink} />;
+        return <CroppedImage item={{ ...item, block: item.block }} />;
       }
       const { id, text, sizePt } = item.block;
       return (
         <div className="block-text" id={item.anchor} style={{ fontSize: `${sizePt}pt` }}>
-          {text.split('\n').map((line, i) => (
+          {text.split('\n').slice(item.textStart, item.textEnd).map((line, row) => {
+            const i = row + (item.textStart ?? 0);
+            return (
             <div className="line" key={i}>
               {item.fixed ? (
                 <Editable id={`line.${id}.${i}`} text={line} />
@@ -173,7 +192,7 @@ function Item({ item }: { item: PlacedItem }) {
                 <Editable text={line} onCommit={(e, t) => e.textLine(id, i, t)} />
               )}
             </div>
-          ))}
+          ); })}
         </div>
       );
     case 'separator':
@@ -228,9 +247,10 @@ interface ViewProps {
   edits?: TextEdits;
   /** While set, a click on a page places a new text box there (x, y in pt). */
   onPlace?: (page: number, x: number, y: number) => void;
+  assets?: Record<string, string>;
 }
 
-export function BookletView({ doc, layout, edits, onPlace }: ViewProps) {
+export function BookletView({ doc, layout, edits, onPlace, assets = {} }: ViewProps) {
   const ctx = useMemo(() => ({ overrides: doc.overrides ?? {}, edits }), [doc.overrides, edits]);
   const boxes = useMemo(() => {
     const byPage = new Map<number, TextBox[]>();
@@ -250,6 +270,7 @@ export function BookletView({ doc, layout, edits, onPlace }: ViewProps) {
 
   return (
     <EditContext.Provider value={ctx}>
+      <MediaContext.Provider value={assets}>
       <div className={`booklet${edits ? ' text-editing' : ''}${onPlace ? ' placing' : ''}`}>
         {layout.pages.map((page, i) => (
           <section
@@ -264,6 +285,7 @@ export function BookletView({ doc, layout, edits, onPlace }: ViewProps) {
           </section>
         ))}
       </div>
+      </MediaContext.Provider>
     </EditContext.Provider>
   );
 }

@@ -116,7 +116,7 @@ function Field({ initial, multiline, className, style, fieldRef, onSave, onCance
   );
 }
 
-type EditableProps = { text: string; plain?: boolean } & (
+type EditableProps = { text: string; plain?: boolean; fallback?: ReactNode } & (
   | { id: string; onCommit?: never }
   | { id?: never; onCommit: (edits: TextEdits, text: string) => void }
 );
@@ -126,7 +126,7 @@ type EditableProps = { text: string; plain?: boolean } & (
  * override of `text`; with `onCommit`, it is written back to the source (a
  * kalam's name, a typed-text line). `plain` drops the {as}/{saw} marks.
  */
-export function Editable({ id, text, plain, onCommit }: EditableProps) {
+export function Editable({ id, text, plain, onCommit, fallback }: EditableProps) {
   const { overrides, edits } = useContext(EditContext);
   const [editing, setEditing] = useState(false);
   const field = useRef<HTMLSpanElement>(null);
@@ -137,7 +137,7 @@ export function Editable({ id, text, plain, onCommit }: EditableProps) {
   const shown = live ? live.text : text;
   const scale = live?.scale ?? 1;
   const style = scale !== 1 ? { fontSize: `${Math.round(scale * 100)}%` } : undefined;
-  const view = plain ? stripMarkup(shown) : <RichText text={shown} />;
+  const view = !shown && fallback ? fallback : plain ? stripMarkup(shown) : <RichText text={shown} />;
 
   if (!edits) return style ? <span style={style}>{view}</span> : <>{view}</>;
 
