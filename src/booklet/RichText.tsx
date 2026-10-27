@@ -1,7 +1,7 @@
 import { Fragment, ReactNode } from 'react';
 
 // Inline markup for booklet text:
-//   {as}  → small «ع م» (alayhis-salaam), ع raised and م smaller below it
+//   {as}  → small «ع م» (alayhis-salaam), ع raised and م the same size below it
 //   {saw} → small «صلع» (salla Allahu alayhi wa aalihi), same style
 //   (Latin text) → set in a Latin face; Kanz al-Marjaan draws 0–9 as Arabic digits
 const TOKEN = /(\{as\}|\{saw\}|\([A-Za-z][^)]*\))/;

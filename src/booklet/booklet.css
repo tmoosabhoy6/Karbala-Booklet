@@ -105,7 +105,7 @@
   white-space: nowrap;
 }
 
-/* The small «ع م» (alayhis-salaam) mark: ع raised, م smaller and lower. */
+/* The small «ع م» (alayhis-salaam) mark: ع raised, م the same size and lower. */
 .honorific {
   font-size: 62%;
   display: inline-block;
@@ -115,7 +115,6 @@
 }
 
 .honorific .m {
-  font-size: 80%;
   display: inline-block;
   vertical-align: -0.55em;
   margin-right: 0.15em;
