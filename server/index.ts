@@ -16,6 +16,7 @@ import { PROCESSOR_VERSION } from './ink';
 import { closeRecognition } from './recognize';
 import { restorationJob, restorationStatus, startRestoration } from './restore';
 import { heavyWork } from './resources';
+import { validScript } from './lettering';
 
 const PORT = Number(process.env.PORT ?? 3001);
 // 0.0.0.0 when hosted (or to reach it from a phone on the same Wi-Fi).
@@ -63,7 +64,11 @@ const route =
     });
 
 app.get('/api/ai/status', (_req, res) => res.json(restorationStatus()));
-app.post('/api/media/:id/restore', route(async (req, res) => res.json(await startRestoration(req.params.id))));
+app.post('/api/media/:id/restore', route(async (req, res) => {
+  const script = req.body?.script ?? 'auto';
+  if (!validScript(script)) return res.status(400).send('Choose a supported lettering style.');
+  res.json(await startRestoration(req.params.id, script));
+}));
 app.get('/api/ai/jobs/:id', (req, res) => {
   const job = restorationJob(req.params.id);
   if (!job) return res.status(404).send('Restoration not found.');

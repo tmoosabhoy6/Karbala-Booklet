@@ -3,7 +3,7 @@
 import sharp from 'sharp';
 import { recognize } from './recognize';
 
-export const PROCESSOR_VERSION = 6;
+export const PROCESSOR_VERSION = 7;
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface Edits { crop?: Rect; erase?: Rect[]; autoClean?: boolean }
 export interface Region extends Rect { lineHeight: number; group: number }
@@ -74,7 +74,7 @@ function removeRules(alpha: Uint8Array, W: number, H: number) {
   }
 }
 /** Attach detached dots/harakat only to nearby ink. */
-export function findBands(alpha: Uint8Array, W: number, H: number): [number, number][] {
+export function findBands(alpha: Uint8Array, W: number, H: number, attachMarks = true): [number, number][] {
   const raw: [number, number][] = [];
   let start = -1;
   for (let y = 0; y <= H; y++) {
@@ -84,6 +84,7 @@ export function findBands(alpha: Uint8Array, W: number, H: number): [number, num
     if (on && start < 0) start = y;
     if (!on && start >= 0) { raw.push([start, y]); start = -1; }
   }
+  if (!attachMarks) return raw;
   const tall = raw.map(([a, b]) => b - a).filter((h) => h >= 4).sort((a, b) => a - b);
   const typical = tall[Math.floor(tall.length * 0.7)] ?? 10;
   const main = raw.filter(([a, b]) => b - a >= typical * 0.4).map(([a, b]) => [a, b] as [number, number]);
@@ -91,7 +92,9 @@ export function findBands(alpha: Uint8Array, W: number, H: number): [number, num
   for (const [a, b] of raw) {
     if (b - a >= typical * 0.4) continue;
     const nearest = main.map((l) => ({ l, gap: Math.max(0, a - l[1], l[0] - b) })).sort((a, b) => a.gap - b.gap)[0];
-    if (nearest.gap <= typical * 0.5) { nearest.l[0] = Math.min(nearest.l[0], a); nearest.l[1] = Math.max(nearest.l[1], b); }
+    // Detached dots and vowel marks are part of the lettering. Geometry may
+    // attach them to the nearest row, but must never silently discard them.
+    nearest.l[0] = Math.min(nearest.l[0], a); nearest.l[1] = Math.max(nearest.l[1], b);
   }
   const merged: [number, number][] = [];
   for (const band of main.sort((a, b) => a[0] - b[0])) {
@@ -122,12 +125,16 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
   }
   for (const r of edits.erase ?? []) erase(alpha, W, H, { ...r, x: r.x - crop.x, y: r.y - crop.y });
   if (edits.autoClean !== false) removeRules(alpha, W, H);
+  if (edits.autoClean !== false) {
+    const raw = findBands(alpha, W, H, false);
+    const typical = median(raw.map(([a, b]) => b - a).filter((h) => h >= 10));
+    for (const [a, b] of raw) {
+      if ((a <= 1 || b >= H - 1) && b - a < typical * 0.55) erase(alpha, W, H, { x: 0, y: a, w: W, h: b - a });
+    }
+  }
   const warnings: string[] = [];
   let bands = findBands(alpha, W, H);
   const typical = median(bands.map(([a, b]) => b - a));
-  if (edits.autoClean !== false) for (const [a, b] of bands) {
-    if ((a <= 1 || b >= H - 1) && b - a < typical * 0.55) erase(alpha, W, H, { x: 0, y: a, w: W, h: b - a });
-  }
   const makePng = async (white: boolean) => {
     const rgba = Buffer.alloc(W * H * 4);
     for (let i = 0; i < alpha.length; i++) {
@@ -147,11 +154,8 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
     warnings.push('Automatic page-number detection was unavailable. Check for screenshot page numbers.');
   }
   bands = findBands(alpha, W, H);
-  if (edits.autoClean !== false && bands.length) {
-    const keep = new Uint8Array(H);
-    for (const [a, b] of bands) keep.fill(1, a, b);
-    for (let y = 0; y < H; y++) if (!keep[y]) erase(alpha, W, H, { x: 0, y, w: W, h: 1 });
-  }
+  // Row detection controls pagination, not which pixels are allowed to exist.
+  // Erasing everything outside detected rows destroyed isolated Urdu dots.
   const bounds = box(alpha, W, H);
   if (!bounds) throw new Error('No complete text found. Try a screenshot containing a complete verse.');
   const padding = Math.max(3, Math.round(typical * 0.09));

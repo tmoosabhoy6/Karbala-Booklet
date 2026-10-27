@@ -9,8 +9,8 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  aiStatus: () => fetch('/api/ai/status').then((r) => json<{ configured: boolean; model: string }>(r)),
-  restore: (id: string) => fetch(`/api/media/${id}/restore`, { method: 'POST' }).then((r) => json<RestorationJob>(r)),
+  aiStatus: () => fetch('/api/ai/status').then((r) => json<{ configured: boolean; model: string; referenceBank: { documents: number; pages: number } }>(r)),
+  restore: (id: string, script = 'auto') => fetch(`/api/media/${id}/restore`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script }) }).then((r) => json<RestorationJob>(r)),
   restorationJob: (id: string) => fetch(`/api/ai/jobs/${id}`).then((r) => json<RestorationJob>(r)),
   upload: async (file: Blob) => {
     const meta = await fetch('/api/media', { method: 'POST', body: file }).then((r) => json<MediaMeta>(r));

@@ -5,7 +5,6 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { cleanScreenshot, Edits, PROCESSOR_VERSION, Region } from './ink';
-import { vectorInk } from './vector';
 import { heavyWork } from './resources';
 
 export const DATA = path.resolve(process.env.DATA_DIR ?? 'data');
@@ -27,6 +26,7 @@ export interface MediaMeta {
   recognitionConfidence?: number;
   warnings?: string[];
   opening?: { x: number; y: number; w: number; h: number };
+  restoration?: { sourceId: string; sourceRev: number; model: string; referenceVersion: number };
 }
 
 const metaPath = (id: string) => path.join(MEDIA, `${id}.json`);
@@ -35,14 +35,15 @@ const safeId = (id: string) => {
   return id;
 };
 
-function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number): Promise<MediaMeta> {
-  return heavyWork(() => processImage(id, original, edits, rev));
+function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration']): Promise<MediaMeta> {
+  return heavyWork(() => processImage(id, original, edits, rev, restoration));
 }
-async function processImage(id: string, original: Buffer, edits: Edits, rev: number): Promise<MediaMeta> {
-  const r = await cleanScreenshot(original, edits, { ocr: id !== 'fixed-matam' });
-  const { png, svg: rasterSvg, ...geometry } = r;
-  const svg = id === 'fixed-matam' ? rasterSvg : await vectorInk(png);
-  const meta: MediaMeta = { id, rev, ...geometry, edits, processorVersion: PROCESSOR_VERSION, format: id === 'fixed-matam' ? 'png' : 'svg' };
+async function processImage(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration']): Promise<MediaMeta> {
+  const r = await cleanScreenshot(original, edits, { ocr: id !== 'fixed-matam' && !restoration });
+  const { png, svg, ...geometry } = r;
+  // A 50% tracing threshold erased faint hairlines and small dots. Export the
+  // antialiased ink itself, including high-resolution generated drafts.
+  const meta: MediaMeta = { id, rev, ...geometry, edits, restoration, processorVersion: PROCESSOR_VERSION, format: 'png' };
   await Promise.all([
     writeFile(path.join(MEDIA, `${id}.png`), png),
     writeFile(path.join(MEDIA, `${id}.svg`), svg),
@@ -54,10 +55,10 @@ async function processImage(id: string, original: Buffer, edits: Edits, rev: num
   return meta;
 }
 
-export async function addMedia(original: Buffer, id: string = randomUUID()): Promise<MediaMeta> {
+export async function addMedia(original: Buffer, id: string = randomUUID(), options: { edits?: Edits; restoration?: MediaMeta['restoration'] } = {}): Promise<MediaMeta> {
   safeId(id);
   await writeFile(path.join(MEDIA, `${id}.orig`), original);
-  return writeProcessed(id, original, {}, Date.now());
+  return writeProcessed(id, original, options.edits ?? {}, Date.now(), options.restoration);
 }
 
 export async function editMedia(id: string, edits: Edits): Promise<MediaMeta> {
@@ -65,7 +66,7 @@ export async function editMedia(id: string, edits: Edits): Promise<MediaMeta> {
   const prev: MediaMeta = JSON.parse(await readFile(metaPath(id), 'utf8'));
   const original = await readFile(path.join(MEDIA, `${id}.orig`));
   // Timestamp revisions keep cached files (served immutable) from going stale.
-  return writeProcessed(id, original, edits, Math.max(Date.now(), prev.rev + 1));
+  return writeProcessed(id, original, edits, Math.max(Date.now(), prev.rev + 1), prev.restoration);
 }
 
 const processing = new Map<string, Promise<MediaMeta>>();
@@ -75,7 +76,7 @@ export async function getMedia(id: string): Promise<MediaMeta | null> {
   const meta: MediaMeta = JSON.parse(await readFile(metaPath(id), 'utf8'));
   if (meta.processorVersion === PROCESSOR_VERSION) return meta;
   if (!processing.has(id)) processing.set(id, readFile(path.join(MEDIA, `${id}.orig`))
-    .then((original) => writeProcessed(id, original, meta.edits ?? {}, Math.max(Date.now(), meta.rev + 1)))
+    .then((original) => writeProcessed(id, original, meta.edits ?? {}, Math.max(Date.now(), meta.rev + 1), meta.restoration))
     .finally(() => processing.delete(id)));
   return processing.get(id)!;
 }

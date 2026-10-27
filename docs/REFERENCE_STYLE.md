@@ -26,11 +26,11 @@ The 5mi Raat booklet remains the geometry template; the existing approved maroon
 
 1. Never independently fit each verse row to a target height or width. Derive one scale for a kalam's screenshots captured at the same zoom. Different capture zooms can form separate calibrated groups.
 2. Place each stanza as one crop with its source baseline spacing. A short row must not be enlarged just because it contains fewer words.
-3. Source-preserving vector contours use a linear ink matte, subpixel contour fitting, zero dot removal and tight curve tolerance. Keep untouched uploads and lossless PNGs as recovery sources. The fixed Husain/Panjatan artwork stays at its approved size.
+3. Preserve antialiased ink as lossless transparent PNG. Hard threshold tracing is prohibited for final lettering: it erases faint joins and dots. Keep untouched uploads as recovery sources. Pagination detection must not delete ink outside detected rows. The fixed Husain/Panjatan artwork stays at its approved size.
 4. Automatic fihrist openings use up to five opening words; manually entered names take precedence. This booklet's Noha name is `مارا گیا بھائی رن میں` (five words).
-5. Image restoration uses the original plus the canonical lettering reference, one medium-quality image at a time. Generated drafts must be compared with the original before acceptance because image models can alter letters or dots.
+5. Image restoration uses the original with crop/erase edits and the versioned six-PDF reference bank in `server/lettering-bank/`. Keep Urdu Nastaliq distinct from Arabic/Lisan al-Dawat. Use high quality and source-matched canvas proportions, retaining the high-resolution transparent PNG. Reject changed row counts, opaque backgrounds and lower resolution. Generated drafts must be compared with the original before acceptance because image models can alter words or dots. This is reference conditioning, not model training.
 6. Export must embed the exact reviewed artwork, reject decoding failures and keep all page links and numbers correct.
 
 ## Verification
 
-`npm run verify` checks true path-based SVG output, shared scale across deliberately different glyph extents, whole-stanza pagination, actual PDF downloads, typography, bounds, missing-image failure and browser recovery. A final review must also render all output pages and compare the fihrist, Noha and Madh with the references at the same page scale.
+`npm run verify` checks transparent PNG output, shared scale across deliberately different glyph extents, whole-stanza pagination, actual PDF downloads, typography, bounds, missing-image failure and browser recovery. `npm run verify:lettering` checks the supplied screenshot cases and faint-stroke/dot preservation. A final review must also render all output pages and compare the fihrist, Noha and Madh with the references at the same page scale.

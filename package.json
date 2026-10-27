@@ -8,7 +8,8 @@
     "dev": "concurrently -k -n server,web -c magenta,cyan \"tsx watch server/index.ts\" \"vite\"",
     "build": "tsc && vite build",
     "start": "npm run build && NODE_ENV=production tsx server/index.ts",
-    "assets": "node tools/build-logos.mjs"
+    "assets": "node tools/build-logos.mjs",
+    "verify:lettering": "tsx tools/verify-lettering.ts"
   },
   "dependencies": {
     "@tesseract.js-data/ara": "^1.0.0",

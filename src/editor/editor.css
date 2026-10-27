@@ -793,3 +793,7 @@ button.ghost.on {
 .restore-comparison figcaption { margin-bottom: 12px; font-weight: 600; }
 .restore-comparison img { display: block; width: 100%; max-height: 60vh; object-fit: contain; }
 @media (max-width: 650px) { .restore-comparison { grid-template-columns: 1fr; } }
+.restore-comparison.full-size { grid-template-columns: 1fr; }
+.restore-comparison.full-size figure { max-height: 65vh; overflow: auto; }
+.restore-comparison.full-size img { width: auto; max-width: none; max-height: none; }
+.ai-restore select { max-width: 100%; padding: 7px; margin-left: 8px; }

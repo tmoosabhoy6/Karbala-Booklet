@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "kind": "visual-reference-context",
+  "training": false,
+  "instructions": "Use samples only for script-specific lettering clarity. Source screenshot alone supplies wording, colour, dots, diacritics and layout. Never copy reference wording or mix Urdu Nastaliq with Arabic Naskh.",
+  "documents": [
+    {
+      "file": "Ai_15mi Raat Urs SMB RA 1448h.pdf",
+      "sha256": "9770d68c2c5127201beb16eccd6baee82d5e8e65663305b049a1bd1cf4e7f0dc",
+      "pages": 54,
+      "fonts": [
+        "BCDEEE+Calibri",
+        "BCDFEE+AL-KANZ",
+        "BCDGEE+ArialMT",
+        "BCDHEE+AL-KANZ",
+        "BCDIEE+AL-KANZ",
+        "BCDJEE+KanzalLulu",
+        "BCDKEE+KanzalLulu",
+        "BCDLEE+KanzalLulu",
+        "BCDMEE+Kanz-al-Marjaan",
+        "BCDNEE+Kanz-al-Marjaan",
+        "BCDOEE+Kanz-al-Marjaan",
+        "BCDPEE+Kanz-al-Marjaan",
+        "BCEAEE+Calibri",
+        "BCEBEE+Calibri",
+        "BCECEE+Alvi Nastaleeq",
+        "BCEDEE+ArialMT",
+        "BCEEEE+Alvi Nastaleeq"
+      ]
+    },
+    {
+      "file": "Ai_Chehlum 1448H.pdf",
+      "sha256": "d2c4d99bd849ff18f7640496334eb03d618f9991749e40b793a224e13f443149",
+      "pages": 16,
+      "fonts": [
+        "BCDEEE+Calibri",
+        "BCDFEE+Kanz-al-Marjaan",
+        "BCDGEE+ArialMT",
+        "BCDHEE+AL-KANZ",
+        "BCDIEE+AL-KANZ",
+        "BCDJEE+Calibri",
+        "BCDKEE+Calibri",
+        "BCDLEE+Kanz-al-Marjaan",
+        "BCDMEE+AL-KANZ",
+        "BCDNEE+Alvi Nastaleeq",
+        "BCDOEE+Kanz-al-Marjaan"
+      ]
+    },
+    {
+      "file": "Ai_Milad Imam al-Zaman AS.pdf",
+      "sha256": "51a67cb79bef790b51ec5b6cf2cdf15c7861406bd646c48aa9e88a536c082cfa",
+      "pages": 17,
+      "fonts": [
+        "BCDEEE+Calibri",
+        "BCDFEE+Kanz-al-Marjaan",
+        "BCDGEE+Kanz-al-Marjaan",
+        "BCDHEE+ArialMT",
+        "BCDIEE+AL-KANZ",
+        "BCDJEE+AL-KANZ",
+        "BCDKEE+Calibri",
+        "BCDLEE+Calibri",
+        "BCDMEE+AL-KANZ",
+        "BCDNEE+Alvi Nastaleeq",
+        "BCDOEE+Alvi Nastaleeq",
+        "BCDPEE+ArialMT",
+        "BCEAEE+Kanz-al-Marjaan"
+      ]
+    },
+    {
+      "file": "Ai_Milad un Nabi SAW 1448h.pdf",
+      "sha256": "d7bb80a354d6cc9f34391b7d59bfea2a6dd214c6865f3251b468ab963a3cd5db",
+      "pages": 27,
+      "fonts": [
+        "BCDEEE+Calibri",
+        "BCDFEE+Kanz-al-Marjaan",
+        "BCDGEE+ArialMT",
+        "BCDHEE+AL-KANZ",
+        "BCDIEE+AL-KANZ",
+        "BCDJEE+Calibri",
+        "BCDKEE+Calibri",
+        "BCDLEE+Kanz-al-Marjaan",
+        "BCDMEE+AL-KANZ",
+        "BCDNEE+Alvi Nastaleeq",
+        "BCDOEE+Kanz-al-Marjaan",
+        "BCDPEE+ArialMT"
+      ]
+    },
+    {
+      "file": "Ai_Shahadat Imam Hasan AS.pdf",
+      "sha256": "54c4f7ba7b192fae228c0534798626c531b9f5274e39a4bc2bb6a6239c5da6f1",
+      "pages": 17,
+      "fonts": [
+        "BCDEEE+Calibri",
+        "BCDFEE+Kanz-al-Marjaan",
+        "BCDGEE+ArialMT",
+        "BCDHEE+AL-KANZ",
+        "BCDIEE+AL-KANZ",
+        "BCDJEE+Calibri",
+        "BCDKEE+Calibri",
+        "BCDLEE+Kanz-al-Marjaan",
+        "BCDMEE+AL-KANZ",
+        "BCDNEE+Alvi Nastaleeq",
+        "BCDOEE+AL-KANZ",
+        "BCDPEE+Kanz-al-Marjaan"
+      ]
+    },
+    {
+      "file": "HA_5mi Raat Majlis 1448h.pdf",
+      "sha256": "1a18eca7a056ab6e6444d70af39a5057b68bcdff33db652e6b066a4d3b74afe4",
+      "pages": 22,
+      "fonts": [
+        "HCRPIE+AL-KANZ",
+        "HCRPIE+Calibri",
+        "MCAOAU+Alvi-Nastaleeq",
+        "MCAOAU+Kanz-al-Marjaan",
+        "SDEYGI+ArialMT",
+        "SDEYGI+Kanz-al-Marjaan",
+        "XDNXYY+Alvi-Nastaleeq"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "id": "urdu-nastaliq-1",
+      "file": "urdu-nastaliq-1.png",
+      "source": "HA_5mi Raat Majlis 1448h.pdf",
+      "page": 10,
+      "crop": [
+        55,
+        110.0,
+        545,
+        250.0
+      ],
+      "dpi": 216,
+      "script": "Urdu Nastaliq"
+    },
+    {
+      "id": "urdu-nastaliq-2",
+      "file": "urdu-nastaliq-2.png",
+      "source": "Ai_Chehlum 1448H.pdf",
+      "page": 10,
+      "crop": [
+        55,
+        178.66666666666666,
+        545,
+        425.6666666666667
+      ],
+      "dpi": 216,
+      "script": "Urdu Nastaliq"
+    },
+    {
+      "id": "arabic-naskh-1",
+      "file": "arabic-naskh-1.png",
+      "source": "Ai_Shahadat Imam Hasan AS.pdf",
+      "page": 6,
+      "crop": [
+        55,
+        120.66666666666667,
+        545,
+        336.6666666666667
+      ],
+      "dpi": 216,
+      "script": "Arabic Naskh, Kanz"
+    },
+    {
+      "id": "arabic-naskh-2",
+      "file": "arabic-naskh-2.png",
+      "source": "Ai_Milad un Nabi SAW 1448h.pdf",
+      "page": 6,
+      "crop": [
+        55,
+        185.0,
+        545,
+        358.3333333333333
+      ],
+      "dpi": 216,
+      "script": "Arabic Naskh with diacritics"
+    },
+    {
+      "id": "dawat-1",
+      "file": "dawat-1.png",
+      "source": "Ai_Milad Imam al-Zaman AS.pdf",
+      "page": 10,
+      "crop": [
+        55,
+        115.0,
+        545,
+        390.0
+      ],
+      "dpi": 216,
+      "script": "Lisan al-Dawat, Kanz"
+    },
+    {
+      "id": "dawat-2",
+      "file": "dawat-2.png",
+      "source": "Ai_15mi Raat Urs SMB RA 1448h.pdf",
+      "page": 37,
+      "crop": [
+        55,
+        189.66666666666666,
+        545,
+        425.0
+      ],
+      "dpi": 216,
+      "script": "Lisan al-Dawat, Kanz"
+    }
+  ]
+}
