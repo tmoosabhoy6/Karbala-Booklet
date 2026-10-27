@@ -676,3 +676,105 @@ button.ghost.on {
   border-left: 1px solid var(--ui-line);
   margin-left: 4px;
 }
+
+/* ---------- PDF ready (phones) ---------- */
+.pdf-ready {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--ui-maroon-soft);
+  border-bottom: 1px solid var(--ui-line);
+  font-weight: 600;
+}
+
+.pdf-ready a.primary {
+  flex: 1;
+  text-align: center;
+  text-decoration: none;
+  background: var(--ui-maroon);
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- phones: one panel at a time ---------- */
+.mobile-tabs {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .editor {
+    /* minmax(0, …): let wide rows shrink to the screen instead of pushing past it */
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100dvh;
+  }
+
+  .mobile-tabs {
+    display: flex;
+    background: #fff;
+    border-bottom: 1px solid var(--ui-line);
+  }
+
+  .mobile-tabs button {
+    flex: 1;
+    border: 0;
+    background: none;
+    padding: 12px 8px;
+    color: var(--ui-muted);
+    font-weight: 600;
+    border-bottom: 3px solid transparent;
+  }
+
+  .mobile-tabs button.on {
+    color: var(--ui-maroon);
+    border-bottom-color: var(--ui-maroon);
+  }
+
+  .editor[data-pane='preview'] .inputs,
+  .editor[data-pane='inputs'] .preview {
+    display: none;
+  }
+
+  .inputs {
+    border-right: 0;
+    min-width: 0;
+  }
+
+  .block .thumb {
+    min-width: 0;
+  }
+
+  .block-tools .scale {
+    display: none;
+  }
+
+  .preview-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .preview-bar .zoom input {
+    width: 90px;
+  }
+
+  .pages {
+    padding: 12px;
+  }
+
+  /* Bigger touch targets for the kalam tools. */
+  .kalam-tools button,
+  .block-tools button {
+    width: 34px;
+    height: 34px;
+  }
+
+  .text-tools .hint {
+    display: none;
+  }
+}

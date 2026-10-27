@@ -19,6 +19,9 @@ interface Props {
   onUpload: (files: File[]) => void;
 }
 
+// Phones have no ⌘V or drag and drop: the drop area just opens the photo picker.
+const TOUCH = matchMedia('(pointer: coarse)').matches;
+
 const move = <T,>(arr: T[], from: number, to: number) => {
   const out = [...arr];
   const [x] = out.splice(from, 1);
@@ -215,7 +218,7 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
               fileInput.current?.click();
             }}
           >
-            {active ? <b>⌘V to paste</b> : 'Click here, then ⌘V to paste'} · drop or choose screenshots
+            {TOUCH ? 'Tap to add screenshots' : active ? <><b>⌘V to paste</b> · drop or choose screenshots</> : 'Click here, then ⌘V to paste · drop or choose screenshots'}
             <input
               ref={fileInput}
               type="file"

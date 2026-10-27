@@ -1,0 +1,19 @@
+# Render Blueprint: Dashboard → New → Blueprint → pick this repo.
+# Starter plan, because the free plan has no disk (work would be wiped on
+# every restart) and sleeps after 15 idle minutes. Frankfurt is the closest
+# region to Iraq. You are asked for APP_PASSWORD when the Blueprint is created.
+services:
+  - type: web
+    name: karbala-booklet
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    branch: main
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_PASSWORD
+        sync: false
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

@@ -12,6 +12,20 @@ npm run dev
 
 Open http://127.0.0.1:5173. **Download PDF** renders the booklet with headless Chromium, the same engine as the preview.
 
+## Put it online (Render)
+
+The app needs a real server (it cleans screenshots with sharp/potrace and prints the PDF with Chromium), so it runs on Render as a Docker service. `render.yaml` sets it all up:
+
+1. In the Render dashboard: **New → Blueprint**, connect GitHub and pick this repo.
+2. Enter a password for `APP_PASSWORD` when asked. Every page asks for it (any username).
+3. The first build takes about 10 minutes. Then open the `onrender.com` link it gives you, on your laptop or phone. On iPhone, Share → Add to Home Screen makes it an app icon.
+
+It uses the Starter plan ($7/month) with a 1 GB disk ($0.25/month) in Frankfurt, the closest region to Iraq. The free plan has no disk, so your screenshots and saved booklet would be wiped every time it restarts. Every push to `main` redeploys it.
+
+**On a phone:** Kalams / Preview tabs switch panels; tap a kalam's box to add screenshots from Photos. After **Download PDF**, tap **Save …pdf**: it goes to Files (iPhone) or Downloads (Android), ready to share on WhatsApp.
+
+**Without hosting:** `HOST=0.0.0.0 APP_PASSWORD=yourpassword npm start` on the Mac, then open `http://<the Mac's Wi-Fi IP>:3001` on a phone on the same Wi-Fi.
+
 ## Using it
 
 1. **Date and venue:** the date defaults to today and the title (e.g. ١٨ مي رات) follows it. Pick Haram Mubarak or Najmi Masjid; your content stays when you switch.

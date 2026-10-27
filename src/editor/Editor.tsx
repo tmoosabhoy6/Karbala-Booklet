@@ -15,11 +15,16 @@ export function Editor() {
   const [active, setActive] = useState<{ category: Category; id: string } | null>(null);
   const [uploads, setUploads] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<ImageBlock | null>(null);
-  const [zoom, setZoom] = useState(0.8);
+  // A4 is 794 CSS px wide: start narrow screens zoomed to fit.
+  const [zoom, setZoom] = useState(() => Math.max(0.3, Math.min(0.8, +((innerWidth - 32) / 794).toFixed(2))));
+  // Phones show one panel at a time.
+  const [pane, setPane] = useState<'inputs' | 'preview'>('inputs');
   const [busy, setBusy] = useState(false);
   // Typing on the pages: click text to retype it; `placing` waits for a click to drop a text box.
   const [typing, setTyping] = useState(false);
   const [placing, setPlacing] = useState(false);
+  // On a phone the finished PDF is offered as a link to tap (see exportPdf).
+  const [ready, setReady] = useState<{ url: string; filename: string } | null>(null);
 
   const layout = useMemo(() => (doc ? paginate(doc) : null), [doc]);
 
@@ -84,6 +89,7 @@ export function Editor() {
       .filter((k) => k.blocks.length && !stripMarkup(k.name));
     if (missing.length && !confirm(`${missing.length} kalam(s) have no fihrist name yet. Download anyway?`)) return;
     setBusy(true);
+    setReady(null);
     try {
       const filename = `${raatTitleLatin(d)} Matam Majlis.pdf`;
       const res = await fetch('/api/export', {
@@ -92,10 +98,11 @@ export function Editor() {
         body: JSON.stringify({ doc, filename, title: `${raatTitle(d)} – ماتم مجلس` }),
       });
       if (!res.ok) throw new Error(await res.text());
-      const url = URL.createObjectURL(await res.blob());
-      const a = Object.assign(document.createElement('a'), { href: url, download: filename });
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      const { url } = (await res.json()) as { url: string };
+      // Phones only save a download started by a tap, and building the PDF
+      // takes longer than that tap counts for: they get a Save button instead.
+      if (matchMedia('(pointer: coarse)').matches) setReady({ url, filename });
+      else Object.assign(document.createElement('a'), { href: url, download: filename }).click();
     } catch (e) {
       alert(`Export failed: ${(e as Error).message}`);
     } finally {
@@ -104,7 +111,15 @@ export function Editor() {
   };
 
   return (
-    <div className="editor">
+    <div className="editor" data-pane={pane}>
+      <nav className="mobile-tabs">
+        <button className={pane === 'inputs' ? 'on' : ''} onClick={() => setPane('inputs')}>
+          Kalams
+        </button>
+        <button className={pane === 'preview' ? 'on' : ''} onClick={() => setPane('preview')}>
+          Preview · {pageCount} pages
+        </button>
+      </nav>
       <aside className="inputs">
         <header className="inputs-head">
           <div className="row">
@@ -194,7 +209,7 @@ export function Editor() {
           <span className="pages-count">{pageCount} pages</span>
           <label className="zoom">
             Zoom
-            <input type="range" min={0.4} max={1.4} step={0.05} value={zoom} onChange={(e) => setZoom(+e.target.value)} />
+            <input type="range" min={0.3} max={1.4} step={0.05} value={zoom} onChange={(e) => setZoom(+e.target.value)} />
           </label>
           <button
             className={`ghost${typing ? ' on' : ''}`}
@@ -221,6 +236,17 @@ export function Editor() {
             {busy ? 'Building PDF…' : 'Download PDF'}
           </button>
         </div>
+        {ready && (
+          <div className="pdf-ready">
+            <span>PDF ready</span>
+            <a className="primary" href={ready.url} download={ready.filename} onClick={() => setTimeout(() => setReady(null), 1000)}>
+              Save {ready.filename}
+            </a>
+            <button className="ghost" onClick={() => setReady(null)} aria-label="Close">
+              ✕
+            </button>
+          </div>
+        )}
         <div className="pages" style={{ zoom }}>
           <BookletView
             doc={doc}
