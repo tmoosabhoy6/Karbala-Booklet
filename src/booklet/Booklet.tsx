@@ -2,28 +2,10 @@ import { Fragment } from 'react';
 import { arabicNumber, dateLine, raatTitle } from '../lib/hijri';
 import { Booklet as Doc, CATEGORY_LABEL, VENUES } from './model';
 import { Layout, Page, PlacedItem } from './paginate';
+import { RichText } from './RichText';
 import './booklet.css';
 
 const A = '/assets';
-
-function Location({ text }: { text: string }) {
-  // `{as}` marks the small raised «ع م» honorific; Latin runs keep LTR order.
-  const [before, after = ''] = text.split('{as}');
-  const latin = /\(([A-Za-z].*)\)$/.exec(after);
-  const arabic = latin ? after.slice(0, latin.index) : after;
-  return (
-    <span>
-      {before}
-      {text.includes('{as}') && (
-        <span className="honorific">
-          ع<span className="m">م</span>
-        </span>
-      )}
-      {arabic}
-      {latin && <span className="latin">({latin[1]})</span>}
-    </span>
-  );
-}
 
 function Logos({ karbalaWidth, faizHeight }: { karbalaWidth: number; faizHeight: number }) {
   return (
@@ -46,7 +28,7 @@ function Cover({ doc }: { doc: Doc }) {
       <div className="cover-title sub">ماتم مجلس</div>
       <div className="cover-title date">{dateLine(date)}</div>
       <div className="cover-location">
-        <Location text={VENUES[doc.venue].location} />
+        <RichText text={VENUES[doc.venue].location} />
       </div>
       <img className="abs" src={`${A}/sanat-1448.svg`} style={{ left: '144.86pt', top: '741.42pt', width: '219.6pt' }} alt="" />
     </section>
@@ -120,7 +102,11 @@ function Item({ item }: { item: PlacedItem }) {
       }
       return (
         <div className="block-text" id={item.anchor} style={{ fontSize: `${item.block.sizePt}pt`, color: item.block.color }}>
-          {item.block.text}
+          {item.block.text.split('\n').map((line, i) => (
+            <div className="line" key={i}>
+              <RichText text={line} />
+            </div>
+          ))}
         </div>
       );
     case 'separator':

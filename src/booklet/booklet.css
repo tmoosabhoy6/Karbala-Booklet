@@ -5,12 +5,12 @@
 }
 
 :root {
-  --maroon: #7f343b; /* the cover bar: base colour */
-  --maroon-deep: #6a2a31; /* cover title */
-  --maroon-tint: #f1e1e2; /* fihrist header bar (was lavender) */
-  --rose-tint: #f8eded; /* fihrist section bars (was green) */
-  --rule: #7f343b; /* fihrist row rules */
-  --divider: #c9a0a4; /* thin line between kalams */
+  --maroon: #8c1a24; /* blood-red maroon: base colour (cover bar) */
+  --maroon-deep: #7a1520; /* cover title */
+  --maroon-tint: #f6dadd; /* fihrist header bar (was lavender) */
+  --rose-tint: #fbeced; /* fihrist section bars (was green) */
+  --rule: #8c1a24; /* fihrist row rules */
+  --divider: #d8939a; /* thin line between kalams */
   --gold: #c18144; /* fihrist column headings */
   --navy: #3a456a; /* fihrist entries */
   --cream: #f7ead7; /* text on the maroon bar */
@@ -74,20 +74,20 @@
 }
 
 .cover-title.main {
-  top: 205pt;
+  top: 190pt;
   font-size: 90pt;
   color: var(--maroon-deep);
 }
 
 .cover-title.sub {
-  top: 378pt;
-  font-size: 44pt;
+  top: 345pt;
+  font-size: 66pt;
   color: var(--maroon-deep);
 }
 
 .cover-title.date {
-  top: 452pt;
-  font-size: 17pt;
+  top: 470pt;
+  font-size: 25pt;
   color: var(--sanat-blue);
 }
 
@@ -110,7 +110,8 @@
   font-size: 45%;
   display: inline-block;
   vertical-align: 0.35em;
-  margin: 0 0.2em;
+  /* physical sides: the booklet is always right-to-left */
+  margin: 0 0.3em 0 0.55em;
 }
 
 .honorific .m {
@@ -127,17 +128,23 @@
   unicode-bidi: isolate;
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 66%;
+  margin-right: 0.45em;
 }
 
 /* ---------- inner pages ---------- */
+/* Sits in the border's number slot: x 285.2–309.7pt, y 816.5–834.5pt. */
 .page-number {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 806pt;
-  text-align: center;
-  font-size: 13pt;
-  line-height: 1;
+  left: 285.2pt;
+  width: 24.5pt;
+  top: 816.5pt;
+  height: 18pt;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15pt;
+  line-height: 18pt;
+  white-space: nowrap;
 }
 
 .content {
@@ -162,8 +169,11 @@
 
 .block-text {
   text-align: center;
-  white-space: pre-wrap;
   margin-bottom: 10pt;
+}
+
+.block-text .line {
+  line-height: 2.1;
 }
 
 .separator {

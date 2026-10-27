@@ -5,8 +5,8 @@ Run once (outputs are committed):
     .venv/bin/python tools/build_assets.py
 
 Everything here is derived from references/HA_5mi Raat Majlis 1448h.pdf:
-the purple accents become the maroon of the cover bar (#7F343B), gold and the
-grid background are left untouched.
+the purple accents (and the cover bar) become a lively blood-red maroon
+(#8C1A24); gold and the grid background are left untouched.
 """
 from pathlib import Path
 
@@ -19,7 +19,7 @@ REF = ROOT / "references" / "HA_5mi Raat Majlis 1448h.pdf"
 OUT = ROOT / "public" / "assets"
 
 A4_PX = (2480, 3508)  # 300 dpi
-MAROON_HUE = 354 / 360  # hue of the cover bar, rgb(127,52,59)
+MAROON_HUE = 355 / 360  # base colour rgb(140,26,36) = #8C1A24
 
 # Image xrefs inside the reference PDF.
 XREF_COVER = 1100
@@ -61,15 +61,19 @@ def hsv_to_rgb(a):
     return np.clip(out * 255, 0, 255)
 
 
-def purple_to_maroon(rgb, region=None, min_sat=0.08, s_mul=0.94, v_mul=1.53, v_cap=0.62):
-    """Re-hue purple pixels (hue 260-340 deg) to maroon; gold/cream/white untouched."""
+def purple_to_maroon(rgb, region=None, min_sat=0.08, s_mul=1.29, v_mul=1.69, v_cap=0.6, hues=(260, 345)):
+    """Re-hue pixels in the `hues` range (purple by default) to the base maroon;
+    gold/cream/white are untouched. Defaults map the cover's purple rgb(83,31,77)
+    onto the base rgb(140,26,36)."""
     hsv = rgb_to_hsv(rgb.astype(float))
     h, s = hsv[..., 0] * 360, hsv[..., 1]
-    mask = (h >= 260) & (h <= 345) & (s >= min_sat)
+    lo, hi = hues
+    in_range = ((h >= lo) & (h <= hi)) if lo <= hi else ((h >= lo) | (h <= hi))
+    mask = in_range & (s >= min_sat)
     if region is not None:
         mask &= region
-    # Purple sits darker than maroon at the same "weight"; lift V so the strip
-    # lands on the bar's maroon instead of a muddy brown.
+    # Purple sits darker than the target red; lift V so the strip lands on the
+    # base colour instead of a muddy brown.
     new = hsv.copy()
     new[..., 0] = np.where(mask, MAROON_HUE, hsv[..., 0])
     new[..., 1] = np.where(mask, np.clip(s * s_mul, 0, 1), s)
@@ -115,6 +119,9 @@ def build_cover(doc):
         | box(src.shape, 0, 1152, 848, 1210)
     )
     cover = purple_to_maroon(clean, region, min_sat=0.04)
+    # The bar itself was a greyish maroon rgb(127,52,59); bring it to the base.
+    bar_region = box(src.shape, 0, 1066, 848, 1154)
+    cover = purple_to_maroon(cover, bar_region, min_sat=0.2, s_mul=1.37, v_mul=1.1, v_cap=0.7, hues=(330, 20))
 
     img = Image.fromarray(cover.astype(np.uint8)).resize(A4_PX, Image.LANCZOS)
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=2))
@@ -136,8 +143,9 @@ def build_cover(doc):
 def build_border(doc):
     raw = doc.extract_image(XREF_BORDER)
     src = np.array(Image.open(__import__("io").BytesIO(raw["image"])).convert("RGB")).astype(float)
-    # A soft, light maroon: same hue as the bar, a touch deeper than the lavender.
-    out = purple_to_maroon(src, None, min_sat=0.03, s_mul=1.15, v_mul=1.0, v_cap=1.0)
+    # A light, lively red-maroon: the base hue at roughly twice the lavender's
+    # saturation, a shade deeper.
+    out = purple_to_maroon(src, None, min_sat=0.03, s_mul=2.0, v_mul=0.93, v_cap=1.0)
     Image.fromarray(out.astype(np.uint8)).save(OUT / "page-border.jpg", quality=92, subsampling=0)
 
 

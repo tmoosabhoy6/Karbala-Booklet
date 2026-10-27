@@ -9,7 +9,7 @@ import { writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 const trace = promisify(potrace.trace);
-const MAROON = '#7F343B';
+const MAROON = '#8C1A24';
 
 const logos = [
   // Logo 1 is tiny (300×159) on a beige ground: upscale hard and smooth before
@@ -47,7 +47,7 @@ async function inkMask({ src, scale = 1, blur = 0 }) {
 // Solid maroon with the ink strength as alpha, so edges keep their smoothness.
 async function maroonCutout(mask, out) {
   const { data, info } = await sharp(mask).negate().raw().toBuffer({ resolveWithObject: true });
-  const [r, g, b] = [0x7f, 0x34, 0x3b];
+  const [r, g, b] = [0x8c, 0x1a, 0x24];
   const rgba = Buffer.alloc(info.width * info.height * 4);
   for (let i = 0; i < info.width * info.height; i++) {
     rgba[i * 4] = r;
