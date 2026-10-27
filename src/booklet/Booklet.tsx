@@ -21,8 +21,9 @@ function OpeningWords({ block }: { block: ImageBlock }) {
   if (!r) return null;
   const s = Math.min(218 / r.w, 24 / r.h);
   const src = mediaSrc(block);
-  return <span className="opening-words" style={{ width: `${r.w * s}pt`, height: `${r.h * s}pt` }}>
-    <img src={assets[src] ?? src} alt="Opening verse (click Edit text to replace its fihrist name)" style={{ position: 'absolute', maxWidth: 'none', width: `${block.width * s}pt`, height: `${block.height * s}pt`, left: `${-r.x * s}pt`, top: `${-r.y * s}pt` }} />
+  const mask = { maskImage: `url("${assets[src] ?? src}")`, maskSize: `${block.width * s}pt ${block.height * s}pt`, maskPosition: `${-r.x * s}pt ${-r.y * s}pt`, maskRepeat: 'no-repeat' };
+  return <span className="opening-words" style={{ width: `${r.w * s}pt`, height: `${r.h * s}pt`, backgroundColor: 'var(--navy)', ...mask }}>
+    <img src={assets[src] ?? src} alt="Opening verse (click Edit text to replace its fihrist name)" style={{ opacity: 0, position: 'absolute', maxWidth: 'none', width: `${block.width * s}pt`, height: `${block.height * s}pt`, left: `${-r.x * s}pt`, top: `${-r.y * s}pt` }} />
   </span>;
 }
 

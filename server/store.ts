@@ -5,6 +5,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { cleanScreenshot, Edits, PROCESSOR_VERSION, Region } from './ink';
+import { vectorInk } from './vector';
 
 export const DATA = path.resolve(process.env.DATA_DIR ?? 'data');
 export const MEDIA = path.join(DATA, 'media');
@@ -19,7 +20,7 @@ export interface MediaMeta {
   lineHeight: number;
   edits: Edits;
   processorVersion?: number;
-  format?: 'png';
+  format?: 'png' | 'svg';
   regions?: Region[];
   suggestedName?: string;
   recognitionConfidence?: number;
@@ -41,12 +42,14 @@ function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number)
 }
 async function processImage(id: string, original: Buffer, edits: Edits, rev: number): Promise<MediaMeta> {
   const r = await cleanScreenshot(original, edits, { ocr: id !== 'fixed-matam' });
-  const { png, svg, ...geometry } = r;
-  const meta: MediaMeta = { id, rev, ...geometry, edits, processorVersion: PROCESSOR_VERSION, format: 'png' };
+  const { png, svg: rasterSvg, ...geometry } = r;
+  const svg = id === 'fixed-matam' ? rasterSvg : await vectorInk(png);
+  const meta: MediaMeta = { id, rev, ...geometry, edits, processorVersion: PROCESSOR_VERSION, format: id === 'fixed-matam' ? 'png' : 'svg' };
   await Promise.all([
     writeFile(path.join(MEDIA, `${id}.png`), png),
     writeFile(path.join(MEDIA, `${id}.svg`), svg),
     writeFile(path.join(MEDIA, `${id}.${rev}.png`), png),
+    writeFile(path.join(MEDIA, `${id}.${rev}.svg`), svg),
   ]);
   await writeFile(`${metaPath(id)}.tmp`, JSON.stringify(meta));
   await (await import('node:fs/promises')).rename(`${metaPath(id)}.tmp`, metaPath(id));

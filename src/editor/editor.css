@@ -785,3 +785,11 @@ button.ghost.on {
   font-size: 12px;
   grid-column: 1 / -1;
 }
+.ai-restore { max-width: 1100px; padding: 20px; overflow: auto; }
+.ai-restore h2 { margin: 0; font-size: 20px; }
+.ai-restore p { line-height: 1.5; }
+.restore-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.restore-comparison figure { margin: 0; min-width: 0; background: #fff; padding: 12px; border: 1px solid #ddd; }
+.restore-comparison figcaption { margin-bottom: 12px; font-weight: 600; }
+.restore-comparison img { display: block; width: 100%; max-height: 60vh; object-fit: contain; }
+@media (max-width: 650px) { .restore-comparison { grid-template-columns: 1fr; } }

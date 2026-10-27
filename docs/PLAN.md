@@ -2,15 +2,17 @@
 
 Master template: `references/HA_5mi Raat Majlis 1448h.pdf` (A4, 22 pages).
 
-### October 2026 repair (supersedes the original tracing plan below)
+### October 2026 lettering revision (supersedes the original plan below)
 
-- Screenshot text stays as original antialiased, transparent, lossless pixels. Potrace was removed because its thresholding and curve fitting changed thin strokes and dots.
-- Clean complete rows get independent geometry and size normalization. Paragraph gaps identify stanzas; uniform rows use couplet groups. Groups stay on one page, with a bounded fallback for unusually tall content.
+- All six supplied references are the lettering standard; see `REFERENCE_STYLE.md` for the 153-page inventory and measured conventions.
+- Recover a linear antialiased ink matte, then fit precise SVG contours with zero dot removal and tight curve tolerance. Keep the untouched source and lossless PNG alongside the vectors.
+- Screenshots from the same kalam and capture zoom share one lettering scale. Never resize individual verse rows. Place whole stanza crops with their original baseline spacing; reject an exceptionally tall group rather than silently shrinking it.
+- Optional OpenAI restoration produces a separate, medium-quality draft for comparison and explicit acceptance. It never silently substitutes generated words.
 - A faithful crop of the opening words fills an otherwise unnamed fihrist entry. Arabic/Urdu OCR is packaged locally and used for standalone page-number detection; it never silently retypes a verse.
 - Export embeds the artwork snapshot and rejects failed image/font decoding. A warm browser, shared in-flight work and a bounded PDF cache shorten downloads.
 - Originals and booklet/defaults also live in browser IndexedDB for recovery after ephemeral server storage disappears. The free server still has no durable, cross-device disk.
 - `npm run verify` exercises the complete production path, including intentional missing/corrupt-image failures.
-Every other PDF in `references/` is only there for context.
+The 5mi Raat PDF supplies the geometry; all six reference PDFs define the lettering quality.
 
 ## 1. What I found in the references
 

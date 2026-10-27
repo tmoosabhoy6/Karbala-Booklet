@@ -9,6 +9,9 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  aiStatus: () => fetch('/api/ai/status').then((r) => json<{ configured: boolean; model: string }>(r)),
+  restore: (id: string) => fetch(`/api/media/${id}/restore`, { method: 'POST' }).then((r) => json<RestorationJob>(r)),
+  restorationJob: (id: string) => fetch(`/api/ai/jobs/${id}`).then((r) => json<RestorationJob>(r)),
   upload: async (file: Blob) => {
     const meta = await fetch('/api/media', { method: 'POST', body: file }).then((r) => json<MediaMeta>(r));
     await saveBackup(`media:${meta.id}`, { original: file, meta } satisfies MediaBackup);
@@ -52,6 +55,13 @@ export const api = {
     return fetch('/api/defaults', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
   },
 };
+
+export interface RestorationJob {
+  id: string;
+  status: 'queued' | 'restoring' | 'ready' | 'failed';
+  result?: MediaMeta;
+  error?: string;
+}
 
 export interface Rect {
   x: number;

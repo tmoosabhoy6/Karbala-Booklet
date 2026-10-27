@@ -31,13 +31,14 @@ It runs on the free plan in Frankfurt. The free plan has no persistent disk, so 
 1. **Date and venue:** the date defaults to today and the title (e.g. ١٨ مي رات) follows it. Pick Haram Mubarak or Najmi Masjid; your content stays when you switch.
 2. **Add screenshots:**
    - Click a kalam card, then press ⌘V to paste, drag images onto it, or click its drop area to choose files.
-   - Paper/dark backgrounds become transparent; original antialiased letter shapes and colored ink are preserved as lossless PNGs. Curve tracing no longer distorts the letters.
+   - Paper/dark backgrounds become transparent. A linear ink matte is fitted to precise vector contours with tight curve tolerance and no dot removal. Untouched originals and lossless PNGs remain as recovery sources. Black lettering and red refrains print sharply at any zoom.
    - Isolated straight rules, clipped edge fragments, distant specks and recognized standalone page numbers are removed. Crop/erase remains available for ambiguous marks; turn off automatic cleanup to recover anything it mistakenly removed.
-   - Each complete row is sized separately. Screenshot zoom and different source sizes no longer shrink an entire kalam. Detected stanzas stay together at page boundaries; uniformly spaced verses fall back to pairs.
+   - A kalam's screenshots at the same capture zoom share one lettering scale. Rows are never independently enlarged/shrunk by their glyph bounds. Complete stanzas preserve the source's baseline spacing and column relationships; separate capture zooms are calibrated as groups.
 3. **Order:** each screenshot has a numbered badge. Drag to reorder, or click the number and type a new position. Kalams move with ↑ ↓.
-4. **Name:** unnamed kalams automatically show a clean crop of their opening verse/words in the fihrist, including Urdu, with the correct page link. Type a name in the card or click the entry in **Edit text** to replace it. Local Arabic/Urdu OCR helps detect page numbers; uncertain recognition is flagged for review. The app never substitutes recognized words into the actual verse artwork.
+4. **Name:** unnamed kalams automatically show a clean crop of their opening verse/up to five words in the fihrist, including Urdu, in the same navy as typed names and with the correct page link. Type a name in the card or click the entry in **Edit text** to replace it. Local Arabic/Urdu OCR helps detect page numbers. The app never substitutes recognized words into the actual verse artwork.
 5. **Clean up:** ✎ opens the crop/erase editor. Drag boxes over verse-number badges, timestamps or other marks.
 6. **Defaults:** ★ pins a kalam (name + screenshots) as the default for new booklets. Click again to unpin.
+   **AI lettering restoration:** the **AI** button beside a screenshot opens an original/draft comparison. Create a draft, inspect every word and dot, then choose **Use restored lettering** or **Keep original**. Drafts use the supplied screenshot plus the canonical Husain/Panjatan lettering reference; they do not replace an original automatically.
 7. **Edit text:** click **✎ Edit text** above the preview, then click any text on the pages to retype it in Kanz al-Marjaan: cover title, date line and location, the fihrist (headings, section titles, kalam names, page numbers), page headings, Salam Arz lines and page numbers. Enter saves, Esc cancels; A− / A+ resize it and ↺ Original undoes the edit. **+ Text box** then a click on a page adds your own text there: drag to move it, click to type (Shift+Enter for a new line), pick a size and colour, or 🗑 to delete. Edited text has a blue dashed outline. Edits to generated text (e.g. the title) drop away by themselves if the date or venue changes it. **New booklet** keeps your cover and fihrist wording and clears headings, page-number edits and text boxes.
 8. **Download PDF:** the file is named after the title, e.g. `18mi Raat Matam Majlis.pdf`. The download carries the preview's artwork into a self-contained print snapshot, checks every image and font, and fails explicitly if something is missing. A warm print browser and a small completed-PDF cache speed up repeat downloads; no screenshot processing or OCR happens during export.
 
@@ -47,11 +48,20 @@ Kalams without screenshots are left out of the booklet and the fihrist. Work aut
 
 - `src/booklet/`: the document model, venue templates, pagination and page components (`Editable.tsx`: typing on the pages)
 - `src/lib/hijri.ts`: the Fatemi (Misri) Hijri calendar and the title and date-line wording
-- `server/`: lossless screenshot cleanup and row/stanza geometry (`ink.ts`), packaged offline Arabic/Urdu OCR (`recognize.ts`), storage (`store.ts`) and PDF export (Playwright + pdf-lib)
+- `server/`: screenshot ink and row/stanza geometry (`ink.ts`), precision vector contours (`vector.ts`), packaged offline Arabic/Urdu OCR (`recognize.ts`), optional image restoration (`restore.ts`), storage (`store.ts`) and PDF export (Playwright + pdf-lib)
 - `src/editor/`: the input panel, crop/erase editor, autosave and undo
 - `public/assets/`: the recolored artwork, generated by `tools/build_assets.py` (cover, border, ornaments) and `tools/build-logos.mjs` (logos)
 - `public/fonts/`: Kanz al-Marjaan v0.1.7 (SIL OFL)
 - `docs/PLAN.md`: the full plan and recorded decisions
+- `docs/REFERENCE_STYLE.md`: measured conventions from all 153 pages of the six reference PDFs and the typography rules future changes must preserve
+
+## Optional OpenAI image restoration
+
+Configure `OPENAI_API_KEY` as a server environment secret (Render's Environment page). It must permit image edits; never put it into browser code or commit it. No key is needed for the default vector cleanup and uniform layout.
+
+The default is `OPENAI_IMAGE_MODEL=gpt-image-2.5-flare`, `quality=medium`, one transparent PNG per request. There is no high reasoning setting. `AI_DAILY_LIMIT` defaults to 10 drafts per UTC day on the running instance, with at most three queued; identical source/revision requests reuse the job. The limit is an app request cap, not an account billing limit, and resets if the ephemeral service restarts. Restorations use existing API credits. Billing, credit purchases and auto-reload are managed in the OpenAI account.
+
+Generation runs as a queued job so it does not hold an HTTP request open for the whole image edit. A failed/refused/limited request leaves the source untouched. A generated draft requires explicit acceptance and remains undoable.
 
 ## Verification and source quality
 

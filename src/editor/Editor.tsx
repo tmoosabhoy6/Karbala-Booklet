@@ -8,6 +8,7 @@ import { dateLine, raatTitle, raatTitleLatin } from '../lib/hijri';
 import { ImageEditor } from './ImageEditor';
 import { KalamCard, uploadInto } from './KalamCard';
 import { useBooklet } from './useBooklet';
+import { AIRestore } from './AIRestore';
 import './editor.css';
 
 export function Editor() {
@@ -16,6 +17,7 @@ export function Editor() {
   const [active, setActive] = useState<{ category: Category; id: string } | null>(null);
   const [uploads, setUploads] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<ImageBlock | null>(null);
+  const [restoring, setRestoring] = useState<ImageBlock | null>(null);
   // A4 is 794 CSS px wide: start narrow screens zoomed to fit.
   const [zoom, setZoom] = useState(() => Math.max(0.3, Math.min(0.8, +((innerWidth - 32) / 794).toFixed(2))));
   // Phones show one panel at a time.
@@ -177,6 +179,7 @@ export function Editor() {
                         defaults={defaults}
                         onActivate={() => activate(category, k.id)}
                         onEditImage={setEditing}
+                        onRestoreImage={setRestoring}
                         uploads={uploads[k.id] ?? 0}
                         onUpload={(files) => upload(category, k.id, files)}
                       />
@@ -267,6 +270,7 @@ export function Editor() {
       </main>
 
       {editing && <ImageEditor block={editing} onClose={() => setEditing(null)} onApplied={replaceMedia} />}
+      {restoring && <AIRestore block={restoring} onClose={() => setRestoring(null)} onUse={(meta) => { replaceMedia(meta, restoring.mediaId); setRestoring(null); }} />}
     </div>
   );
 }

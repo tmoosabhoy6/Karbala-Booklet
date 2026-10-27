@@ -14,6 +14,7 @@ import { mediaSrc } from '../src/booklet/media';
 import { readFile } from 'node:fs/promises';
 import { PROCESSOR_VERSION } from './ink';
 import { closeRecognition } from './recognize';
+import { restorationJob, restorationStatus, startRestoration } from './restore';
 
 const PORT = Number(process.env.PORT ?? 3001);
 // 0.0.0.0 when hosted (or to reach it from a phone on the same Wi-Fi).
@@ -59,6 +60,14 @@ const route =
       console.error(e);
       res.status(500).send(e.message);
     });
+
+app.get('/api/ai/status', (_req, res) => res.json(restorationStatus()));
+app.post('/api/media/:id/restore', route(async (req, res) => res.json(await startRestoration(req.params.id))));
+app.get('/api/ai/jobs/:id', (req, res) => {
+  const job = restorationJob(req.params.id);
+  if (!job) return res.status(404).send('Restoration not found.');
+  res.json(job);
+});
 
 // ---- screenshots ----
 app.post(
@@ -143,7 +152,7 @@ app.post(
       else {
         if (!/^[\w-]+$/.test(block.mediaId)) return res.status(400).send('Invalid screenshot ID.');
         try {
-          const name = block.format === 'png' ? `${block.mediaId}.${Number(block.rev)}.png` : `${block.mediaId}.svg`;
+          const name = block.format ? `${block.mediaId}.${Number(block.rev)}.${block.format}` : `${block.mediaId}.svg`;
           const bytes = await readFile(path.join(MEDIA, name));
           assets[src] = `data:image/${block.format === 'png' ? 'png' : 'svg+xml'};base64,${bytes.toString('base64')}`;
         } catch { return res.status(422).send('A verse image is missing. Re-add its original screenshot before downloading.'); }

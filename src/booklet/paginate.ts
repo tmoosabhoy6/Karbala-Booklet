@@ -10,6 +10,7 @@ export const TARGET_LINE_PT = 34;
 
 const HEADING_H = 58;
 const BLOCK_GAP = 8;
+const STANZA_GAP = 18;
 const SEPARATOR_H = 26;
 const ORNAMENT_H = 54;
 
@@ -73,6 +74,30 @@ export function textHeight(b: { text: string; sizePt: number }) {
 }
 
 const hasContent = (k: Kalam) => k.blocks.length > 0;
+
+const median = (values: number[]) => [...values].sort((a, b) => a - b)[values.length >> 1] ?? 1;
+
+/** A screenshot's full glyph boxes vary with its words. Calibrate a shared
+ * font scale across screenshots captured at the same zoom, never per row. */
+export function kalamImageScales(kalam: Kalam): Map<string, number> {
+  const cohorts: ImageBlock[][] = [];
+  const metric = (b: ImageBlock) => median(b.regions?.map((r) => r.lineHeight) ?? [b.lineHeight]);
+  for (const b of kalam.blocks) {
+    if (b.kind !== 'image' || b.fixedWidthPt) continue;
+    const cohort = cohorts.find((c) => {
+      const ratio = metric(b) / median(c.map(metric));
+      return ratio >= 0.75 && ratio <= 1.33;
+    });
+    if (cohort) cohort.push(b); else cohorts.push([b]);
+  }
+  const scales = new Map<string, number>();
+  for (const cohort of cohorts) {
+    const height = median(cohort.flatMap((b) => b.regions?.map((r) => r.lineHeight) ?? [b.lineHeight]));
+    const scale = Math.min(TARGET_LINE_PT / height, ...cohort.map((b) => CONTENT_WIDTH / (b.width * b.scale)));
+    for (const b of cohort) scales.set(b.id, scale * b.scale);
+  }
+  return scales;
+}
 
 export function paginate(doc: Booklet): Layout {
   const sections = VENUES[doc.venue].sections
@@ -148,25 +173,26 @@ export function paginate(doc: Booklet): Layout {
     if (fits(ORNAMENT_H)) place({ kind: 'ornament' }, ORNAMENT_H);
   };
 
-  const placeImage = (block: ImageBlock, anchor?: string, titleLink?: boolean) => {
+  const placeImage = (block: ImageBlock, anchor?: string, titleLink?: boolean, commonScale?: number) => {
     if (block.regions?.length && !block.fixedWidthPt) {
       const groups = new Map<number, typeof block.regions>();
       for (const r of block.regions) groups.set(r.group, [...(groups.get(r.group) ?? []), r]);
       let first = true;
       for (const rows of groups.values()) {
-        const sizes = rows.map((r) => Math.min(CONTENT_WIDTH / r.w, TARGET_LINE_PT * block.scale / Math.max(1, r.lineHeight)));
-        const total = rows.reduce((h, r, i) => h + r.h * sizes[i] + BLOCK_GAP, 0);
-        // Even an unusually tall couplet must fit within the printable page.
+        const s = commonScale ?? ptPerPx(block);
+        const top = Math.min(...rows.map((r) => r.y));
+        const bottom = Math.max(...rows.map((r) => r.y + r.h));
+        const h = (bottom - top) * s;
         const afterHeading = first && (cur as { items: PlacedItem[] } | null)?.items.at(-1)?.kind === 'heading';
-        const shrink = Math.min(1, (CONTENT.bottom - CONTENT.top - (afterHeading ? HEADING_H : 0)) / total);
-        if (!fits(total * shrink)) newPage();
-        rows.forEach((r, i) => {
-          const s = sizes[i] * shrink;
-          const h = r.h * s;
-          place({ kind: 'block', block, height: h, imageRect: r, imageScale: s, gap: BLOCK_GAP * shrink, anchor: first ? anchor : undefined, titleLink: first && titleLink }, h + BLOCK_GAP * shrink);
-          if (first && anchor) anchorPage.set(anchor, pageNo);
-          first = false;
-        });
+        const maximum = CONTENT.bottom - CONTENT.top - (afterHeading ? HEADING_H : 0);
+        if (h + STANZA_GAP > maximum) throw new Error('This stanza is too tall at the standard lettering size. Crop it into complete verses.');
+        if (!fits(h + STANZA_GAP)) newPage();
+        // Keep the source's baseline spacing and relative column positions.
+        // The entire stanza is one crop, so no row gets stretched separately.
+        const imageRect = { x: 0, y: top, w: block.width, h: bottom - top, group: rows[0].group };
+        place({ kind: 'block', block, height: h, imageRect, imageScale: s, gap: STANZA_GAP, anchor: first ? anchor : undefined, titleLink: first && titleLink }, h + STANZA_GAP);
+        if (first && anchor) anchorPage.set(anchor, pageNo);
+        first = false;
       }
       return;
     }
@@ -211,17 +237,19 @@ export function paginate(doc: Booklet): Layout {
 
   const placeKalam = (category: Category, kalam: Kalam, withHeading: boolean) => {
     const anchor = kalamAnchor(kalam);
+    const scales = kalamImageScales(kalam);
     if (withHeading) {
       // Keep the heading with at least one line of the first block.
       const b = kalam.blocks[0];
-      const firstLine = b.kind === 'image' ? (b.regions?.length ? b.regions.filter((r) => r.group === b.regions![0].group).reduce((h, r) => h + r.h * Math.min(CONTENT_WIDTH / r.w, TARGET_LINE_PT * b.scale / r.lineHeight) + BLOCK_GAP, 0) : Math.min(b.height * ptPerPx(b), TARGET_LINE_PT * 2.8)) : b.sizePt * 4.2;
+      const firstRows = b.kind === 'image' ? b.regions?.filter((r) => r.group === b.regions![0].group) : undefined;
+      const firstLine = b.kind === 'image' ? (firstRows?.length ? (Math.max(...firstRows.map((r) => r.y + r.h)) - Math.min(...firstRows.map((r) => r.y))) * (scales.get(b.id) ?? ptPerPx(b)) + STANZA_GAP : Math.min(b.height * ptPerPx(b), TARGET_LINE_PT * 2.8)) : b.sizePt * 4.2;
       if (!fits(HEADING_H + firstLine) && cur?.items.length) newPage();
       place({ kind: 'heading', label: CATEGORY_LABEL[category], anchor }, HEADING_H);
       anchorPage.set(anchor, pageNo);
     }
     kalam.blocks.forEach((block, i) => {
       const a = i === 0 && !withHeading ? anchor : undefined;
-      if (block.kind === 'image') placeImage(block, a, NO_HEADING[category] && i === 0);
+      if (block.kind === 'image') placeImage(block, a, NO_HEADING[category] && i === 0, scales.get(block.id));
       else {
         const lines = block.text.split('\n');
         for (let start = 0; start < lines.length;) {

@@ -24,7 +24,7 @@ export interface ImageBlock {
   scale: number;
   /** Fixed width in pt (used by fixed full-page content instead of line-height sizing). */
   fixedWidthPt?: number;
-  format?: 'png';
+  format?: 'png' | 'svg';
   regions?: ImageRegion[];
   suggestedName?: string;
   warnings?: string[];
@@ -210,7 +210,7 @@ export interface MediaMeta {
   height: number;
   bands: [number, number][];
   lineHeight: number;
-  format?: 'png';
+  format?: 'png' | 'svg';
   regions?: ImageRegion[];
   suggestedName?: string;
   recognitionConfidence?: number;

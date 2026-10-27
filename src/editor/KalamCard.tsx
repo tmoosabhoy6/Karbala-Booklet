@@ -15,6 +15,7 @@ interface Props {
   defaults: Defaults;
   onActivate: () => void;
   onEditImage: (block: Extract<Block, { kind: 'image' }>) => void;
+  onRestoreImage: (block: Extract<Block, { kind: 'image' }>) => void;
   uploads: number;
   onUpload: (files: File[]) => void;
 }
@@ -38,7 +39,7 @@ const sameBlocks = (a: Block[], b: Block[]) =>
     return x.kind === 'text' && y.kind === 'text' && x.text === y.text;
   });
 
-export function KalamCard({ category, kalam, index, count, active, state, defaults, onActivate, onEditImage, uploads, onUpload }: Props) {
+export function KalamCard({ category, kalam, index, count, active, state, defaults, onActivate, onEditImage, onRestoreImage, uploads, onUpload }: Props) {
   const { updateKalam, updateKalams, pin, unpin } = state;
   const fileInput = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -183,6 +184,7 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
                       <button title="Crop / erase marks" onClick={() => onEditImage(b)}>
                         ✎
                       </button>
+                      <button title="Restore blurry lettering with AI" onClick={() => onRestoreImage(b)}>AI</button>
                       <button
                         title="Smaller text"
                         onClick={() => setBlocks((bs) => bs.map((x) => (x.id === b.id && x.kind === 'image' ? { ...x, scale: Math.max(0.5, +(x.scale - 0.05).toFixed(2)) } : x)))}

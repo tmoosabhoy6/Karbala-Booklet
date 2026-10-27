@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { createBooklet, imageBlockFrom } from '../src/booklet/model';
-import { CONTENT, paginate } from '../src/booklet/paginate';
+import { CONTENT, kalamImageScales, paginate } from '../src/booklet/paginate';
 import { mediaSrc } from '../src/booklet/media';
 
 // Tests the public upload -> saved document -> browser -> PDF path, including
@@ -40,7 +40,15 @@ try {
   const uploaded = await fetch(origin + '/api/media', { method: 'POST', body: input }).then((r) => r.json());
   await page.setViewportSize({ width: 1440, height: 1000 });
   assert.equal(uploaded.regions.length, 18, 'Only complete verse rows should survive; clipped scraps and the standalone number must disappear.');
+  assert(uploaded.regions.every((r: { y: number }, i: number) => !i || r.y >= uploaded.regions[i - 1].y + uploaded.regions[i - 1].h), 'Adjacent row crops must never repeat the neighboring verse fragments.');
   assert(uploaded.width < 600, 'The long black rule must not remain.');
+  assert.equal(uploaded.format, 'svg');
+  const vectors = await fetch(origin + mediaSrc(imageBlockFrom(uploaded))).then((r) => r.text());
+  assert(vectors.includes('<path') && !vectors.includes('<image'), 'Verse lettering must be real vector contours, not an enlarged bitmap inside an SVG.');
+  const variedA = imageBlockFrom(uploaded, { regions: [{ x: 0, y: 0, w: 274, h: 40, lineHeight: 30, group: 0 }, { x: 0, y: 45, w: 274, h: 65, lineHeight: 55, group: 0 }, { x: 0, y: 115, w: 274, h: 53, lineHeight: 43, group: 0 }] });
+  const variedB = imageBlockFrom(uploaded, { regions: [{ x: 0, y: 0, w: 274, h: 42, lineHeight: 32, group: 0 }, { x: 0, y: 45, w: 274, h: 62, lineHeight: 52, group: 0 }, { x: 0, y: 115, w: 274, h: 57, lineHeight: 47, group: 0 }] });
+  const common = kalamImageScales({ id: 'size-regression', name: '', blocks: [variedA, variedB] });
+  assert.equal(common.get(variedA.id), common.get(variedB.id), 'Different glyph ascenders must not change font size within a kalam.');
   const fixed = await fetch(origin + '/api/media/fixed-matam').then((r) => r.json());
   const doc = createBooklet('2026-10-27', 'haram', {}, fixed);
   doc.kalams.noha = [{ id: 'regression', name: '', blocks: [imageBlockFrom(uploaded)] }];
@@ -81,7 +89,7 @@ try {
     })));
   });
   // Start a genuinely different export after removing its backing server file.
-  await rename(`${data}/media/${uploaded.id}.${uploaded.rev}.png`, `${data}/missing.png`);
+  await rename(`${data}/media/${uploaded.id}.${uploaded.rev}.${uploaded.format}`, `${data}/missing.svg`);
   const another = { ...doc, date: '2026-10-26' };
   const request = { doc: another, assets, filename: 'snapshot.pdf', title: 'Snapshot regression' };
   const exportOnce = () => fetch(origin + '/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });

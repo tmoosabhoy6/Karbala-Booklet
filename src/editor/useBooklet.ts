@@ -158,11 +158,11 @@ export function useBooklet() {
 
   /** After a crop/erase, every copy of that screenshot (here and in defaults) takes the new version. */
   const replaceMedia = useCallback(
-    (m: MediaMeta) => {
+    (m: MediaMeta, originalId = m.id) => {
       const patch = (b: Block): Block =>
-        b.kind === 'image' && b.mediaId === m.id ? { ...b, ...imageGeometry(m) } : b;
+        b.kind === 'image' && b.mediaId === originalId ? { ...b, ...imageGeometry(m) } : b;
       setDoc((d) => mapKalams(d, (k) => ({ ...k, blocks: k.blocks.map(patch) })));
-      const touched = Object.values(defaults).some((v) => v.blocks.some((b) => b.kind === 'image' && b.mediaId === m.id));
+      const touched = Object.values(defaults).some((v) => v.blocks.some((b) => b.kind === 'image' && b.mediaId === originalId));
       if (touched) {
         persistDefaults(Object.fromEntries(Object.entries(defaults).map(([s, v]) => [s, { ...v, blocks: v.blocks.map(patch) }])));
       }

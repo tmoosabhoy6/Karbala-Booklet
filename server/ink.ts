@@ -3,7 +3,7 @@
 import sharp from 'sharp';
 import { recognize } from './recognize';
 
-export const PROCESSOR_VERSION = 5;
+export const PROCESSOR_VERSION = 6;
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface Edits { crop?: Rect; erase?: Rect[]; autoClean?: boolean }
 export interface Region extends Rect { lineHeight: number; group: number }
@@ -166,13 +166,16 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
     if (i && ((!paragraphBreaks && inGroup >= 2) || a - finalBands[i - 1][1] > normalGap * 1.8)) { group++; inGroup = 0; }
     inGroup++;
     const ink = box(alpha, W, H, a + t.y, b + t.y)!;
-    const x = Math.max(0, ink.x - t.x - padding), y = Math.max(0, a - padding);
+    const previous = finalBands[i - 1], next = finalBands[i + 1];
+    const y = Math.max(0, a - padding, previous ? Math.ceil((previous[1] + a) / 2) : 0);
+    const end = Math.min(t.h, b + padding, next ? Math.floor((b + next[0]) / 2) : t.h);
+    const x = Math.max(0, ink.x - t.x - padding);
     const unresolvedRows = b - a > 80 && ink.w / (b - a) < 2.5;
     if (unresolvedRows) warnings.push('Some closely joined lines could not be separated. Check their size; crop into complete verses if needed.');
     // A dense multi-line image must never be mistaken for one giant glyph and
     // shrunk to a 34pt thumbnail. Preserve it as a readable, intact group.
     const lineHeight = unresolvedRows ? Math.min(b - a, Math.max(20, ink.w / 12)) : b - a;
-    return { x, y, w: Math.min(t.w - x, ink.w + padding * 2), h: Math.min(t.h, b + padding) - y, lineHeight, group };
+    return { x, y, w: Math.min(t.w - x, ink.w + padding * 2), h: end - y, lineHeight, group };
   });
   const first = regions[0];
   // The index can use the actual opening words as a transparent image. This
@@ -190,7 +193,7 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
     const previous = words.at(-1);
     if (previous && c[0] - previous[1] < first.lineHeight * 0.16) previous[1] = c[1]; else words.push([...c]);
   }
-  const selected = words.length > 6 ? words.slice(-4) : words;
+  const selected = words.length > 6 ? words.slice(-5) : words;
   const opening: Rect = selected.length ? { x: Math.max(0, selected[0][0] - padding), y: first.y, w: Math.min(t.w, selected.at(-1)![1] + padding) - Math.max(0, selected[0][0] - padding), h: first.h } : first;
   if (median(finalBands.map(([a, b]) => b - a)) < 20) warnings.push('Low-resolution source: a larger original screenshot or PDF will print more clearly.');
   // Compatibility for old thumbnails; lossless source ink, no curve fitting.
