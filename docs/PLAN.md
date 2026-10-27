@@ -17,7 +17,7 @@ Every other PDF in `references/` is only there for context.
 | `حسين حسين، پنجتن ماتم` page 20 | One 1300×1919 image | Fixed content. I'll rebuild it crisp |
 | Headings | Kanz al-Marjaan 24pt, Word purple `#7030A0` | Maroon |
 | Fihrist bars | Lavender header bar plus green section bars | Light maroon or rose tints |
-| Last page (Sautuliman app ad) | n/a | Dropped (Q6) |
+| Last page (Sautuliman app ad) | n/a | Replaced by a back cover: the cover's grid background only, with both logos centered at medium size |
 
 **Font:** Kanz al-Marjaan v0.1.7 (OFL licence) has 1,566 glyphs, full GSUB/GPOS, and every Lisan al-Dawat letter (ٹ ڈ ڑ ں ھ ے ۓ), Arabic-Indic digits and Latin. I tested it in Chromium and the shaping is correct.
 
@@ -74,7 +74,6 @@ Block = cleaned screenshot line group | typed Kanz text
   - سلام عرض (fixed)
   - رثاء
   - مدح
-  - وظيفة الشكر (fixed default, removable)
 
 **Najmi Masjid:** `نجمي مسجد`
 - §1 `بيٹهي نے تلاوة`
@@ -88,7 +87,6 @@ Block = cleaned screenshot line group | typed Kanz text
   - سلام عرض
   - رثاء
   - مدح
-  - وظيفة الشكر
 
 **Rules:**
 - Any empty category disappears from both the fihrist and the body.
@@ -104,8 +102,9 @@ Block = cleaned screenshot line group | typed Kanz text
 - **Maroon bar:** The location only.
 - **Bottom:** `سنة الشكر…` and `سنة ١٤٤٨هـ` are static, in the original blue vectors.
 
-Proposed night names (please check the spelling):
-پهلي · بيجي · تيجي · چوتهي · پانچمي · چهٹهي · ساتمي · آٹهمي · نومي
+Night names (confirmed): پهلي · بيجي · تيجي · چوتهي · پانچمي · چهٹي · ساتمي · اٰٹهمي · نومي. From ١٠ up it's digits + `مي رات`.
+
+The cover also has a small blue date line under `ماتم مجلس` showing the day the majlis is held, e.g. `يوم الثلاثاء، ١٧ جمادى الاولى ١٤٤٨هـ`.
 
 ## 6. Hyperlinks and the output file
 
@@ -129,3 +128,16 @@ Proposed night names (please check the spelling):
 3. **Screenshot pipeline:** Clean ink, vectorizing, normalization, line splitting, crop/erase.
 4. **Editor UX:** Drag reorder, inline text, autosave, defaults library.
 5. **QA:** Pixel overlay against the reference, link tests on phones, A4 print test.
+
+## 9. Decisions (27 Oct 2026)
+
+- **Wazifat al-Shukr is removed everywhere**: no section, no option.
+- **Logos:** recreate both as HD maroon vectors from the current files.
+- **No source Word file exists.** The cover is cleaned and upscaled from the PDF's image.
+- **Date line:** the day the majlis is held.
+- **Haram:** the Matam goes at the end of the seated part (بيٹهي نے تلاوة).
+- **Salam Arz:** `السلام عليك يا ابا عبد الله ×٢` opens it, the other lines follow as in the screenshot, and the opening line with `×٢` closes it.
+- **Back page:** the cover's grid background only, with both logos centered at medium size.
+- **Mac only** for now.
+- **No prefilled verses.** Any processed screenshot can be pinned as the default for its kalam slot and unpinned later.
+- **Commits:** every change is committed and pushed to `main`, references included.
