@@ -6,6 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { cleanScreenshot, Edits, PROCESSOR_VERSION, Region } from './ink';
 import { vectorInk } from './vector';
+import { heavyWork } from './resources';
 
 export const DATA = path.resolve(process.env.DATA_DIR ?? 'data');
 export const MEDIA = path.join(DATA, 'media');
@@ -34,11 +35,8 @@ const safeId = (id: string) => {
   return id;
 };
 
-let processQueue = Promise.resolve();
 function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number): Promise<MediaMeta> {
-  const job = processQueue.then(() => processImage(id, original, edits, rev));
-  processQueue = job.then(() => undefined, () => undefined);
-  return job;
+  return heavyWork(() => processImage(id, original, edits, rev));
 }
 async function processImage(id: string, original: Buffer, edits: Edits, rev: number): Promise<MediaMeta> {
   const r = await cleanScreenshot(original, edits, { ocr: id !== 'fixed-matam' });

@@ -15,6 +15,7 @@ import { readFile } from 'node:fs/promises';
 import { PROCESSOR_VERSION } from './ink';
 import { closeRecognition } from './recognize';
 import { restorationJob, restorationStatus, startRestoration } from './restore';
+import { heavyWork } from './resources';
 
 const PORT = Number(process.env.PORT ?? 3001);
 // 0.0.0.0 when hosted (or to reach it from a phone on the same Wi-Fi).
@@ -34,7 +35,7 @@ sharp.concurrency(1);
 
 // For the host's uptime checks; the only route open without the password.
 app.get('/api/health', (_req, res) => res.send('ok'));
-app.get('/api/version', (_req, res) => res.json({ processorVersion: PROCESSOR_VERSION }));
+app.get('/api/version', (_req, res) => res.json({ processorVersion: PROCESSOR_VERSION, revision: process.env.RENDER_GIT_COMMIT ?? 'local' }));
 
 const passwordOk = (header = '') => {
   const [scheme, encoded = ''] = header.split(' ');
@@ -116,7 +117,8 @@ app.get('/api/print/:id', (req, res) => {
   res.json(doc);
 });
 
-// One warm browser keeps exports fast.
+// Launch only while printing. Keeping Chromium resident alongside OCR can
+// exceed the free host's memory even when neither request is doing work.
 let browser: Promise<Browser> | null = null;
 const getBrowser = () => (browser ??= chromium.launch().then((b) => {
   b.on('disconnected', () => { browser = null; });
@@ -162,7 +164,7 @@ app.post(
     const cached = completed.get(key);
     if (cached && cached.expires > Date.now() && pdfs.has(cached.id)) return res.json({ url: `/api/pdf/${cached.id}/${encodeURIComponent(filename)}` });
     if (!exporting.has(key)) {
-      const job = printQueue.then(async () => {
+      const job = printQueue.then(() => heavyWork(async () => {
       await closeRecognition();
       const id = randomUUID();
       const context = await (await getBrowser()).newContext(PASSWORD ? { httpCredentials: { username: 'print', password: PASSWORD } } : {});
@@ -189,9 +191,12 @@ app.post(
       return id;
       } finally {
         pending.delete(id);
-        await context.close();
+        const current = browser;
+        browser = null;
+        try { await context.close(); }
+        finally { if (current) await (await current).close(); }
       }
-      });
+      }));
       printQueue = job.then(() => undefined, () => undefined);
       exporting.set(key, job.finally(() => exporting.delete(key)));
     }
@@ -206,7 +211,6 @@ if (PROD) {
 
 await ensureFixedMedia();
 const http = app.listen(PORT, HOST, () => console.log(`server on http://${HOST}:${PORT}${PASSWORD ? ' (password on)' : ''}`));
-void getBrowser().catch((e) => console.error('PDF browser warm-up:', e.message));
 let closing = false;
 const shutdown = async () => {
   if (closing) return;

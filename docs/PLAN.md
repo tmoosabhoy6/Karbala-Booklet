@@ -9,7 +9,7 @@ Master template: `references/HA_5mi Raat Majlis 1448h.pdf` (A4, 22 pages).
 - Screenshots from the same kalam and capture zoom share one lettering scale. Never resize individual verse rows. Place whole stanza crops with their original baseline spacing; reject an exceptionally tall group rather than silently shrinking it.
 - Optional OpenAI restoration produces a separate, medium-quality draft for comparison and explicit acceptance. It never silently substitutes generated words.
 - A faithful crop of the opening words fills an otherwise unnamed fihrist entry. Arabic/Urdu OCR is packaged locally and used for standalone page-number detection; it never silently retypes a verse.
-- Export embeds the artwork snapshot and rejects failed image/font decoding. A warm browser, shared in-flight work and a bounded PDF cache shorten downloads.
+- Export embeds the artwork snapshot and rejects failed image/font decoding. Shared in-flight work and a bounded PDF cache shorten repeated downloads. OCR/tracing and printing share one memory-intensive work queue; OCR closes before printing and Chromium closes afterward.
 - Originals and booklet/defaults also live in browser IndexedDB for recovery after ephemeral server storage disappears. The free server still has no durable, cross-device disk.
 - `npm run verify` exercises the complete production path, including intentional missing/corrupt-image failures.
 The 5mi Raat PDF supplies the geometry; all six reference PDFs define the lettering quality.
