@@ -16,8 +16,8 @@ Open http://127.0.0.1:5173. **Download PDF** renders the booklet with headless C
 
 The app needs a real server (it cleans screenshots with sharp/potrace and prints the PDF with Chromium), so it runs on Render as a Docker service. `render.yaml` sets it all up:
 
-1. In the Render dashboard: **New → Blueprint**, connect GitHub and pick this repo.
-2. Enter a password for `APP_PASSWORD` when asked. Every page asks for it (any username).
+1. In the Render dashboard: **New → Blueprint**, connect GitHub and pick this repo, then **Apply**.
+2. There is no password, so keep the link to yourself. To add one later, set `APP_PASSWORD` in the service's Environment tab (any username works).
 3. The first build takes about 10 minutes. Then open the `onrender.com` link it gives you, on your laptop or phone. On iPhone, Share → Add to Home Screen makes it an app icon.
 
 It uses the Starter plan ($7/month) with a 1 GB disk ($0.25/month) in Frankfurt, the closest region to Iraq. The free plan has no disk, so your screenshots and saved booklet would be wiped every time it restarts. Every push to `main` redeploys it.
