@@ -116,8 +116,8 @@ The cover also has a small blue date line under `ماتم مجلس` showing the 
 
 ## 7. Editing
 
-- Click any text in the preview to edit it inline in Kanz al-Marjaan.
-- "Add text" places a free text box anywhere on a page.
+- Click any text in the preview to edit it inline in Kanz al-Marjaan. (Done: ✎ Edit text.)
+- "Add text" places a free text box anywhere on a page. (Done: + Text box.)
 - Drag to reorder kalams and screenshots.
 - Undo/redo, plus a zoomable page preview.
 

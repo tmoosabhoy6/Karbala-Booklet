@@ -1,6 +1,21 @@
 // Working-booklet state: load, autosave (debounced), undo/redo, and pinned defaults.
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Block, Booklet, Category, Defaults, Kalam, MATAM_MEDIA_ID, MediaMeta, Venue, cloneBlocks, createBooklet } from '../booklet/model';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { TextEdits } from '../booklet/Editable';
+import {
+  Block,
+  Booklet,
+  Category,
+  Defaults,
+  Kalam,
+  MATAM_MEDIA_ID,
+  MediaMeta,
+  TEXT_COLORS,
+  Venue,
+  cloneBlocks,
+  createBooklet,
+  templateOverrides,
+  uid,
+} from '../booklet/model';
 import { api } from './api';
 
 export const todayIso = () => {
@@ -9,6 +24,13 @@ export const todayIso = () => {
 };
 
 const HISTORY = 60;
+
+const mapKalams = (d: Booklet, fn: (k: Kalam) => Kalam): Booklet => ({
+  ...d,
+  kalams: Object.fromEntries(Object.entries(d.kalams).map(([c, ks]) => [c, ks.map(fn)])) as Booklet['kalams'],
+});
+
+const replaceLine = (text: string, i: number, line: string) => text.split('\n').map((l, j) => (j === i ? line : l)).join('\n');
 
 export function useBooklet() {
   const [doc, setDocState] = useState<Booklet | null>(null);
@@ -113,10 +135,7 @@ export function useBooklet() {
     (m: MediaMeta) => {
       const patch = (b: Block): Block =>
         b.kind === 'image' && b.mediaId === m.id ? { ...b, rev: m.rev, width: m.width, height: m.height, bands: m.bands, lineHeight: m.lineHeight } : b;
-      setDoc((d) => ({
-        ...d,
-        kalams: Object.fromEntries(Object.entries(d.kalams).map(([c, ks]) => [c, ks.map((k) => ({ ...k, blocks: k.blocks.map(patch) }))])) as Booklet['kalams'],
-      }));
+      setDoc((d) => mapKalams(d, (k) => ({ ...k, blocks: k.blocks.map(patch) })));
       const touched = Object.values(defaults).some((v) => v.blocks.some((b) => b.kind === 'image' && b.mediaId === m.id));
       if (touched) {
         persistDefaults(Object.fromEntries(Object.entries(defaults).map(([s, v]) => [s, { ...v, blocks: v.blocks.map(patch) }])));
@@ -126,11 +145,52 @@ export function useBooklet() {
   );
 
   const reset = useCallback(
-    (venue: Venue) => setDoc((d) => createBooklet(d.date, venue, defaults, matam.current)),
+    (venue: Venue) => setDoc((d) => ({ ...createBooklet(d.date, venue, defaults, matam.current), overrides: templateOverrides(d.overrides) })),
     [defaults, setDoc],
   );
 
-  return { doc, setDoc, defaults, saved, undo, redo, updateKalams, updateKalam, pin, unpin, replaceMedia, reset };
+  /** Typing on the pages: edits to generated text and the free text boxes. */
+  const textEdits = useMemo<TextEdits>(
+    () => ({
+      override: (key, from, text, scale) =>
+        setDoc((d) => {
+          const overrides = { ...d.overrides };
+          if (text === from && scale === 1) {
+            if (!(key in overrides)) return d;
+            delete overrides[key];
+          } else overrides[key] = scale === 1 ? { from, text } : { from, text, scale };
+          return { ...d, overrides };
+        }),
+      kalamName: (id, name) => setDoc((d) => mapKalams(d, (k) => (k.id === id ? { ...k, name } : k))),
+      textLine: (blockId, line, text) =>
+        setDoc((d) =>
+          mapKalams(d, (k) =>
+            k.blocks.some((b) => b.id === blockId)
+              ? { ...k, blocks: k.blocks.map((b) => (b.id === blockId && b.kind === 'text' ? { ...b, text: replaceLine(b.text, line, text) } : b)) }
+              : k,
+          ),
+        ),
+      box: (id, patch) =>
+        setDoc((d) => {
+          const boxes = d.textBoxes ?? [];
+          if (!boxes.some((b) => b.id === id)) return d;
+          return { ...d, textBoxes: patch ? boxes.map((b) => (b.id === id ? { ...b, ...patch } : b)) : boxes.filter((b) => b.id !== id) };
+        }),
+    }),
+    [setDoc],
+  );
+
+  /** A new, empty text box centred on (x, y) of `page`; it opens for typing. */
+  const addTextBox = useCallback(
+    (page: number, x: number, y: number) => {
+      const sizePt = 24;
+      const box = { id: uid(), page, x, y: Math.max(0, Math.round(y - sizePt * 0.8)), text: '', sizePt, color: TEXT_COLORS[1] };
+      setDoc((d) => ({ ...d, textBoxes: [...(d.textBoxes ?? []), box] }));
+    },
+    [setDoc],
+  );
+
+  return { doc, setDoc, defaults, saved, undo, redo, updateKalams, updateKalam, pin, unpin, replaceMedia, reset, textEdits, addTextBox };
 }
 
 export type BookletState = ReturnType<typeof useBooklet>;

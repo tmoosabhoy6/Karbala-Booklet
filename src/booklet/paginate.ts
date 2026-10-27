@@ -1,5 +1,4 @@
 // Lays the booklet's content out onto A4 pages. All units are PDF points.
-import { stripMarkup } from './RichText';
 import { Block, Booklet, CATEGORY_FLOW, CATEGORY_LABEL, Category, ImageBlock, Kalam, VENUES } from './model';
 
 export const PAGE = { width: 595.32, height: 841.92 };
@@ -28,7 +27,7 @@ const NO_HEADING: Partial<Record<Category, boolean>> = { matam: true };
 
 export type PlacedItem =
   | { kind: 'heading'; label: string; anchor: string }
-  | { kind: 'block'; block: Block; height: number; anchor?: string; crop?: [number, number]; titleLink?: boolean }
+  | { kind: 'block'; block: Block; height: number; anchor?: string; crop?: [number, number]; titleLink?: boolean; fixed?: boolean }
   | { kind: 'separator' }
   | { kind: 'ornament' };
 
@@ -37,12 +36,13 @@ export interface FihristGroup {
   anchor: string;
   /** False on a continuation chunk, where the label is repeated lightly. */
   first: boolean;
-  kalams: { name: string; anchor: string; page: number }[];
+  /** `name` is the kalam's name with its markup; the fihrist shows it plain. */
+  kalams: { id: string; name: string; fixed?: Kalam['fixed']; anchor: string; page: number }[];
 }
 
 export type FihristItem =
   | { kind: 'head' }
-  | { kind: 'section'; title: string }
+  | { kind: 'section'; title: string; index: number }
   | { kind: 'cols' }
   | { kind: 'group'; group: FihristGroup }
   | { kind: 'end' };
@@ -98,10 +98,10 @@ export function paginate(doc: Booklet): Layout {
   const groups: FihristGroup[] = [];
   fpush({ kind: 'head' }, F_HEAD);
   sections.forEach((s, si) => {
-    fpush({ kind: 'section', title: s.title }, F_BAR);
+    fpush({ kind: 'section', title: s.title, index: si }, F_BAR);
     if (si === 0) fpush({ kind: 'cols' }, F_COLS);
     for (const e of s.entries) {
-      const rows = e.kalams.map((k) => ({ name: stripMarkup(k.name), anchor: kalamAnchor(k), page: 0 }));
+      const rows = e.kalams.map((k) => ({ id: k.id, name: k.name, fixed: k.fixed, anchor: kalamAnchor(k), page: 0 }));
       let first = true;
       while (rows.length) {
         const room = Math.floor((FIHRIST_BOTTOM - fy) / F_ROW);
@@ -201,7 +201,7 @@ export function paginate(doc: Booklet): Layout {
       if (block.kind === 'image') placeImage(block, a, NO_HEADING[category] && i === 0);
       else {
         const h = textHeight(block);
-        place({ kind: 'block', block, height: h, anchor: a }, h + BLOCK_GAP);
+        place({ kind: 'block', block, height: h, anchor: a, fixed: kalam.fixed === 'all' }, h + BLOCK_GAP);
         if (a) anchorPage.set(a, pageNo);
       }
     });

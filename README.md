@@ -23,13 +23,14 @@ Open http://127.0.0.1:5173. **Download PDF** renders the booklet with headless C
 4. **Name:** type the fihrist name (the first words of the first verse) in each kalam card.
 5. **Clean up:** ✎ opens the crop/erase editor. Drag boxes over verse-number badges, timestamps or other marks.
 6. **Defaults:** ★ pins a kalam (name + screenshots) as the default for new booklets. Click again to unpin.
-7. **Download PDF:** the file is named after the title, e.g. `18mi Raat Matam Majlis.pdf`.
+7. **Edit text:** click **✎ Edit text** above the preview, then click any text on the pages to retype it in Kanz al-Marjaan: cover title, date line and location, the fihrist (headings, section titles, kalam names, page numbers), page headings, Salam Arz lines and page numbers. Enter saves, Esc cancels; A− / A+ resize it and ↺ Original undoes the edit. **+ Text box** then a click on a page adds your own text there: drag to move it, click to type (Shift+Enter for a new line), pick a size and colour, or 🗑 to delete. Edited text has a blue dashed outline. Edits to generated text (e.g. the title) drop away by themselves if the date or venue changes it. **New booklet** keeps your cover and fihrist wording and clears headings, page-number edits and text boxes.
+8. **Download PDF:** the file is named after the title, e.g. `18mi Raat Matam Majlis.pdf`.
 
 Kalams without screenshots are left out of the booklet and the fihrist. Work autosaves to `data/` (git-ignored). Undo with ⌘Z and redo with ⇧⌘Z.
 
 ## Layout
 
-- `src/booklet/`: the document model, venue templates, pagination and page components
+- `src/booklet/`: the document model, venue templates, pagination and page components (`Editable.tsx`: typing on the pages)
 - `src/lib/hijri.ts`: the Fatemi (Misri) Hijri calendar and the title and date-line wording
 - `server/`: screenshot cleaning and tracing (`ink.ts`), storage (`store.ts`) and PDF export (Playwright + pdf-lib)
 - `src/editor/`: the input panel, crop/erase editor, autosave and undo

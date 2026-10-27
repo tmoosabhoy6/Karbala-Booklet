@@ -47,13 +47,53 @@ export interface Kalam {
   slot?: string;
 }
 
+/**
+ * Typed replacement for a piece of generated page text (a heading, a fihrist
+ * label, a page number…). It applies only while the generated text is still
+ * `from`, so an edited title lapses by itself when the date changes.
+ */
+export interface TextOverride {
+  from: string;
+  text: string;
+  /** Font size relative to the generated text, 1 = unchanged. */
+  scale?: number;
+}
+
+/** A free text box placed on a page. */
+export interface TextBox {
+  id: string;
+  /** Index into the laid-out pages (0 = cover). */
+  page: number;
+  /** Centre of the box's top edge, in pt from the page's top-left corner. */
+  x: number;
+  y: number;
+  /** Lines separated by \n; same markup as typed text. */
+  text: string;
+  sizePt: number;
+  color: string;
+}
+
 export interface Booklet {
   version: 2;
   /** ISO date (yyyy-mm-dd) of the day the majlis is held. */
   date: string;
   venue: Venue;
   kalams: Record<Category, Kalam[]>;
+  /** Edits to generated page text, keyed by where the text sits (see Booklet.tsx). */
+  overrides?: Record<string, TextOverride>;
+  textBoxes?: TextBox[];
 }
+
+/** Text box colours: the booklet's black, heading maroon, fihrist navy and gold. */
+export const TEXT_COLORS = ['#000000', '#8c1a24', '#3a456a', '#c18144'];
+
+/**
+ * Edits that belong to the template rather than to one night's booklet (cover
+ * wording, fihrist labels, Salam Arz lines). A new booklet keeps these and
+ * drops the rest (page headings, page numbers, text boxes).
+ */
+export const templateOverrides = (o: Booklet['overrides'] = {}) =>
+  Object.fromEntries(Object.entries(o).filter(([k]) => /^(cover|fihrist|line)\./.test(k)));
 
 /** A pinned default: what a slot is pre-filled with in every new booklet. */
 export type Defaults = Record<string, { category: Category; name: string; blocks: Block[] }>;
@@ -187,10 +227,11 @@ export function createBooklet(date: string, venue: Venue, defaults: Defaults, ma
     ...MARATHI_FIXED.map((name, i) => fromSlot(`marathi:${i + 1}`, name, 'name')),
     fromSlot('marathi:sawari', SAWARI_NAME),
   ];
-  kalams.salamArz = [{ id: uid(), name: 'سلام عرض', fixed: 'all', blocks: [{ kind: 'text', id: uid(), text: SALAM_ARZ_TEXT, sizePt: 22 }] }];
+  // Fixed content has fixed ids, so text edits keyed on them survive a reload.
+  kalams.salamArz = [{ id: 'salam-arz', name: 'سلام عرض', fixed: 'all', blocks: [{ kind: 'text', id: 'salam-arz', text: SALAM_ARZ_TEXT, sizePt: 22 }] }];
   kalams.matam = [
     {
-      id: uid(),
+      id: 'matam',
       name: MATAM_NAME,
       fixed: 'all',
       blocks: matam ? [imageBlockFrom(matam, { fixedWidthPt: 426 })] : [],

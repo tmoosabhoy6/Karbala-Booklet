@@ -610,3 +610,69 @@ button.primary {
   border: 2px dashed #1d6fd8;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
 }
+
+/* ---------- typing on the pages ---------- */
+button.ghost.on {
+  border-color: var(--ui-maroon);
+  background: var(--ui-maroon-soft);
+  color: var(--ui-maroon);
+  font-weight: 600;
+}
+
+/* Floats above the text being typed (see Editable.tsx). */
+.text-tools {
+  position: fixed;
+  z-index: 50;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid var(--ui-line);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(43, 29, 31, 0.18);
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.text-tools button {
+  border: 0;
+  background: transparent;
+  min-width: 28px;
+  height: 26px;
+  border-radius: 6px;
+  padding: 0 6px;
+}
+
+.text-tools button:hover:not(:disabled) {
+  background: var(--ui-maroon-soft);
+}
+
+.text-tools .val {
+  min-width: 38px;
+  text-align: center;
+  color: var(--ui-muted);
+}
+
+.text-tools .swatch {
+  min-width: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0 2px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px var(--ui-line);
+}
+
+.text-tools .swatch.on {
+  box-shadow: 0 0 0 2px var(--ui-maroon);
+}
+
+.text-tools .hint {
+  color: var(--ui-muted);
+  padding: 0 6px 0 8px;
+  border-left: 1px solid var(--ui-line);
+  margin-left: 4px;
+}

@@ -11,12 +11,15 @@ import './editor.css';
 
 export function Editor() {
   const state = useBooklet();
-  const { doc, setDoc, defaults, saved, undo, redo, updateKalams, updateKalam, replaceMedia, reset } = state;
+  const { doc, setDoc, defaults, saved, undo, redo, updateKalams, updateKalam, replaceMedia, reset, textEdits, addTextBox } = state;
   const [active, setActive] = useState<{ category: Category; id: string } | null>(null);
   const [uploads, setUploads] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<ImageBlock | null>(null);
   const [zoom, setZoom] = useState(0.8);
   const [busy, setBusy] = useState(false);
+  // Typing on the pages: click text to retype it; `placing` waits for a click to drop a text box.
+  const [typing, setTyping] = useState(false);
+  const [placing, setPlacing] = useState(false);
 
   const layout = useMemo(() => (doc ? paginate(doc) : null), [doc]);
 
@@ -44,7 +47,8 @@ export function Editor() {
     };
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest('input, textarea')) return;
+      if (t.closest('input, textarea, [contenteditable]')) return;
+      if (e.key === 'Escape') setPlacing(false);
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -173,7 +177,10 @@ export function Editor() {
           <div className="footer-tools">
             <button
               className="ghost"
-              onClick={() => confirm('Start a new booklet? Current screenshots are cleared; pinned (★) defaults are filled in.') && reset(doc.venue)}
+              onClick={() =>
+                confirm('Start a new booklet? Screenshots, page headings, page-number edits and text boxes are cleared; pinned (★) defaults and your cover/fihrist wording are kept.') &&
+                reset(doc.venue)
+              }
             >
               New booklet
             </button>
@@ -189,6 +196,21 @@ export function Editor() {
             Zoom
             <input type="range" min={0.4} max={1.4} step={0.05} value={zoom} onChange={(e) => setZoom(+e.target.value)} />
           </label>
+          <button
+            className={`ghost${typing ? ' on' : ''}`}
+            title="Click any text on the pages (titles, fihrist, headings, page numbers) to retype it"
+            onClick={() => {
+              setTyping(!typing);
+              setPlacing(false);
+            }}
+          >
+            {typing ? '✓ Done editing' : '✎ Edit text'}
+          </button>
+          {typing && (
+            <button className={`ghost${placing ? ' on' : ''}`} title="Then click on a page where the text should go" onClick={() => setPlacing(!placing)}>
+              {placing ? 'Click on a page… (Esc)' : '+ Text box'}
+            </button>
+          )}
           <button className="ghost" onClick={undo} title="Undo (⌘Z)">
             ↶
           </button>
@@ -200,7 +222,19 @@ export function Editor() {
           </button>
         </div>
         <div className="pages" style={{ zoom }}>
-          <BookletView doc={doc} layout={layout} />
+          <BookletView
+            doc={doc}
+            layout={layout}
+            edits={typing ? textEdits : undefined}
+            onPlace={
+              placing
+                ? (page, x, y) => {
+                    addTextBox(page, x, y);
+                    setPlacing(false);
+                  }
+                : undefined
+            }
+          />
         </div>
       </main>
 

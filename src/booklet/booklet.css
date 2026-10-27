@@ -329,3 +329,60 @@
   justify-content: center;
   gap: 34pt;
 }
+
+/* ---------- typed text ---------- */
+/* A free text box, positioned by the centre of its top edge. */
+.text-box {
+  position: absolute;
+  transform: translateX(-50%);
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+/* Editor only (Edit text mode): what can be clicked and retyped. */
+.text-editing .editable {
+  cursor: text;
+  border-radius: 2pt;
+  outline: 0.75pt dashed rgba(140, 26, 36, 0.35);
+  outline-offset: 1pt;
+}
+
+.text-editing .editable:hover {
+  outline: 1pt solid rgba(140, 26, 36, 0.8);
+  background: rgba(251, 236, 237, 0.6);
+}
+
+/* Retyped text is marked so you can see what differs from the template. */
+.text-editing .editable.edited {
+  outline-color: rgba(58, 69, 106, 0.6);
+}
+
+.text-editing .editable.empty {
+  display: inline-block;
+  min-width: 1.2em;
+  min-height: 0.8em;
+}
+
+.text-editing .text-box.editable {
+  cursor: move;
+  touch-action: none;
+}
+
+.text-editing .text-box.dragging {
+  opacity: 0.7;
+}
+
+.text-editing .editing {
+  display: inline-block;
+  min-width: 1.2em;
+  outline: 1.5pt solid var(--maroon);
+  outline-offset: 1pt;
+  background: #fff;
+  white-space: pre;
+  cursor: text;
+}
+
+.booklet.placing .page {
+  cursor: crosshair;
+}

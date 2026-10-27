@@ -1,8 +1,13 @@
 import { arabicNumber, dateLine, raatTitle } from '../lib/hijri';
-import { Booklet as Doc, CATEGORY_LABEL, ImageBlock, VENUES } from './model';
-import { FihristItem, Layout, Page, PlacedItem, imageWidthPt, ptPerPx } from './paginate';
-import { RichText } from './RichText';
+import { useMemo } from 'react';
+import { EditContext, Editable, TextBoxView, TextEdits } from './Editable';
+import { Booklet as Doc, CATEGORY_LABEL, ImageBlock, TextBox, VENUES } from './model';
+import { FihristItem, Layout, PAGE, Page, PlacedItem, imageWidthPt, ptPerPx } from './paginate';
 import './booklet.css';
+
+// Every piece of generated text is wrapped in <Editable>. Its id says where the
+// text sits; ids starting cover./fihrist./line. are template wording that a new
+// booklet keeps (see templateOverrides).
 
 const A = '/assets';
 
@@ -20,34 +25,54 @@ function Logos({ karbalaWidth, faizHeight }: { karbalaWidth: number; faizHeight:
 function Cover({ doc }: { doc: Doc }) {
   const date = new Date(`${doc.date}T12:00:00`);
   return (
-    <section className="page cover">
+    <>
       <img className="bg" src={`${A}/cover-bg.jpg`} alt="" />
       <div className="cover-logos">
         <Logos karbalaWidth={132} faizHeight={102} />
       </div>
-      <div className="cover-title main">{raatTitle(date)}</div>
-      <div className="cover-title sub">ماتم مجلس</div>
-      <div className="cover-title date">{dateLine(date)}</div>
+      <div className="cover-title main">
+        <Editable id="cover.title" text={raatTitle(date)} />
+      </div>
+      <div className="cover-title sub">
+        <Editable id="cover.sub" text="ماتم مجلس" />
+      </div>
+      <div className="cover-title date">
+        <Editable id="cover.date" text={dateLine(date)} />
+      </div>
       <div className="cover-location">
-        <RichText text={VENUES[doc.venue].location} />
+        <Editable id="cover.location" text={VENUES[doc.venue].location} />
       </div>
       <img className="abs" src={`${A}/sanat-1448.svg`} style={{ left: '144.86pt', top: '741.42pt', width: '219.6pt' }} alt="" />
-    </section>
+    </>
   );
 }
 
 function FihristEntry({ item }: { item: FihristItem }) {
   switch (item.kind) {
     case 'head':
-      return <div className="bar head">فهرست</div>;
+      return (
+        <div className="bar head">
+          <Editable id="fihrist.head" text="فهرست" />
+        </div>
+      );
     case 'section':
-      return <div className="bar section">{item.title}</div>;
+      return (
+        <div className="bar section">
+          <Editable id={`fihrist.section.${item.index}`} text={item.title} />
+        </div>
+      );
     case 'cols':
       return (
         <div className="cols">
-          <span>ترتيب</span>
-          <span>كلام</span>
-          <span>الصفحة</span>
+          <span>
+            <Editable id="fihrist.col.tartib" text="ترتيب" />
+          </span>
+          <span>
+            <Editable id="fihrist.col.kalam" text="كلام" />
+          </span>
+          <span>
+            <Editable id="fihrist.col.page" text="الصفحة" />
+          </span>
         </div>
       );
     case 'group': {
@@ -55,16 +80,25 @@ function FihristEntry({ item }: { item: FihristItem }) {
       return (
         <div className="group">
           <a className={`tartib${g.first ? '' : ' cont'}`} href={`#${g.anchor}`}>
-            {CATEGORY_LABEL[g.category]}
+            <Editable id={`fihrist.cat.${g.category}`} text={CATEGORY_LABEL[g.category]} />
           </a>
           <div>
             {g.kalams.map((k) => (
               <a className="row" key={k.anchor} href={`#${k.anchor}`}>
                 <span className="name">
                   <img src={`${A}/fihrist-bullet.png`} alt="" />
-                  <span className="txt">{k.name}</span>
+                  <span className="txt">
+                    {k.fixed === 'all' ? (
+                      // Fixed content is rebuilt on load, so its name is edited as an override.
+                      <Editable id={`fihrist.name.${k.id}`} text={k.name} plain />
+                    ) : (
+                      <Editable text={k.name} plain onCommit={(e, t) => e.kalamName(k.id, t)} />
+                    )}
+                  </span>
                 </span>
-                <span className="pg">{arabicNumber(k.page)}</span>
+                <span className="pg">
+                  <Editable id={`pg.${k.id}`} text={arabicNumber(k.page)} />
+                </span>
               </a>
             ))}
           </div>
@@ -80,17 +114,25 @@ function FihristEntry({ item }: { item: FihristItem }) {
   }
 }
 
+function PageNumber({ n }: { n: number }) {
+  return (
+    <div className="page-number">
+      <Editable id={`page.${n}`} text={arabicNumber(n)} />
+    </div>
+  );
+}
+
 function Fihrist({ page }: { page: Extract<Page, { kind: 'fihrist' }> }) {
   return (
-    <section className="page" id={page.first ? 'fihrist' : undefined}>
+    <>
       <img className="bg" src={`${A}/page-border.jpg`} alt="" />
       <div className="fihrist">
         {page.items.map((item, i) => (
           <FihristEntry key={i} item={item} />
         ))}
       </div>
-      <div className="page-number">{arabicNumber(page.number)}</div>
-    </section>
+      <PageNumber n={page.number} />
+    </>
   );
 }
 
@@ -111,18 +153,25 @@ function Item({ item }: { item: PlacedItem }) {
     case 'heading':
       return (
         <div className="heading" id={item.anchor}>
-          <a href="#fihrist">{item.label}</a>
+          <a href="#fihrist">
+            <Editable id={`heading.${item.anchor}`} text={item.label} />
+          </a>
         </div>
       );
     case 'block':
       if (item.block.kind === 'image') {
         return <CroppedImage block={item.block} crop={item.crop} height={item.height} anchor={item.anchor} titleLink={item.titleLink} />;
       }
+      const { id, text, sizePt } = item.block;
       return (
-        <div className="block-text" id={item.anchor} style={{ fontSize: `${item.block.sizePt}pt` }}>
-          {item.block.text.split('\n').map((line, i) => (
+        <div className="block-text" id={item.anchor} style={{ fontSize: `${sizePt}pt` }}>
+          {text.split('\n').map((line, i) => (
             <div className="line" key={i}>
-              <RichText text={line} />
+              {item.fixed ? (
+                <Editable id={`line.${id}.${i}`} text={line} />
+              ) : (
+                <Editable text={line} onCommit={(e, t) => e.textLine(id, i, t)} />
+              )}
             </div>
           ))}
         </div>
@@ -140,16 +189,16 @@ function Item({ item }: { item: PlacedItem }) {
 
 function Back() {
   return (
-    <section className="page">
+    <>
       <img className="bg" src={`${A}/back-bg.jpg`} alt="" />
       <div className="back-logos">
         <Logos karbalaWidth={200} faizHeight={156} />
       </div>
-    </section>
+    </>
   );
 }
 
-function PageView({ page, doc }: { page: Page; doc: Doc }) {
+function PageBody({ page, doc }: { page: Page; doc: Doc }) {
   switch (page.kind) {
     case 'cover':
       return <Cover doc={doc} />;
@@ -159,25 +208,62 @@ function PageView({ page, doc }: { page: Page; doc: Doc }) {
       return <Back />;
     case 'content':
       return (
-        <section className="page" data-page={page.number}>
+        <>
           <img className="bg" src={`${A}/page-border.jpg`} alt="" />
           <div className="content">
             {page.items.map((item, i) => (
               <Item key={i} item={item} />
             ))}
           </div>
-          <div className="page-number">{arabicNumber(page.number)}</div>
-        </section>
+          <PageNumber n={page.number} />
+        </>
       );
   }
 }
 
-export function BookletView({ doc, layout }: { doc: Doc; layout: Layout }) {
+interface ViewProps {
+  doc: Doc;
+  layout: Layout;
+  /** Given in the editor: page text becomes clickable and text boxes movable. */
+  edits?: TextEdits;
+  /** While set, a click on a page places a new text box there (x, y in pt). */
+  onPlace?: (page: number, x: number, y: number) => void;
+}
+
+export function BookletView({ doc, layout, edits, onPlace }: ViewProps) {
+  const ctx = useMemo(() => ({ overrides: doc.overrides ?? {}, edits }), [doc.overrides, edits]);
+  const boxes = useMemo(() => {
+    const byPage = new Map<number, TextBox[]>();
+    for (const b of doc.textBoxes ?? []) byPage.set(b.page, [...(byPage.get(b.page) ?? []), b]);
+    return byPage;
+  }, [doc.textBoxes]);
+
+  const place = (index: number) => (e: React.MouseEvent<HTMLElement>) => {
+    if (!onPlace) return;
+    // Placing takes the click, so the text under it is not opened for editing.
+    e.preventDefault();
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    const k = PAGE.width / r.width;
+    onPlace(index, +((e.clientX - r.left) * k).toFixed(1), +((e.clientY - r.top) * k).toFixed(1));
+  };
+
   return (
-    <div className="booklet">
-      {layout.pages.map((page, i) => (
-        <PageView key={i} page={page} doc={doc} />
-      ))}
-    </div>
+    <EditContext.Provider value={ctx}>
+      <div className={`booklet${edits ? ' text-editing' : ''}${onPlace ? ' placing' : ''}`}>
+        {layout.pages.map((page, i) => (
+          <section
+            key={i}
+            className={`page${page.kind === 'cover' ? ' cover' : ''}`}
+            id={page.kind === 'fihrist' && page.first ? 'fihrist' : undefined}
+            data-page={page.kind === 'content' ? page.number : undefined}
+            onClickCapture={onPlace && place(i)}
+          >
+            <PageBody page={page} doc={doc} />
+            {boxes.get(i)?.map((b) => <TextBoxView key={b.id} box={b} />)}
+          </section>
+        ))}
+      </div>
+    </EditContext.Provider>
   );
 }
