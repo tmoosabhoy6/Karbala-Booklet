@@ -20,7 +20,7 @@ The app needs a real server (it cleans screenshots with sharp/potrace and prints
 2. There is no password, so keep the link to yourself. To add one later, set `APP_PASSWORD` in the service's Environment tab (any username works).
 3. The first build takes about 10 minutes. Then open the `onrender.com` link it gives you, on your laptop or phone. On iPhone, Share → Add to Home Screen makes it an app icon.
 
-It uses the Starter plan ($7/month) with a 1 GB disk ($0.25/month) in Frankfurt, the closest region to Iraq. The free plan has no disk, so your screenshots and saved booklet would be wiped every time it restarts. Every push to `main` redeploys it.
+It runs on the free plan in Frankfurt, the closest region to Iraq. The free plan has no disk, so screenshots and the saved booklet are wiped whenever it restarts or redeploys (download the PDF before you leave it), and it sleeps after 15 idle minutes, so the first visit after that takes about a minute. To keep work, switch to the Starter plan ($7/month) with a 1 GB disk at `/data` (see the comment in `render.yaml`). Every push to `main` redeploys it.
 
 **On a phone:** Kalams / Preview tabs switch panels; tap a kalam's box to add screenshots from Photos. After **Download PDF**, tap **Save …pdf**: it goes to Files (iPhone) or Downloads (Android), ready to share on WhatsApp.
 

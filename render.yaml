@@ -1,17 +1,15 @@
 # Render Blueprint: Dashboard → New → Blueprint → pick this repo.
-# Starter plan, because the free plan has no disk (work would be wiped on
-# every restart) and sleeps after 15 idle minutes. Frankfurt is the closest
-# region to Iraq. No password: anyone with the link can open it. To add one
-# later, set APP_PASSWORD in the service's Environment tab.
+# Free plan: no disk, so work in /data is wiped whenever the service restarts
+# or redeploys, and it sleeps after 15 idle minutes (first visit after that
+# takes about a minute). To keep work, switch to plan: starter and add back
+#   disk: { name: data, mountPath: /data, sizeGB: 1 }
+# Frankfurt is the closest region to Iraq. No password: anyone with the link
+# can open it. To add one later, set APP_PASSWORD in the Environment tab.
 services:
   - type: web
     name: karbala-booklet
     runtime: docker
-    plan: starter
+    plan: free
     region: frankfurt
     branch: main
     healthCheckPath: /api/health
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1
