@@ -107,7 +107,7 @@
 
 /* The small «ع م» (alayhis-salaam) mark: ع raised, م smaller and lower. */
 .honorific {
-  font-size: 45%;
+  font-size: 62%;
   display: inline-block;
   vertical-align: 0.35em;
   /* physical sides: the booklet is always right-to-left */
@@ -142,34 +142,51 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15pt;
+  font-size: 22pt;
   line-height: 18pt;
   white-space: nowrap;
+  /* Kanz digits sit high in their line box; nudge them onto the slot's centre. */
+  padding-top: 3pt;
 }
 
 .content {
   position: absolute;
   left: 72pt;
   width: 451.32pt;
-  top: 72pt;
+  top: 66pt;
 }
 
 .heading {
-  height: 50pt;
+  height: 58pt;
   text-align: center;
-  font-size: 24pt;
-  line-height: 40pt;
+  font-size: 31pt;
+  line-height: 48pt;
   color: var(--maroon);
 }
 
+/* A verse screenshot (or the part of it on this page): the image is clipped
+   to the lines that belong here. */
 .block-img {
+  position: relative;
+  overflow: hidden;
+  margin: 0 auto 8pt;
+}
+
+.block-img img {
   display: block;
-  margin: 0 auto 10pt;
+}
+
+.block-img .title-link {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 60pt;
 }
 
 .block-text {
   text-align: center;
-  margin-bottom: 10pt;
+  margin-bottom: 8pt;
 }
 
 .block-text .line {
@@ -271,6 +288,15 @@
   gap: 6pt;
   white-space: nowrap;
   overflow: hidden;
+}
+
+.fihrist .row .name .txt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fihrist .tartib.cont {
+  opacity: 0.55;
 }
 
 .fihrist .row .name img {

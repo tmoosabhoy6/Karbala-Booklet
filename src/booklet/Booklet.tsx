@@ -1,11 +1,12 @@
-import { Fragment } from 'react';
 import { arabicNumber, dateLine, raatTitle } from '../lib/hijri';
-import { Booklet as Doc, CATEGORY_LABEL, VENUES } from './model';
-import { Layout, Page, PlacedItem } from './paginate';
+import { Booklet as Doc, CATEGORY_LABEL, ImageBlock, VENUES } from './model';
+import { FihristItem, Layout, Page, PlacedItem, imageWidthPt, ptPerPx } from './paginate';
 import { RichText } from './RichText';
 import './booklet.css';
 
 const A = '/assets';
+
+export const mediaSrc = (b: ImageBlock) => `/media/${b.mediaId}.svg?v=${b.rev}`;
 
 function Logos({ karbalaWidth, faizHeight }: { karbalaWidth: number; faizHeight: number }) {
   return (
@@ -35,48 +36,73 @@ function Cover({ doc }: { doc: Doc }) {
   );
 }
 
-function Fihrist({ layout }: { layout: Layout }) {
-  return (
-    <section className="page" id="fihrist">
-      <img className="bg" src={`${A}/page-border.jpg`} alt="" />
-      <div className="fihrist">
-        <div className="bar head">فهرست</div>
-        {layout.fihrist.map((section, si) => (
-          <Fragment key={si}>
-            <div className="bar section">{section.title}</div>
-            {si === 0 && (
-              <div className="cols">
-                <span>ترتيب</span>
-                <span>كلام</span>
-                <span>الصفحة</span>
-              </div>
-            )}
-            {section.rows.map((row) => (
-              <div className="group" key={row.entryAnchor}>
-                <a className="tartib" href={`#${row.entryAnchor}`}>
-                  {CATEGORY_LABEL[row.category]}
-                </a>
-                <div>
-                  {row.kalams.map((k) => (
-                    <a className="row" key={k.anchor} href={`#${k.anchor}`}>
-                      <span className="name">
-                        <img src={`${A}/fihrist-bullet.png`} alt="" />
-                        {k.name}
-                      </span>
-                      <span className="pg">{arabicNumber(k.page)}</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
+function FihristEntry({ item }: { item: FihristItem }) {
+  switch (item.kind) {
+    case 'head':
+      return <div className="bar head">فهرست</div>;
+    case 'section':
+      return <div className="bar section">{item.title}</div>;
+    case 'cols':
+      return (
+        <div className="cols">
+          <span>ترتيب</span>
+          <span>كلام</span>
+          <span>الصفحة</span>
+        </div>
+      );
+    case 'group': {
+      const g = item.group;
+      return (
+        <div className="group">
+          <a className={`tartib${g.first ? '' : ' cont'}`} href={`#${g.anchor}`}>
+            {CATEGORY_LABEL[g.category]}
+          </a>
+          <div>
+            {g.kalams.map((k) => (
+              <a className="row" key={k.anchor} href={`#${k.anchor}`}>
+                <span className="name">
+                  <img src={`${A}/fihrist-bullet.png`} alt="" />
+                  <span className="txt">{k.name}</span>
+                </span>
+                <span className="pg">{arabicNumber(k.page)}</span>
+              </a>
             ))}
-          </Fragment>
-        ))}
+          </div>
+        </div>
+      );
+    }
+    case 'end':
+      return (
         <div className="end">
           <img src={`${A}/end-ornament.png`} alt="" />
         </div>
+      );
+  }
+}
+
+function Fihrist({ page }: { page: Extract<Page, { kind: 'fihrist' }> }) {
+  return (
+    <section className="page" id={page.first ? 'fihrist' : undefined}>
+      <img className="bg" src={`${A}/page-border.jpg`} alt="" />
+      <div className="fihrist">
+        {page.items.map((item, i) => (
+          <FihristEntry key={i} item={item} />
+        ))}
       </div>
-      <div className="page-number">{arabicNumber(1)}</div>
+      <div className="page-number">{arabicNumber(page.number)}</div>
     </section>
+  );
+}
+
+function CroppedImage({ block, crop, height, anchor, titleLink }: { block: ImageBlock; crop?: [number, number]; height: number; anchor?: string; titleLink?: boolean }) {
+  const w = imageWidthPt(block);
+  const s = ptPerPx(block);
+  const top = crop ? crop[0] * s : 0;
+  return (
+    <div className="block-img" id={anchor} style={{ width: `${w}pt`, height: `${height}pt` }}>
+      <img src={mediaSrc(block)} style={{ width: `${w}pt`, height: `${block.height * s}pt`, marginTop: `${-top}pt` }} alt="" />
+      {titleLink && <a className="title-link" href="#fihrist" aria-label="فهرست" />}
+    </div>
   );
 }
 
@@ -90,18 +116,10 @@ function Item({ item }: { item: PlacedItem }) {
       );
     case 'block':
       if (item.block.kind === 'image') {
-        return (
-          <img
-            className="block-img"
-            id={item.anchor}
-            src={item.block.src}
-            style={{ width: `${item.block.widthPt}pt`, height: `${item.height}pt` }}
-            alt=""
-          />
-        );
+        return <CroppedImage block={item.block} crop={item.crop} height={item.height} anchor={item.anchor} titleLink={item.titleLink} />;
       }
       return (
-        <div className="block-text" id={item.anchor} style={{ fontSize: `${item.block.sizePt}pt`, color: item.block.color }}>
+        <div className="block-text" id={item.anchor} style={{ fontSize: `${item.block.sizePt}pt` }}>
           {item.block.text.split('\n').map((line, i) => (
             <div className="line" key={i}>
               <RichText text={line} />
@@ -131,17 +149,17 @@ function Back() {
   );
 }
 
-function PageView({ page, doc, layout }: { page: Page; doc: Doc; layout: Layout }) {
+function PageView({ page, doc }: { page: Page; doc: Doc }) {
   switch (page.kind) {
     case 'cover':
       return <Cover doc={doc} />;
     case 'fihrist':
-      return <Fihrist layout={layout} />;
+      return <Fihrist page={page} />;
     case 'back':
       return <Back />;
     case 'content':
       return (
-        <section className="page">
+        <section className="page" data-page={page.number}>
           <img className="bg" src={`${A}/page-border.jpg`} alt="" />
           <div className="content">
             {page.items.map((item, i) => (
@@ -158,7 +176,7 @@ export function BookletView({ doc, layout }: { doc: Doc; layout: Layout }) {
   return (
     <div className="booklet">
       {layout.pages.map((page, i) => (
-        <PageView key={i} page={page} doc={doc} layout={layout} />
+        <PageView key={i} page={page} doc={doc} />
       ))}
     </div>
   );
