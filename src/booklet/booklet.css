@@ -54,15 +54,20 @@
 }
 
 /* ---------- cover ---------- */
-.cover-logos {
+.cover-faiz {
   position: absolute;
   top: 26pt;
-  left: 0;
-  width: 509pt; /* the cover's open area, left of the ornamental strip */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 20pt;
+  left: 26pt;
+  height: 102pt;
+}
+
+/* Centred in the cover's open area (509pt, left of the ornamental strip),
+   level with the Faiz logo's middle (26 + 102 / 2 = 77pt). */
+.cover-karbala {
+  position: absolute;
+  width: 158.4pt; /* 20% larger than the former 132pt */
+  left: calc((509pt - 158.4pt) / 2);
+  top: calc(77pt - 158.4pt * 989 / 1901 / 2);
 }
 
 .cover-title {

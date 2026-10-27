@@ -29,7 +29,7 @@ function OpeningWords({ block }: { block: ImageBlock }) {
 function Logos({ karbalaWidth, faizHeight }: { karbalaWidth: number; faizHeight: number }) {
   return (
     <>
-      <img src={`${A}/logo-karbala.svg`} style={{ width: `${karbalaWidth}pt` }} alt="" />
+      <img src={`${A}/logo-karbala.png`} style={{ width: `${karbalaWidth}pt` }} alt="" />
       <img src={`${A}/logo-faiz-husaini.png`} style={{ height: `${faizHeight}pt` }} alt="" />
     </>
   );
@@ -40,9 +40,9 @@ function Cover({ doc }: { doc: Doc }) {
   return (
     <>
       <img className="bg" src={`${A}/cover-bg.jpg`} alt="" />
-      <div className="cover-logos">
-        <Logos karbalaWidth={132} faizHeight={102} />
-      </div>
+      {/* Faiz-e-Husaini at the top-left corner; Karbala Mualla centred above the title. */}
+      <img className="cover-faiz" src={`${A}/logo-faiz-husaini.png`} alt="" />
+      <img className="cover-karbala" src={`${A}/logo-karbala.png`} alt="" />
       <div className="cover-title main">
         <Editable id="cover.title" text={raatTitle(date)} />
       </div>
