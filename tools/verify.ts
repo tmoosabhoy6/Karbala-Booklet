@@ -49,6 +49,38 @@ try {
   const variedB = imageBlockFrom(uploaded, { regions: [{ x: 0, y: 0, w: 274, h: 42, lineHeight: 32, group: 0 }, { x: 0, y: 45, w: 274, h: 62, lineHeight: 52, group: 0 }, { x: 0, y: 115, w: 274, h: 57, lineHeight: 47, group: 0 }] });
   const common = kalamImageScales({ id: 'size-regression', name: '', blocks: [variedA, variedB] });
   assert.equal(common.get(variedA.id), common.get(variedB.id), 'Different glyph ascenders must not change font size within a kalam.');
+  // Two screenshots of one kalam in different fonts/zooms: rows 60px apart
+  // with 40px ink, and 90px apart with 52px ink (a bolder face). They must
+  // print with one line pitch, and every stanza gap must be identical.
+  const rowsAt = (pitch: number, ink: number, count: number, breakAfter = -1) => Array.from({ length: count }, (_, i) => {
+    const center = 30 + i * pitch + (i > breakAfter && breakAfter >= 0 ? pitch * 0.6 : 0);
+    return { x: 0, y: center - ink / 2 - 4, w: 274, h: ink + 8, lineHeight: ink, group: i > breakAfter && breakAfter >= 0 ? 1 : 0, top: center - ink / 2, bottom: center + ink / 2, center };
+  });
+  const thin = imageBlockFrom(uploaded, { height: 700, regions: rowsAt(60, 40, 6, 2) });
+  const bold = imageBlockFrom(uploaded, { height: 700, regions: rowsAt(90, 52, 4, 1) });
+  const mixed = { id: 'pitch-regression', name: '', blocks: [thin, bold] };
+  const mixedScales = kalamImageScales(mixed);
+  assert(Math.abs(60 * mixedScales.get(thin.id)! - 90 * mixedScales.get(bold.id)!) < 0.01, 'Screenshots of one kalam must share one line pitch.');
+  const pitchDoc = createBooklet('2026-10-27', 'haram', {}, null);
+  pitchDoc.kalams.noha = [mixed];
+  const units = paginate(pitchDoc).pages.flatMap((p) => (p.kind === 'content' ? p.items : [])).filter((i): i is Extract<typeof i, { kind: 'block' }> => i.kind === 'block' && !!i.imageRect);
+  assert.equal(units.length, 4, 'Only real source stanza breaks split a screenshot.');
+  const centres: number[] = [];
+  let at = 0;
+  for (const u of units) {
+    at += u.lead ?? 0;
+    const rows = u.block.regions!.filter((r) => r.group === u.imageRect!.group);
+    centres.push(at + (rows[0].center! - u.imageRect!.y) * u.imageScale!);
+    at += u.height + (u.gap ?? 0);
+    centres.push(at - (u.gap ?? 0) - (u.imageRect!.y + u.imageRect!.h - rows.at(-1)!.center!) * u.imageScale!);
+  }
+  const breaks = [1, 3, 5].map((i) => centres[i + 1] - centres[i]);
+  assert(breaks.every((b) => Math.abs(b - breaks[0]) < 0.01), `Every stanza gap in a kalam must be identical (${breaks.map((b) => b.toFixed(2))}).`);
+  // A marathi kalam that fits on a page must never straddle a page break.
+  const flowDoc = createBooklet('2026-10-27', 'haram', {}, null);
+  flowDoc.kalams.marathi.forEach((k, i) => { k.blocks = [imageBlockFrom(uploaded, { height: 700, regions: rowsAt(110, 80, i === 2 ? 6 : 5) })]; });
+  const flowPages = paginate(flowDoc).pages.filter((p) => p.kind === 'content').map((p) => new Set((p as { items: { kind: string; block?: { id: string } }[] }).items.flatMap((i) => (i.block ? [i.block.id] : []))));
+  for (const k of flowDoc.kalams.marathi.filter((m) => m.blocks.length)) assert.equal(flowPages.filter((p) => p.has(k.blocks[0].id)).length, 1, 'A kalam that fits on one page must stay together.');
   const fixed = await fetch(origin + '/api/media/fixed-matam').then((r) => r.json());
   const doc = createBooklet('2026-10-27', 'haram', {}, fixed);
   doc.kalams.noha = [{ id: 'regression', name: '', blocks: [imageBlockFrom(uploaded)] }];
@@ -72,6 +104,9 @@ try {
     });
   });
   assert(geometry.every((b) => b.bottom <= CONTENT.bottom + 1 && b.right <= CONTENT.right + 1), 'Every verse must stay inside the printable border.');
+  const opening = await page.locator('img.opening-words').evaluate((i: HTMLImageElement) => ({ src: i.src, w: i.naturalWidth }));
+  assert(opening.src.endsWith('.opening.png') && opening.w > 0, 'The fihrist opening must be a plain decoded image.');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.booklet *')].filter((e) => { const st = getComputedStyle(e); return st.maskImage !== 'none' || st.webkitMaskImage !== 'none' || st.opacity === '0'; }).length), 0, 'No masks or invisible overlays: printers show them as solid boxes.');
   const marks = await page.locator('.cover-location .as-letter').evaluateAll((els) => els.map((e) => ({ size: getComputedStyle(e).fontSize, top: e.getBoundingClientRect().top })));
   assert.equal(marks[0].size, marks[1].size); assert.equal(marks[0].top, marks[1].top);
   assert.equal(await page.locator('.cover-title.date').evaluate((e) => getComputedStyle(e).fontSize), '36.6667px');
@@ -119,7 +154,7 @@ try {
   await page.locator('.page').nth(1).screenshot({ path: `${data}/fihrist.png` });
   await page.locator('.page').nth(2).screenshot({ path: `${data}/verses.png` });
   await sharp(await readFile(`${data}/media/${uploaded.id}.png`)).flatten({ background: '#fff' }).png().toFile(`${data}/cleaned.png`);
-  const result = { pages: pdf.getPageCount(), firstExportMs: Math.round(firstMs), repeatExportMs: Math.round(repeatMs), data, assertions: 'upload cleanup, 18 complete lines, intact stanzas, automatic fihrist, cover typography, A4 geometry, actual download, self-contained export, missing/corrupt image rejection, original/document recovery after server file loss' };
+  const result = { pages: pdf.getPageCount(), firstExportMs: Math.round(firstMs), repeatExportMs: Math.round(repeatMs), data, assertions: 'upload cleanup, 18 complete lines, intact stanzas, shared kalam pitch, identical stanza gaps, whole marathi kalams, unmasked fihrist openings, automatic fihrist, cover typography, A4 geometry, actual download, self-contained export, missing/corrupt image rejection, original/document recovery after server file loss' };
   await writeFile(`${data}/result.json`, JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
 } catch (error) { console.error(log); throw error; }
 finally {

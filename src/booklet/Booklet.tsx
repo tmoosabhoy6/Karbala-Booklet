@@ -4,7 +4,7 @@ import { EditContext, Editable, TextBoxView, TextEdits } from './Editable';
 import { Booklet as Doc, CATEGORY_LABEL, ImageBlock, TextBox, VENUES } from './model';
 import { FihristItem, Layout, PAGE, Page, PlacedItem, imageWidthPt, ptPerPx } from './paginate';
 import './booklet.css';
-import { mediaSrc } from './media';
+import { mediaSrc, openingSrc } from './media';
 export { mediaSrc } from './media';
 
 // Every piece of generated text is wrapped in <Editable>. Its id says where the
@@ -15,16 +15,15 @@ const A = '/assets';
 
 const MediaContext = createContext<Record<string, string>>({});
 
+/** The opening verse words, from a ready navy PNG. A plain image prints the
+ * same everywhere; masks and hidden overlays showed as solid boxes. */
 function OpeningWords({ block }: { block: ImageBlock }) {
   const assets = useContext(MediaContext);
   const r = block.opening;
-  if (!r) return null;
+  const src = openingSrc(block);
+  if (!r || !src) return null;
   const s = Math.min(218 / r.w, 24 / r.h);
-  const src = mediaSrc(block);
-  const mask = { maskImage: `url("${assets[src] ?? src}")`, maskSize: `${block.width * s}pt ${block.height * s}pt`, maskPosition: `${-r.x * s}pt ${-r.y * s}pt`, maskRepeat: 'no-repeat' };
-  return <span className="opening-words" style={{ width: `${r.w * s}pt`, height: `${r.h * s}pt`, backgroundColor: 'var(--navy)', ...mask }}>
-    <img src={assets[src] ?? src} alt="Opening verse (click Edit text to replace its fihrist name)" style={{ opacity: 0, position: 'absolute', maxWidth: 'none', width: `${block.width * s}pt`, height: `${block.height * s}pt`, left: `${-r.x * s}pt`, top: `${-r.y * s}pt` }} />
-  </span>;
+  return <img className="opening-words" src={assets[src] ?? src} style={{ width: `${r.w * s}pt`, height: `${r.h * s}pt` }} alt="Opening verse (click Edit text to replace its fihrist name)" />;
 }
 
 function Logos({ karbalaWidth, faizHeight }: { karbalaWidth: number; faizHeight: number }) {
@@ -159,7 +158,7 @@ function CroppedImage({ item }: { item: Extract<PlacedItem, { kind: 'block' }> &
   const left = (imageRect?.x ?? 0) * s;
   const source = mediaSrc(block);
   return (
-    <div className="block-img" id={anchor} style={{ width: `${w}pt`, height: `${height}pt`, marginBottom: item.gap === undefined ? undefined : `${item.gap}pt` }}>
+    <div className="block-img" id={anchor} style={{ width: `${w}pt`, height: `${height}pt`, marginTop: item.lead ? `${item.lead}pt` : undefined, marginBottom: item.gap === undefined ? undefined : `${item.gap}pt` }}>
       <img src={assets[source] ?? source} style={{ position: 'absolute', left: `${-left}pt`, top: `${-top}pt`, width: `${block.width * s}pt`, height: `${block.height * s}pt` }} alt="Verse artwork" />
       {titleLink && <a className="title-link" href="#fihrist" aria-label="فهرست" />}
     </div>

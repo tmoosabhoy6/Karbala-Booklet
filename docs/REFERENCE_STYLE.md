@@ -24,12 +24,14 @@ The 5mi Raat booklet remains the geometry template; the existing approved maroon
 
 ## Required implementation rules
 
-1. Never independently fit each verse row to a target height or width. Derive one scale for a kalam's screenshots captured at the same zoom. Different capture zooms can form separate calibrated groups.
-2. Place each stanza as one crop with its source baseline spacing. A short row must not be enlarged just because it contains fewer words.
+1. Never independently fit each verse row to a target height or width. A kalam has one lettering size: the screenshot with the most rows sets the 34pt line, and every other screenshot is matched to it by baseline-to-baseline line pitch (ink height only as a fallback), so different capture zooms and fonts print alike. Screenshots at the same zoom share exactly one scale.
+2. Place each stanza as one crop with its source baseline spacing. A short row must not be enlarged just because it contains fewer words. Stanza breaks come only from the source's own spacing (a pitch clearly wider than its normal line pitch); evenly spaced rows are never paired up into artificial couplets. Every stanza gap in a kalam is the same, measured centre to centre. A kalam that fits on one page is moved whole rather than split.
 3. Preserve antialiased ink as lossless transparent PNG. Hard threshold tracing is prohibited for final lettering: it erases faint joins and dots. Keep untouched uploads as recovery sources. Pagination detection must not delete ink outside detected rows. The fixed Husain/Panjatan artwork stays at its approved size.
 4. Automatic fihrist openings use up to five opening words; manually entered names take precedence. This booklet's Noha name is `مارا گیا بھائی رن میں` (five words).
 5. Image restoration uses the original with crop/erase edits and the versioned six-PDF reference bank in `server/lettering-bank/`. Keep Urdu Nastaliq distinct from Arabic/Lisan al-Dawat. Use high quality and source-matched canvas proportions, retaining the high-resolution transparent PNG. Reject changed row counts, opaque backgrounds and lower resolution. Generated drafts must be compared with the original before acceptance because image models can alter words or dots. This is reference conditioning, not model training.
 6. Export must embed the exact reviewed artwork, reject decoding failures and keep all page links and numbers correct.
+7. Verse/stanza numbers and numbered badges in the margin (beside or between rows) and dashed frame lines at the screenshot's edge are removed before rows are measured; lettering inside a row is never touched. The AI restoration prompt asks for the same.
+8. Fihrist opening words are a pre-coloured navy PNG shown as a plain image. CSS masks or invisible overlay images print as solid boxes on many printers and PDF viewers.
 
 ## Verification
 

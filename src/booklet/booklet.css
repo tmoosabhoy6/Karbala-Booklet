@@ -196,7 +196,7 @@
 }
 
 .separator {
-  height: 26pt;
+  height: 28pt;
   display: flex;
   align-items: center;
 }
@@ -209,7 +209,7 @@
 }
 
 .ornament {
-  height: 54pt;
+  height: 68pt;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -297,8 +297,7 @@
   text-overflow: ellipsis;
 }
 
-.opening-words { display: inline-block; position: relative; overflow: hidden; vertical-align: middle; }
-.fihrist .row .name .opening-words img { flex: initial; }
+.fihrist .row .name img.opening-words { display: inline-block; vertical-align: middle; max-width: none; }
 
 .fihrist .tartib.cont {
   opacity: 0.55;

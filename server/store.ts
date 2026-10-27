@@ -26,6 +26,8 @@ export interface MediaMeta {
   recognitionConfidence?: number;
   warnings?: string[];
   opening?: { x: number; y: number; w: number; h: number };
+  /** `<id>.<rev>.opening.png` holds the opening words, already navy. */
+  openingImage?: boolean;
   restoration?: { sourceId: string; sourceRev: number; model: string; referenceVersion: number };
 }
 
@@ -40,15 +42,16 @@ function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number,
 }
 async function processImage(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration']): Promise<MediaMeta> {
   const r = await cleanScreenshot(original, edits, { ocr: id !== 'fixed-matam' && !restoration });
-  const { png, svg, ...geometry } = r;
+  const { png, svg, openingPng, ...geometry } = r;
   // A 50% tracing threshold erased faint hairlines and small dots. Export the
   // antialiased ink itself, including high-resolution generated drafts.
-  const meta: MediaMeta = { id, rev, ...geometry, edits, restoration, processorVersion: PROCESSOR_VERSION, format: 'png' };
+  const meta: MediaMeta = { id, rev, ...geometry, edits, restoration, processorVersion: PROCESSOR_VERSION, format: 'png', openingImage: !!openingPng };
   await Promise.all([
     writeFile(path.join(MEDIA, `${id}.png`), png),
     writeFile(path.join(MEDIA, `${id}.svg`), svg),
     writeFile(path.join(MEDIA, `${id}.${rev}.png`), png),
     writeFile(path.join(MEDIA, `${id}.${rev}.svg`), svg),
+    ...(openingPng ? [writeFile(path.join(MEDIA, `${id}.${rev}.opening.png`), openingPng)] : []),
   ]);
   await writeFile(`${metaPath(id)}.tmp`, JSON.stringify(meta));
   await (await import('node:fs/promises')).rename(`${metaPath(id)}.tmp`, metaPath(id));

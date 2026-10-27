@@ -22,7 +22,7 @@ export async function startRestoration(mediaId: string, script: LetteringScript 
   if (!key) throw new Error('OpenAI image restoration is not connected yet.');
   const source = await getMedia(mediaId);
   if (!source) throw new Error('The original screenshot is missing. Add it again before restoring.');
-  const fingerprint = createHash('sha256').update(`${mediaId}:${source.rev}:${model}:${quality}:${script}:bank-${referenceBank.version}:pipeline-2`).digest('hex');
+  const fingerprint = createHash('sha256').update(`${mediaId}:${source.rev}:${model}:${quality}:${script}:bank-${referenceBank.version}:pipeline-3`).digest('hex');
   const existing = cache.get(fingerprint);
   if (existing && jobs.get(existing)?.status !== 'failed') return jobs.get(existing)!;
   const today = new Date().toISOString().slice(0, 10);

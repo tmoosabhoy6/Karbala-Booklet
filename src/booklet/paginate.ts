@@ -10,9 +10,13 @@ export const TARGET_LINE_PT = 34;
 
 const HEADING_H = 58;
 const BLOCK_GAP = 8;
-const STANZA_GAP = 18;
-const SEPARATOR_H = 26;
-const ORNAMENT_H = 54;
+/** Extra space between stanzas, as a fraction of the kalam's line pitch. */
+const STANZA_EXTRA = 0.55;
+/** Clear space above and below a stanza's ink inside its crop (pt). */
+const CROP_PAD = 3;
+const SEPARATOR_H = 28;
+const ORNAMENT_H = 68;
+const PAGE_ROOM = CONTENT.bottom - CONTENT.top;
 
 // Fihrist geometry (pt), from the reference.
 const FIHRIST_TOP = 49;
@@ -28,7 +32,7 @@ const NO_HEADING: Partial<Record<Category, boolean>> = { matam: true };
 
 export type PlacedItem =
   | { kind: 'heading'; label: string; anchor: string }
-  | { kind: 'block'; block: Block; height: number; anchor?: string; crop?: [number, number]; imageRect?: { x: number; y: number; w: number; h: number }; imageScale?: number; gap?: number; titleLink?: boolean; fixed?: boolean; textStart?: number; textEnd?: number }
+  | { kind: 'block'; block: Block; height: number; anchor?: string; crop?: [number, number]; imageRect?: { x: number; y: number; w: number; h: number }; imageScale?: number; gap?: number; lead?: number; titleLink?: boolean; fixed?: boolean; textStart?: number; textEnd?: number }
   | { kind: 'separator' }
   | { kind: 'ornament' };
 
@@ -77,26 +81,113 @@ const hasContent = (k: Kalam) => k.blocks.length > 0;
 
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[values.length >> 1] ?? 1;
 
-/** A screenshot's full glyph boxes vary with its words. Calibrate a shared
- * font scale across screenshots captured at the same zoom, never per row. */
+interface Row { top: number; bottom: number; center: number; group: number }
+
+/** Row geometry in px. Media processed before row centres existed fall back
+ * to the middle of each row's crop. */
+const rowsOf = (b: ImageBlock): Row[] =>
+  (b.regions ?? []).map((r) => ({ top: r.top ?? r.y, bottom: r.bottom ?? r.y + r.h, center: r.center ?? r.y + r.h / 2, group: r.group }));
+
+/** Baseline-to-baseline distance of consecutive rows within a stanza (px).
+ * The lower quartile ignores any wider stanza spacing. */
+function linePitch(rows: Row[]): number | null {
+  const pitches = rows.slice(1).flatMap((r, i) => (r.group === rows[i].group ? [r.center - rows[i].center] : [])).sort((a, b) => a - b);
+  return pitches.length ? pitches[Math.floor((pitches.length - 1) / 4)] : null;
+}
+
+const bandHeight = (b: ImageBlock) => median(b.regions?.map((r) => r.lineHeight) ?? [b.lineHeight]);
+
+/**
+ * One lettering size for the whole kalam. The screenshot with the most rows
+ * sets the standard 34pt line; every other screenshot is matched to it by
+ * line pitch (baseline-to-baseline), which follows the real font size even
+ * when fonts differ in weight or ascender height. Ink height is the fallback.
+ * Screenshots at the same capture zoom get exactly the same scale; no row is
+ * ever sized on its own.
+ */
 export function kalamImageScales(kalam: Kalam): Map<string, number> {
-  const cohorts: ImageBlock[][] = [];
-  const metric = (b: ImageBlock) => median(b.regions?.map((r) => r.lineHeight) ?? [b.lineHeight]);
-  for (const b of kalam.blocks) {
-    if (b.kind !== 'image' || b.fixedWidthPt) continue;
-    const cohort = cohorts.find((c) => {
-      const ratio = metric(b) / median(c.map(metric));
-      return ratio >= 0.75 && ratio <= 1.33;
-    });
-    if (cohort) cohort.push(b); else cohorts.push([b]);
-  }
+  const blocks = kalam.blocks.filter((b): b is ImageBlock => b.kind === 'image' && !b.fixedWidthPt);
   const scales = new Map<string, number>();
-  for (const cohort of cohorts) {
-    const height = median(cohort.flatMap((b) => b.regions?.map((r) => r.lineHeight) ?? [b.lineHeight]));
-    const scale = Math.min(TARGET_LINE_PT / height, ...cohort.map((b) => CONTENT_WIDTH / (b.width * b.scale)));
-    for (const b of cohort) scales.set(b.id, scale * b.scale);
-  }
+  if (!blocks.length) return scales;
+  const ref = blocks.reduce((a, b) => ((b.regions?.length ?? 1) > (a.regions?.length ?? 1) ? b : a));
+  const refPitch = linePitch(rowsOf(ref));
+  const relative = (b: ImageBlock) => {
+    const byHeight = bandHeight(ref) / bandHeight(b);
+    const pitch = linePitch(rowsOf(b));
+    let rel = byHeight;
+    if (refPitch && pitch) {
+      const byPitch = refPitch / pitch;
+      // Pitch also carries the source's line spacing; trust it only while it
+      // roughly agrees with the ink height.
+      if (Math.abs(byPitch / byHeight - 1) <= 0.3) rel = byPitch;
+    }
+    return Math.abs(rel - 1) < 0.07 ? 1 : rel;
+  };
+  const base = TARGET_LINE_PT / bandHeight(ref);
+  const raw = blocks.map((b) => [b, base * relative(b)] as const);
+  // A screenshot too wide for the column shrinks the whole kalam, not itself.
+  const fit = Math.min(1, ...raw.map(([b, scale]) => CONTENT_WIDTH / (b.width * scale * b.scale)));
+  for (const [b, scale] of raw) scales.set(b.id, scale * fit * b.scale);
   return scales;
+}
+
+/** A stanza (or the rows of one that fit on a page) cropped from its screenshot. */
+interface Unit {
+  block: ImageBlock;
+  s: number;
+  /** Crop in px. */
+  top: number;
+  bottom: number;
+  rows: Row[];
+}
+const unitHeight = (u: Unit) => (u.bottom - u.top) * u.s;
+const above = (u: Unit) => (u.rows[0].center - u.top) * u.s;
+const below = (u: Unit) => (u.bottom - u.rows[u.rows.length - 1].center) * u.s;
+
+/** Every stanza of the kalam, in order, with the kalam's shared pitch (pt). */
+function kalamUnits(kalam: Kalam) {
+  const scales = kalamImageScales(kalam);
+  const units = new Map<string, Unit[]>();
+  const pitches: number[] = [];
+  for (const b of kalam.blocks) {
+    if (b.kind !== 'image' || b.fixedWidthPt || !b.regions?.length) continue;
+    const s = scales.get(b.id) ?? ptPerPx(b);
+    const rows = rowsOf(b);
+    const pitch = linePitch(rows);
+    if (pitch) pitches.push(pitch * s);
+    const list: Unit[] = [];
+    for (const row of rows) {
+      const last = list.at(-1);
+      if (last && last.rows[0].group === row.group) last.rows.push(row);
+      else list.push({ block: b, s, top: 0, bottom: 0, rows: [row] });
+    }
+    for (const u of list) {
+      u.top = Math.max(0, Math.min(...u.rows.map((r) => r.top)) - CROP_PAD / s);
+      u.bottom = Math.min(b.height, Math.max(...u.rows.map((r) => r.bottom)) + CROP_PAD / s);
+    }
+    units.set(b.id, list);
+  }
+  const pitch = pitches.length ? median(pitches) : TARGET_LINE_PT * 1.3;
+  // Centre-to-centre distance across every stanza break of this kalam, so all
+  // its stanza gaps are identical whatever spacing each screenshot had.
+  const stanza = pitch * (1 + STANZA_EXTRA);
+  const lead = (prev: Unit | null, next: Unit) => (prev ? Math.max(CROP_PAD, stanza - below(prev) - above(next)) : 0);
+  return { scales, units, lead };
+}
+
+/** Height of a whole kalam laid out from the top of a page (pt). */
+function kalamHeight(kalam: Kalam, plan: ReturnType<typeof kalamUnits>) {
+  let h = 0;
+  let prev: Unit | null = null;
+  for (const b of kalam.blocks) {
+    const units = plan.units.get(b.id);
+    if (units) for (const u of units) { h += plan.lead(prev, u) + unitHeight(u); prev = u; }
+    else {
+      h += b.kind === 'image' ? b.height * ptPerPx(b) + BLOCK_GAP : textHeight(b) + BLOCK_GAP;
+      prev = null;
+    }
+  }
+  return h;
 }
 
 export function paginate(doc: Booklet): Layout {
@@ -153,12 +244,15 @@ export function paginate(doc: Booklet): Layout {
   let pageNo = fihristPages.length;
   let cur: { kind: 'content'; number: number; items: PlacedItem[] } | null = null;
   let y = 0;
+  // The stanza just placed on this page, which the next one is spaced from.
+  let prevUnit: Unit | null = null;
 
   const newPage = () => {
     pageNo += 1;
     cur = { kind: 'content', number: pageNo, items: [] };
     pages.push(cur);
     y = CONTENT.top;
+    prevUnit = null;
   };
   const room = () => (cur ? CONTENT.bottom - y : 0);
   const fits = (h: number) => h <= room();
@@ -166,6 +260,7 @@ export function paginate(doc: Booklet): Layout {
     if (!fits(h)) newPage();
     cur!.items.push(item);
     y += h;
+    prevUnit = null;
   };
   // The ornament closes a page's content; it is dropped rather than left
   // alone on a fresh page (the reference does the same).
@@ -173,29 +268,51 @@ export function paginate(doc: Booklet): Layout {
     if (fits(ORNAMENT_H)) place({ kind: 'ornament' }, ORNAMENT_H);
   };
 
-  const placeImage = (block: ImageBlock, anchor?: string, titleLink?: boolean, commonScale?: number) => {
-    if (block.regions?.length && !block.fixedWidthPt) {
-      const groups = new Map<number, typeof block.regions>();
-      for (const r of block.regions) groups.set(r.group, [...(groups.get(r.group) ?? []), r]);
-      let first = true;
-      for (const rows of groups.values()) {
-        const s = commonScale ?? ptPerPx(block);
-        const top = Math.min(...rows.map((r) => r.y));
-        const bottom = Math.max(...rows.map((r) => r.y + r.h));
-        const h = (bottom - top) * s;
-        const afterHeading = first && (cur as { items: PlacedItem[] } | null)?.items.at(-1)?.kind === 'heading';
-        const maximum = CONTENT.bottom - CONTENT.top - (afterHeading ? HEADING_H : 0);
-        if (h + STANZA_GAP > maximum) throw new Error('This stanza is too tall at the standard lettering size. Crop it into complete verses.');
-        if (!fits(h + STANZA_GAP)) newPage();
-        // Keep the source's baseline spacing and relative column positions.
-        // The entire stanza is one crop, so no row gets stretched separately.
-        const imageRect = { x: 0, y: top, w: block.width, h: bottom - top, group: rows[0].group };
-        place({ kind: 'block', block, height: h, imageRect, imageScale: s, gap: STANZA_GAP, anchor: first ? anchor : undefined, titleLink: first && titleLink }, h + STANZA_GAP);
-        if (first && anchor) anchorPage.set(anchor, pageNo);
-        first = false;
-      }
-      return;
+  const emitUnit = (u: Unit, lead: number, anchor?: string, titleLink?: boolean) => {
+    const h = unitHeight(u);
+    // The source's baseline spacing and column positions are kept: the whole
+    // stanza is one crop at the kalam's scale, so no row is resized alone.
+    const imageRect = { x: 0, y: u.top, w: u.block.width, h: u.bottom - u.top, group: u.rows[0].group };
+    cur!.items.push({ kind: 'block', block: u.block, height: h, imageRect, imageScale: u.s, gap: 0, lead, anchor, titleLink });
+    y += lead + h;
+    if (anchor) anchorPage.set(anchor, pageNo);
+    prevUnit = u;
+  };
+
+  /** A stanza moves whole to the next page; only one taller than a page is
+   * broken, between rows. */
+  const placeUnit = (u: Unit, plan: ReturnType<typeof kalamUnits>, anchor?: string, titleLink?: boolean) => {
+    if (!cur) newPage();
+    const lead = plan.lead(prevUnit, u);
+    if (fits(lead + unitHeight(u))) return emitUnit(u, lead, anchor, titleLink);
+    if (unitHeight(u) <= PAGE_ROOM) {
+      newPage();
+      return emitUnit(u, 0, anchor, titleLink);
     }
+    let rows = u.rows;
+    let top = u.top;
+    let first = true;
+    while (rows.length) {
+      const gap = first ? lead : 0;
+      const cutAfter = (k: number) => (k === rows.length ? u.bottom : (rows[k - 1].bottom + rows[k].top) / 2);
+      let n = rows.length;
+      while (n > 0 && gap + (cutAfter(n) - top) * u.s > room()) n--;
+      if (!n && cur!.items.length) {
+        newPage();
+        first = false;
+        continue;
+      }
+      n = Math.max(1, n);
+      const part: Unit = { ...u, top, bottom: cutAfter(n), rows: rows.slice(0, n) };
+      emitUnit(part, gap, first ? anchor : undefined, first && titleLink);
+      first = false;
+      top = part.bottom;
+      rows = rows.slice(n);
+      if (rows.length) newPage();
+    }
+  };
+
+  const placeImage = (block: ImageBlock, anchor?: string, titleLink?: boolean) => {
     const s = ptPerPx(block);
     let start = 0;
     let isFirst = true;
@@ -235,21 +352,28 @@ export function paginate(doc: Booklet): Layout {
     if (isFirst && anchor) anchorPage.set(anchor, pageNo);
   };
 
-  const placeKalam = (category: Category, kalam: Kalam, withHeading: boolean) => {
+  /** Height of the kalam's opening that must follow a heading or separator. */
+  const openingHeight = (kalam: Kalam, plan: ReturnType<typeof kalamUnits>) => {
+    const b = kalam.blocks[0];
+    const first = plan.units.get(b.id)?.[0];
+    if (first) return Math.min(unitHeight(first), PAGE_ROOM - HEADING_H);
+    return b.kind === 'image' ? Math.min(b.height * ptPerPx(b), TARGET_LINE_PT * 2.8) : b.sizePt * 4.2;
+  };
+
+  const placeKalam = (category: Category, kalam: Kalam, withHeading: boolean, plan = kalamUnits(kalam)) => {
     const anchor = kalamAnchor(kalam);
-    const scales = kalamImageScales(kalam);
     if (withHeading) {
-      // Keep the heading with at least one line of the first block.
-      const b = kalam.blocks[0];
-      const firstRows = b.kind === 'image' ? b.regions?.filter((r) => r.group === b.regions![0].group) : undefined;
-      const firstLine = b.kind === 'image' ? (firstRows?.length ? (Math.max(...firstRows.map((r) => r.y + r.h)) - Math.min(...firstRows.map((r) => r.y))) * (scales.get(b.id) ?? ptPerPx(b)) + STANZA_GAP : Math.min(b.height * ptPerPx(b), TARGET_LINE_PT * 2.8)) : b.sizePt * 4.2;
-      if (!fits(HEADING_H + firstLine) && cur?.items.length) newPage();
+      // Keep the heading with the first stanza.
+      if (!fits(HEADING_H + openingHeight(kalam, plan)) && cur?.items.length) newPage();
       place({ kind: 'heading', label: CATEGORY_LABEL[category], anchor }, HEADING_H);
       anchorPage.set(anchor, pageNo);
     }
+    prevUnit = null;
     kalam.blocks.forEach((block, i) => {
       const a = i === 0 && !withHeading ? anchor : undefined;
-      if (block.kind === 'image') placeImage(block, a, NO_HEADING[category] && i === 0, scales.get(block.id));
+      const units = plan.units.get(block.id);
+      if (units) units.forEach((u, j) => placeUnit(u, plan, j === 0 ? a : undefined, j === 0 && NO_HEADING[category] && i === 0));
+      else if (block.kind === 'image') placeImage(block, a, NO_HEADING[category] && i === 0);
       else {
         const lines = block.text.split('\n');
         for (let start = 0; start < lines.length;) {
@@ -272,11 +396,14 @@ export function paginate(doc: Booklet): Layout {
       const heading = !NO_HEADING[e.category];
       e.kalams.forEach((kalam, i) => {
         if (flow && i > 0) {
-          const b = kalam.blocks[0];
-          const lead = b.kind === 'image' ? TARGET_LINE_PT * 2.8 : b.sizePt * 4.2;
-          if (fits(SEPARATOR_H + lead)) place({ kind: 'separator' }, SEPARATOR_H);
+          // A kalam that fits on one page is never split: it moves whole to
+          // the next page instead. A longer one starts where it is.
+          const plan = kalamUnits(kalam);
+          const total = kalamHeight(kalam, plan);
+          const together = total <= PAGE_ROOM;
+          if (fits(SEPARATOR_H + (together ? total : openingHeight(kalam, plan)))) place({ kind: 'separator' }, SEPARATOR_H);
           else newPage();
-          placeKalam(e.category, kalam, false);
+          placeKalam(e.category, kalam, false, plan);
         } else {
           newPage();
           placeKalam(e.category, kalam, heading);

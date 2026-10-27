@@ -10,7 +10,7 @@ import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { addMedia, editMedia, ensureFixedMedia, getMedia, MEDIA, readJson, writeJson } from './store';
 import type { PrintPayload } from '../src/booklet/print';
-import { mediaSrc } from '../src/booklet/media';
+import { mediaSrc, openingSrc } from '../src/booklet/media';
 import { readFile } from 'node:fs/promises';
 import { PROCESSOR_VERSION } from './ink';
 import { closeRecognition } from './recognize';
@@ -153,16 +153,25 @@ app.post(
     const assets: Record<string, string> = {};
     const blocks = Object.values(doc.kalams).flatMap((ks) => ks.flatMap((k) => k.blocks)).filter((b) => b.kind === 'image');
     for (const block of blocks) {
+      if (!/^[\w-]+$/.test(block.mediaId)) return res.status(400).send('Invalid screenshot ID.');
       const src = mediaSrc(block);
       if (assets[src]) continue;
       if (supplied[src]?.startsWith('data:image/')) assets[src] = supplied[src];
       else {
-        if (!/^[\w-]+$/.test(block.mediaId)) return res.status(400).send('Invalid screenshot ID.');
         try {
           const name = block.format ? `${block.mediaId}.${Number(block.rev)}.${block.format}` : `${block.mediaId}.svg`;
           const bytes = await readFile(path.join(MEDIA, name));
           assets[src] = `data:image/${block.format === 'png' ? 'png' : 'svg+xml'};base64,${bytes.toString('base64')}`;
         } catch { return res.status(422).send('A verse image is missing. Re-add its original screenshot before downloading.'); }
+      }
+      const opening = openingSrc(block);
+      if (!opening || assets[opening]) continue;
+      if (supplied[opening]?.startsWith('data:image/')) assets[opening] = supplied[opening];
+      else {
+        try {
+          const bytes = await readFile(path.join(MEDIA, `${block.mediaId}.${Number(block.rev)}.opening.png`));
+          assets[opening] = `data:image/png;base64,${bytes.toString('base64')}`;
+        } catch { return res.status(422).send('A fihrist image is missing. Reopen the booklet so it can be rebuilt, then download again.'); }
       }
     }
     const key = createHash('sha256').update(JSON.stringify({ doc, assets, title })).digest('hex');

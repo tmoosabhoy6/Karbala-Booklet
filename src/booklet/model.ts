@@ -29,10 +29,14 @@ export interface ImageBlock {
   suggestedName?: string;
   warnings?: string[];
   opening?: { x: number; y: number; w: number; h: number };
+  /** The opening words exist as a ready navy image (see openingSrc). */
+  openingImage?: boolean;
 }
 
 export interface ImageRegion {
   x: number; y: number; w: number; h: number; lineHeight: number; group: number;
+  /** Ink band and ink mass centre of the row, in px (older media lack them). */
+  top?: number; bottom?: number; center?: number;
 }
 
 export interface TextBlock {
@@ -216,6 +220,7 @@ export interface MediaMeta {
   recognitionConfidence?: number;
   warnings?: string[];
   opening?: { x: number; y: number; w: number; h: number };
+  openingImage?: boolean;
 }
 
 export const imageBlockFrom = (m: MediaMeta, extra: Partial<ImageBlock> = {}): ImageBlock => ({
@@ -232,6 +237,7 @@ export const imageBlockFrom = (m: MediaMeta, extra: Partial<ImageBlock> = {}): I
   suggestedName: m.suggestedName,
   warnings: m.warnings,
   opening: m.opening,
+  openingImage: m.openingImage,
   scale: 1,
   ...extra,
 });

@@ -25,7 +25,7 @@ export const todayIso = () => {
 };
 
 const HISTORY = 60;
-const imageGeometry = (m: MediaMeta) => ({ mediaId: m.id, rev: m.rev, width: m.width, height: m.height, bands: m.bands, lineHeight: m.lineHeight, regions: m.regions, opening: m.opening, format: m.format, suggestedName: m.suggestedName, warnings: m.warnings });
+const imageGeometry = (m: MediaMeta) => ({ mediaId: m.id, rev: m.rev, width: m.width, height: m.height, bands: m.bands, lineHeight: m.lineHeight, regions: m.regions, opening: m.opening, openingImage: m.openingImage, format: m.format, suggestedName: m.suggestedName, warnings: m.warnings });
 
 const mapKalams = (d: Booklet, fn: (k: Kalam) => Kalam): Booklet => ({
   ...d,

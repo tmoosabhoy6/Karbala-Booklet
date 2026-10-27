@@ -3,16 +3,21 @@
 import sharp from 'sharp';
 import { recognize } from './recognize';
 
-export const PROCESSOR_VERSION = 7;
+export const PROCESSOR_VERSION = 8;
+/** Fihrist navy (#3a456a): opening words are delivered already coloured. */
+const NAVY = [58, 69, 106];
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface Edits { crop?: Rect; erase?: Rect[]; autoClean?: boolean }
-export interface Region extends Rect { lineHeight: number; group: number }
+/** `top`/`bottom` are the row's ink band and `center` its ink mass centre
+ * (close to the baseline zone), all in px of the final image. */
+export interface Region extends Rect { lineHeight: number; group: number; top: number; bottom: number; center: number }
 export interface InkResult {
   width: number; height: number; bands: [number, number][]; lineHeight: number;
   regions: Region[]; opening: Rect; suggestedName: string; recognitionConfidence: number;
-  warnings: string[]; png: Buffer; svg: string;
+  warnings: string[]; png: Buffer; svg: string; openingPng: Buffer | null;
 }
 const median = (a: number[]) => a.length ? [...a].sort((p, q) => p - q)[a.length >> 1] : 1;
+const lowerMedian = (a: number[]) => a.length ? [...a].sort((p, q) => p - q)[(a.length - 1) >> 1] : 1;
 const clamp = (v: number) => Math.min(255, Math.max(0, Math.round(v)));
 function clampRect(r: Rect, W: number, H: number): Rect {
   const x = Math.min(W - 1, Math.max(0, Math.round(r.x)));
@@ -103,6 +108,182 @@ export function findBands(alpha: Uint8Array, W: number, H: number, attachMarks =
   }
   return merged;
 }
+/** Vertical ink mass centre of rows [a, b). */
+function centre(alpha: Uint8Array, W: number, a: number, b: number) {
+  let mass = 0, moment = 0;
+  for (let y = a; y < b; y++) {
+    let row = 0;
+    for (let x = 0; x < W; x++) row += alpha[y * W + x];
+    mass += row; moment += row * y;
+  }
+  return mass ? moment / mass : (a + b) / 2;
+}
+/**
+ * Verse/stanza numbers (٢٧, ٧, a numbered badge) sit apart from the lettering:
+ * in the margin beside a couplet, usually between its two rows, or as a solid
+ * badge. They must go before rows are measured: a number between two rows
+ * joins them into one "giant line", which then prints as a shrunken stanza.
+ * Lettering is protected: a word inside a row, a lone centred word and
+ * anything without lettering beside it are never candidates.
+ */
+type Component = { x0: number; y0: number; x1: number; y1: number; n: number };
+/** 8-connected ink components; `label` holds each pixel's 1-based component. */
+function components(alpha: Uint8Array, W: number, H: number) {
+  const label = new Int32Array(W * H);
+  const comps: Component[] = [];
+  const stack: number[] = [];
+  for (let start = 0; start < alpha.length; start++) {
+    if (label[start] || alpha[start] <= 60) continue;
+    const id = comps.length + 1;
+    const c = { x0: W, y0: H, x1: -1, y1: -1, n: 0 };
+    label[start] = id; stack.push(start);
+    while (stack.length) {
+      const p = stack.pop()!, x = p % W, y = (p - x) / W;
+      c.n++; c.x0 = Math.min(c.x0, x); c.x1 = Math.max(c.x1, x); c.y0 = Math.min(c.y0, y); c.y1 = Math.max(c.y1, y);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const q = ny * W + nx;
+        if (!label[q] && alpha[q] > 60) { label[q] = id; stack.push(q); }
+      }
+    }
+    comps.push(c);
+  }
+  return { label, comps };
+}
+/** Clear a component group and its faint antialiased fringe. */
+function clearComponents(alpha: Uint8Array, W: number, H: number, label: Int32Array, ids: number[], box: Rect, fringe: number) {
+  const own = new Set(ids);
+  for (let y = Math.max(0, box.y - fringe); y <= Math.min(H - 1, box.y + box.h - 1 + fringe); y++) for (let x = Math.max(0, box.x - fringe); x <= Math.min(W - 1, box.x + box.w - 1 + fringe); x++) {
+    const p = y * W + x;
+    if (!label[p] || own.has(label[p])) alpha[p] = 0;
+  }
+}
+/** A dotted or dashed frame line down the outer edge of a screenshot (a
+ * Quran page border, an app's column guide) is not lettering. */
+function removeDashedEdges(alpha: Uint8Array, W: number, H: number, label: Int32Array, comps: Component[]) {
+  const thin = comps.map((c, i) => ({ c, id: i + 1, cx: (c.x0 + c.x1) / 2 }))
+    .filter(({ c }) => c.x1 - c.x0 + 1 <= Math.max(4, W * 0.008) && c.y1 - c.y0 + 1 <= H * 0.08)
+    .sort((a, b) => a.cx - b.cx);
+  const lines: (typeof thin)[] = [];
+  for (const t of thin) {
+    const line = lines.at(-1);
+    if (line && t.cx - line[0].cx <= 3) line.push(t); else lines.push([t]);
+  }
+  const ids = new Set<number>();
+  for (const line of lines) {
+    if (line.length < 5) continue;
+    const top = Math.min(...line.map((t) => t.c.y0)), bottom = Math.max(...line.map((t) => t.c.y1));
+    if (bottom - top < H * 0.4) continue;
+    const x0 = Math.min(...line.map((t) => t.c.x0)), x1 = Math.max(...line.map((t) => t.c.x1));
+    const own = new Set(line.map((t) => t.id));
+    // Only the outermost ink on its side: never a column inside the text.
+    const outerLeft = comps.every((c, i) => own.has(i + 1) || c.x1 >= x0 || c.y1 < top || c.y0 > bottom);
+    const outerRight = comps.every((c, i) => own.has(i + 1) || c.x0 <= x1 || c.y1 < top || c.y0 > bottom);
+    const inside = comps.some((c, i) => !own.has(i + 1) && c.x0 < x0 && c.x1 > x1 && c.y0 <= bottom && c.y1 >= top);
+    if (inside || !(outerLeft || outerRight)) continue;
+    for (const t of line) { ids.add(t.id); clearComponents(alpha, W, H, label, [t.id], { x: t.c.x0, y: t.c.y0, w: t.c.x1 - t.c.x0 + 1, h: t.c.y1 - t.c.y0 + 1 }, 1); }
+  }
+  return ids;
+}
+/**
+ * Verse/stanza numbers (٢٧, ٧, a numbered badge) sit apart from the lettering:
+ * in the margin beside a couplet, usually between its two rows, or as a solid
+ * badge. They must go before rows are measured: a number between two rows
+ * joins them into one "giant line", which then prints as a shrunken stanza.
+ * Lettering is protected: a word inside a row, a lone centred word and
+ * anything without lettering beside it are never candidates.
+ */
+function removeMarginMarks(alpha: Uint8Array, colors: Uint8Array, W: number, H: number) {
+  const { label, comps: found } = components(alpha, W, H);
+  const dashed = removeDashedEdges(alpha, W, H, label, found);
+  // Removed dashes stay out of every later comparison.
+  const comps = found.map((c, i) => (dashed.has(i + 1) ? { ...c, x0: -1e9, x1: -1e9, y0: -1e9, y1: -1e9 } : c));
+  if (comps.length < 2) return;
+  const T = lowerMedian(findBands(alpha, W, H).map(([a, b]) => b - a).filter((h) => h >= 4));
+  // Join components into words: dots, harakat and letters of one word overlap
+  // vertically and sit within a small horizontal gap.
+  const parent = comps.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  const order = comps.map((_, i) => i).sort((a, b) => comps[a].x0 - comps[b].x0);
+  for (let i = 0; i < order.length; i++) {
+    const a = comps[order[i]];
+    for (let j = i + 1; j < order.length && comps[order[j]].x0 <= a.x1 + T * 0.3; j++) {
+      const b = comps[order[j]];
+      if (a.y0 <= b.y1 + T * 0.15 && b.y0 <= a.y1 + T * 0.15) parent[find(order[i])] = find(order[j]);
+    }
+  }
+  const clusters = new Map<number, { x0: number; y0: number; x1: number; y1: number; n: number; ids: number[] }>();
+  comps.forEach((c, i) => {
+    const r = find(i);
+    const k = clusters.get(r);
+    if (!k) clusters.set(r, { ...c, ids: [i + 1] });
+    else { k.x0 = Math.min(k.x0, c.x0); k.x1 = Math.max(k.x1, c.x1); k.y0 = Math.min(k.y0, c.y0); k.y1 = Math.max(k.y1, c.y1); k.n += c.n; k.ids.push(i + 1); }
+  });
+  const all = [...clusters.values()];
+  const candidates = all.filter((c) => {
+    const w = c.x1 - c.x0 + 1, h = c.y1 - c.y0 + 1;
+    if (h > T * 0.85 || h < T * 0.2 || w > T * 1.5 || c.ids.length > 4) return false;
+    // Compare with single components: word clusters can chain across rows
+    // through their harakat, so a cluster's box says little about its row.
+    let left = -Infinity, right = Infinity;
+    const own = new Set(c.ids);
+    for (const [i, o] of comps.entries()) {
+      if (own.has(i + 1) || o.y1 < c.y0 - T * 0.2 || o.y0 > c.y1 + T * 0.2) continue;
+      if (o.x1 < c.x0) left = Math.max(left, o.x1);
+      else if (o.x0 > c.x1) right = Math.min(right, o.x0);
+      else return false;
+    }
+    // Outermost in its strip, well clear of the lettering beside it.
+    return (left === -Infinity && right - c.x1 >= T * 0.45) || (right === Infinity && c.x0 - left >= T * 0.45);
+  });
+  if (!candidates.length) return;
+  // Measure the rows without the candidates, so a number cannot bridge them.
+  const rest = alpha.slice();
+  const clear = (c: typeof candidates[number], target: Uint8Array) =>
+    clearComponents(target, W, H, label, c.ids, { x: c.x0, y: c.y0, w: c.x1 - c.x0 + 1, h: c.y1 - c.y0 + 1 }, 2);
+  for (const c of candidates) clear(c, rest);
+  const rows = findBands(rest, W, H).filter(([a, b]) => b - a >= T * 0.4);
+  const centres = rows.map(([a, b]) => centre(rest, W, a, b));
+  const pitch = centres.length > 1 ? lowerMedian(centres.slice(1).map((c, i) => c - centres[i])) : 0;
+  for (const c of candidates) {
+    const w = c.x1 - c.x0 + 1, h = c.y1 - c.y0 + 1, cy = (c.y0 + c.y1) / 2;
+    // A badge is a filled, roughly round, coloured shape (a red drop around
+    // the number). Black lettering is never treated as one.
+    let coloured = 0;
+    for (const id of c.ids) {
+      const k = comps[id - 1];
+      for (let y = k.y0; y <= k.y1; y++) for (let x = k.x0; x <= k.x1; x++) {
+        const p = y * W + x;
+        if (label[p] === id && colors[p * 3] + colors[p * 3 + 1] + colors[p * 3 + 2] > 0) coloured++;
+      }
+    }
+    const badge = c.n / (w * h) >= 0.5 && h >= T * 0.3 && w / h >= 0.5 && w / h <= 2 && coloured >= c.n * 0.5;
+    const between = pitch > 0 && Math.min(...centres.map((r) => Math.abs(r - cy))) > pitch * 0.3;
+    if (badge || between) clear(c, alpha);
+  }
+}
+/** A band far taller than its neighbours is two rows touching (often through
+ * a mark between them). Split it at a clear valley rather than treating it as
+ * one huge line. */
+function splitMergedRows(alpha: Uint8Array, W: number, bands: [number, number][]): [number, number][] {
+  if (bands.length < 2) return bands;
+  const normal = lowerMedian(bands.map(([a, b]) => b - a));
+  const out: [number, number][] = [];
+  const pending = [...bands].reverse();
+  while (pending.length) {
+    const [a, b] = pending.pop()!;
+    if (b - a < normal * 1.7) { out.push([a, b]); continue; }
+    const profile: number[] = [];
+    for (let y = a; y < b; y++) { let n = 0; for (let x = 0; x < W; x++) if (alpha[y * W + x] > 55) n++; profile.push(n); }
+    const peak = Math.max(...profile);
+    let cut = -1;
+    for (let i = Math.round((b - a) * 0.3); i <= Math.round((b - a) * 0.7); i++) if (cut < 0 || profile[i] < profile[cut]) cut = i;
+    if (cut < 0 || profile[cut] > peak * 0.12) { out.push([a, b]); continue; }
+    pending.push([a + cut + 1, b], [a, a + cut]);
+  }
+  return out;
+}
 export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options: { ocr?: boolean } = {}): Promise<InkResult> {
   const { data, info } = await sharp(input, { limitInputPixels: 20_000_000 }).rotate().flatten({ background: '#fff' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const crop = clampRect(edits.crop ?? { x: 0, y: 0, w: info.width, h: info.height }, info.width, info.height);
@@ -132,6 +313,7 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
       if ((a <= 1 || b >= H - 1) && b - a < typical * 0.55) erase(alpha, W, H, { x: 0, y: a, w: W, h: b - a });
     }
   }
+  if (edits.autoClean !== false && W * H <= 12_000_000) removeMarginMarks(alpha, colors, W, H);
   const warnings: string[] = [];
   let bands = findBands(alpha, W, H);
   const typical = median(bands.map(([a, b]) => b - a));
@@ -153,7 +335,7 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
     console.error('Index recognition unavailable:', error);
     warnings.push('Automatic page-number detection was unavailable. Check for screenshot page numbers.');
   }
-  bands = findBands(alpha, W, H);
+  bands = splitMergedRows(alpha, W, findBands(alpha, W, H));
   // Row detection controls pagination, not which pixels are allowed to exist.
   // Erasing everything outside detected rows destroyed isolated Urdu dots.
   const bounds = box(alpha, W, H);
@@ -162,13 +344,16 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
   const t = clampRect({ x: bounds.x - padding, y: bounds.y - padding, w: bounds.w + padding * 2, h: bounds.h + padding * 2 }, W, H);
   const png = await sharp(await makePng(false)).extract({ left: t.x, top: t.y, width: t.w, height: t.h }).png().toBuffer();
   const finalBands = bands.map(([a, b]) => [Math.max(0, a - t.y), Math.min(t.h, b - t.y)] as [number, number]).filter(([a, b]) => b > a);
-  const gaps = finalBands.slice(1).map(([a], i) => a - finalBands[i][1]);
-  const normalGap = median(gaps.filter((g) => g > 0));
-  const paragraphBreaks = gaps.some((g) => g > normalGap * 1.8);
-  let group = 0, inGroup = 0;
+  // Stanza breaks come only from the source's own spacing: a baseline pitch
+  // clearly above the screenshot's normal line pitch. Uniformly spaced rows
+  // stay one group; rows are never paired up artificially.
+  const centres = finalBands.map(([a, b]) => centre(alpha, W, a + t.y, b + t.y) - t.y);
+  const pitches = centres.slice(1).map((c, i) => c - centres[i]);
+  const sortedPitches = [...pitches].sort((p, q) => p - q);
+  const basePitch = pitches.length >= 2 ? sortedPitches[Math.floor((sortedPitches.length - 1) / 4)] : Infinity;
+  let group = 0;
   const regions = finalBands.map(([a, b], i): Region => {
-    if (i && ((!paragraphBreaks && inGroup >= 2) || a - finalBands[i - 1][1] > normalGap * 1.8)) { group++; inGroup = 0; }
-    inGroup++;
+    if (i && pitches[i - 1] > basePitch * 1.25) group++;
     const ink = box(alpha, W, H, a + t.y, b + t.y)!;
     const previous = finalBands[i - 1], next = finalBands[i + 1];
     const y = Math.max(0, a - padding, previous ? Math.ceil((previous[1] + a) / 2) : 0);
@@ -179,7 +364,7 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
     // A dense multi-line image must never be mistaken for one giant glyph and
     // shrunk to a 34pt thumbnail. Preserve it as a readable, intact group.
     const lineHeight = unresolvedRows ? Math.min(b - a, Math.max(20, ink.w / 12)) : b - a;
-    return { x, y, w: Math.min(t.w - x, ink.w + padding * 2), h: end - y, lineHeight, group };
+    return { x, y, w: Math.min(t.w - x, ink.w + padding * 2), h: end - y, lineHeight, group, top: a, bottom: b, center: Math.round(centres[i] * 10) / 10 };
   });
   const first = regions[0];
   // The index can use the actual opening words as a transparent image. This
@@ -199,8 +384,19 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
   }
   const selected = words.length > 6 ? words.slice(-5) : words;
   const opening: Rect = selected.length ? { x: Math.max(0, selected[0][0] - padding), y: first.y, w: Math.min(t.w, selected.at(-1)![1] + padding) - Math.max(0, selected[0][0] - padding), h: first.h } : first;
+  // The fihrist shows these words as a plain navy image. CSS masks and hidden
+  // overlay images print as solid boxes on many printers and PDF viewers.
+  const ow = Math.max(1, Math.min(t.w - opening.x, Math.round(opening.w))), oh = Math.max(1, Math.min(t.h - opening.y, Math.round(opening.h)));
+  const ox = Math.round(opening.x), oy = Math.round(opening.y);
+  const navy = Buffer.alloc(ow * oh * 4);
+  for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++) {
+    const o = (y * ow + x) * 4;
+    navy[o] = NAVY[0]; navy[o + 1] = NAVY[1]; navy[o + 2] = NAVY[2];
+    navy[o + 3] = alpha[(y + oy + t.y) * W + x + ox + t.x];
+  }
+  const openingPng = await sharp(navy, { raw: { width: ow, height: oh, channels: 4 } }).png().toBuffer();
   if (median(finalBands.map(([a, b]) => b - a)) < 20) warnings.push('Low-resolution source: a larger original screenshot or PDF will print more clearly.');
   // Compatibility for old thumbnails; lossless source ink, no curve fitting.
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${t.w}" height="${t.h}" viewBox="0 0 ${t.w} ${t.h}"><image width="${t.w}" height="${t.h}" href="data:image/png;base64,${png.toString('base64')}"/></svg>`;
-  return { width: t.w, height: t.h, bands: finalBands, lineHeight: median(finalBands.map(([a, b]) => b - a)), regions, opening, suggestedName, recognitionConfidence, warnings, png, svg };
+  return { width: t.w, height: t.h, bands: finalBands, lineHeight: median(finalBands.map(([a, b]) => b - a)), regions, opening: { x: ox, y: oy, w: ow, h: oh }, suggestedName, recognitionConfidence, warnings, png, svg, openingPng };
 }
