@@ -2,5 +2,6 @@
 data/
 node_modules/
 dist/
+build/
 tmp/
 work/

@@ -3,11 +3,11 @@ import { BookletView } from '../booklet/Booklet';
 import { stripMarkup } from '../booklet/RichText';
 import { Block, CATEGORY_ADDABLE, CATEGORY_HINT, CATEGORY_LABEL, Category, ImageBlock, VENUES, Venue, uid } from '../booklet/model';
 import { paginate } from '../booklet/paginate';
-import { printAssets } from '../booklet/print';
 import { dateLine, raatTitle, raatTitleLatin } from '../lib/hijri';
 import { ImageEditor } from './ImageEditor';
 import { KalamCard, uploadInto } from './KalamCard';
 import { useBooklet } from './useBooklet';
+import { api } from './api';
 import { AIRestore } from './AIRestore';
 import './editor.css';
 
@@ -95,14 +95,7 @@ export function Editor() {
     setReady(null);
     try {
       const filename = `${raatTitleLatin(d)} Matam Majlis.pdf`;
-      const assets = await printAssets(doc);
-      const res = await fetch('/api/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doc, assets, filename, title: `${raatTitle(d)} – ماتم مجلس` }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const { url } = (await res.json()) as { url: string };
+      const url = await api.exportPdf({ doc, filename, title: `${raatTitle(d)} – ماتم مجلس` });
       // Phones only save a download started by a tap, and building the PDF
       // takes longer than that tap counts for: they get a Save button instead.
       if (matchMedia('(pointer: coarse)').matches) setReady({ url, filename });
@@ -256,6 +249,7 @@ export function Editor() {
           <BookletView
             doc={doc}
             layout={layout}
+            pageWidthPx={794 * zoom}
             edits={typing ? textEdits : undefined}
             onPlace={
               placing

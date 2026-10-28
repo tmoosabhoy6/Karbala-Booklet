@@ -6,30 +6,32 @@
   "scripts": {
     "verify": "npm run build && tsx tools/verify.ts",
     "dev": "concurrently -k -n server,web -c magenta,cyan \"tsx watch server/index.ts\" \"vite\"",
-    "build": "tsc && vite build",
-    "start": "npm run build && NODE_ENV=production tsx server/index.ts",
-    "assets": "node tools/build-logos.mjs",
+    "build": "tsc && vite build && node scripts/build-server.mjs",
+    "start": "npm run build && NODE_ENV=production node build/server.js",
+    "assets": "node tools/build-logos.mjs && python3 tools/optimize_assets.py",
     "verify:lettering": "tsx tools/verify-lettering.ts"
   },
   "dependencies": {
     "@tesseract.js-data/ara": "^1.0.0",
     "@tesseract.js-data/urd": "^1.0.0",
+    "compression": "^1.7.5",
     "express": "^4.21.2",
     "pdf-lib": "^1.17.1",
     "playwright": "^1.48.2",
-    "potrace": "^2.1.8",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
     "sharp": "^0.33.5",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
+    "@types/compression": "^1.7.5",
     "@types/express": "^4.17.21",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.0",
+    "esbuild": "^0.21.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"

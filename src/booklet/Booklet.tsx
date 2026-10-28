@@ -14,6 +14,18 @@ export { mediaSrc } from './media';
 const A = '/assets';
 
 const MediaContext = createContext<Record<string, string>>({});
+/** On-screen width of a page in CSS px; unset when printing. */
+const PreviewWidth = createContext<number | undefined>(undefined);
+
+/** Page artwork is 2480×3508 px, the right size for print. The preview gets a
+ * half-size copy and the browser switches to the full one once the zoom (and
+ * screen density) can show more detail. The PDF always uses the full image. */
+function Background({ name }: { name: 'cover-bg' | 'back-bg' | 'page-border' }) {
+  const width = useContext(PreviewWidth);
+  const full = `${A}/${name}.jpg`;
+  if (!width) return <img className="bg" src={full} alt="" />;
+  return <img className="bg" src={full} srcSet={`${A}/${name}.preview.jpg 1240w, ${full} 2480w`} sizes={`${Math.ceil(width)}px`} alt="" />;
+}
 
 /** The opening verse words, from a ready navy PNG. A plain image prints the
  * same everywhere; masks and hidden overlays showed as solid boxes. */
@@ -39,7 +51,7 @@ function Cover({ doc }: { doc: Doc }) {
   const date = new Date(`${doc.date}T12:00:00`);
   return (
     <>
-      <img className="bg" src={`${A}/cover-bg.jpg`} alt="" />
+      <Background name="cover-bg" />
       {/* Faiz-e-Husaini at the top-left corner; Karbala Mualla centred above the title. */}
       <img className="cover-faiz" src={`${A}/logo-faiz-husaini.png`} alt="" />
       <img className="cover-karbala" src={`${A}/logo-karbala.png`} alt="" />
@@ -138,7 +150,7 @@ function PageNumber({ n }: { n: number }) {
 function Fihrist({ page }: { page: Extract<Page, { kind: 'fihrist' }> }) {
   return (
     <>
-      <img className="bg" src={`${A}/page-border.jpg`} alt="" />
+      <Background name="page-border" />
       <div className="fihrist">
         {page.items.map((item, i) => (
           <FihristEntry key={i} item={item} />
@@ -209,7 +221,7 @@ function Item({ item }: { item: PlacedItem }) {
 function Back() {
   return (
     <>
-      <img className="bg" src={`${A}/back-bg.jpg`} alt="" />
+      <Background name="back-bg" />
       <div className="back-logos">
         <Logos karbalaWidth={200} faizHeight={156} />
       </div>
@@ -228,7 +240,7 @@ function PageBody({ page, doc }: { page: Page; doc: Doc }) {
     case 'content':
       return (
         <>
-          <img className="bg" src={`${A}/page-border.jpg`} alt="" />
+          <Background name="page-border" />
           <div className="content">
             {page.items.map((item, i) => (
               <Item key={i} item={item} />
@@ -248,9 +260,11 @@ interface ViewProps {
   /** While set, a click on a page places a new text box there (x, y in pt). */
   onPlace?: (page: number, x: number, y: number) => void;
   assets?: Record<string, string>;
+  /** Given in the editor: how wide a page shows on screen, in CSS px. */
+  pageWidthPx?: number;
 }
 
-export function BookletView({ doc, layout, edits, onPlace, assets = {} }: ViewProps) {
+export function BookletView({ doc, layout, edits, onPlace, assets = {}, pageWidthPx }: ViewProps) {
   const ctx = useMemo(() => ({ overrides: doc.overrides ?? {}, edits }), [doc.overrides, edits]);
   const boxes = useMemo(() => {
     const byPage = new Map<number, TextBox[]>();
@@ -271,6 +285,7 @@ export function BookletView({ doc, layout, edits, onPlace, assets = {} }: ViewPr
   return (
     <EditContext.Provider value={ctx}>
       <MediaContext.Provider value={assets}>
+      <PreviewWidth.Provider value={pageWidthPx}>
       <div className={`booklet${edits ? ' text-editing' : ''}${onPlace ? ' placing' : ''}`}>
         {layout.pages.map((page, i) => (
           <section
@@ -285,6 +300,7 @@ export function BookletView({ doc, layout, edits, onPlace, assets = {} }: ViewPr
           </section>
         ))}
       </div>
+      </PreviewWidth.Provider>
       </MediaContext.Provider>
     </EditContext.Provider>
   );

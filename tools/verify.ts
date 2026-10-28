@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomInt } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
@@ -15,7 +15,7 @@ await mkdir('work', { recursive: true });
 const data = await mkdtemp('work/verify-');
 const port = String(20000 + randomInt(30000));
 const origin = `http://127.0.0.1:${port}`;
-const server = spawn(process.execPath, ['--import', 'tsx', 'server/index.ts'], {
+const server = spawn(process.execPath, ['build/server.js'], {
   env: { ...process.env, NODE_ENV: 'production', PORT: port, APP_URL: origin, DATA_DIR: data },
   stdio: ['ignore', 'pipe', 'pipe'],
   detached: true,
@@ -123,7 +123,16 @@ try {
       return [src, data];
     })));
   });
+  // Only the booklet goes up: no image data in the request.
+  const sent: number[] = [];
+  page.on('request', (r) => { if (r.url().endsWith('/api/export')) sent.push(r.postData()?.length ?? 0); });
   // Start a genuinely different export after removing its backing server file.
+  await rename(`${data}/media/${uploaded.id}.${uploaded.rev}.${uploaded.format}`, `${data}/missing.svg`);
+  // The server asks for the lost file; the browser sends it once, as bytes.
+  const again = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download PDF', exact: true }).click();
+  await (await again).saveAs(`${data}/verified-again.pdf`);
+  assert(sent.length && sent.every((n) => n < 200_000), `Download PDF must send only the booklet (${sent}).`);
+  assert((await readFile(`${data}/media/${uploaded.id}.${uploaded.rev}.png`)).equals(lettering), 'A file the server lost comes back byte-for-byte.');
   await rename(`${data}/media/${uploaded.id}.${uploaded.rev}.${uploaded.format}`, `${data}/missing.svg`);
   const another = { ...doc, date: '2026-10-26' };
   const request = { doc: another, assets, filename: 'snapshot.pdf', title: 'Snapshot regression' };
@@ -136,25 +145,42 @@ try {
   assert(repeatMs < firstMs, 'Identical downloads should reuse the completed PDF.');
   const broken = await fetch(origin + '/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ doc: another, assets: {}, filename: 'missing.pdf', title: 'Missing image' }) });
   assert.equal(broken.status, 422, 'A missing image must fail explicitly, never produce a blank PDF.');
+  assert.deepEqual((await broken.json()).missing, [mediaSrc(imageBlockFrom(uploaded))], 'The server names exactly the files it lacks.');
   const corrupt = await fetch(origin + '/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...request, title: 'Corrupt image', assets: { ...assets, [mediaSrc(imageBlockFrom(uploaded))]: 'data:image/png;base64,YmFk' } }) });
   assert.equal(corrupt.status, 500, 'Undecodable image data must fail explicitly.');
-  // Lose both the saved document and the original server upload. The same
-  // browser must restore the original and correct its document references.
+  // The browser keeps the finished files of each screenshot in the background.
+  await page.waitForFunction((id) => new Promise((resolve) => {
+    const open = indexedDB.open('karbala-booklet-backup', 1);
+    open.onsuccess = () => { const r = open.result.transaction('backup').objectStore('backup').get(`media:${id}`); r.onsuccess = () => resolve(!!r.result?.png && !!r.result?.opening); };
+  }), uploaded.id, { timeout: 20_000 });
+  // Lose the saved document and every server file of the screenshot (a
+  // restart on the free host). The same browser hands the finished files
+  // back under the original name: nothing is cleaned again or renamed.
   await rename(`${data}/booklet.json`, `${data}/booklet-lost.json`);
   await rename(`${data}/media/${uploaded.id}.json`, `${data}/media-lost.json`);
   await rename(`${data}/media/${uploaded.id}.orig`, `${data}/original-lost.png`);
+  await rename(`${data}/media/${uploaded.id}.${uploaded.rev}.opening.png`, `${data}/opening-lost.png`);
   await page.reload();
-  await page.waitForFunction((old) => {
+  await page.waitForFunction((id) => {
     const image = document.querySelector<HTMLImageElement>('.kalam .thumb');
-    return image && !image.src.includes(old) && image.complete && image.naturalWidth > 0;
+    return image && image.src.includes(id) && image.complete && image.naturalWidth > 0;
   }, uploaded.id);
+  const back = await fetch(`${origin}/api/media/${uploaded.id}`).then((r) => r.json());
+  assert.equal(back.rev, uploaded.rev, 'A restored screenshot keeps its name and revision.');
+  assert((await readFile(`${data}/media/${uploaded.id}.${uploaded.rev}.png`)).equals(lettering), 'Restored lettering is byte-for-byte the finished file.');
+  assert((await readFile(`${data}/media/${uploaded.id}.${uploaded.rev}.opening.png`)).equals(await readFile(`${data}/opening-lost.png`)), 'Restored opening words are byte-for-byte too.');
+  // Only the versioned PNG and opening words are stored; old SVG links still work.
+  const stored = (await readdir(`${data}/media`)).filter((f) => f.startsWith(uploaded.id)).sort();
+  assert.deepEqual(stored, [`${uploaded.id}.${uploaded.rev}.opening.png`, `${uploaded.id}.${uploaded.rev}.png`, `${uploaded.id}.json`, `${uploaded.id}.orig`]);
+  const legacy = await fetch(`${origin}/media/${uploaded.id}.svg?v=${uploaded.rev}`);
+  assert(legacy.ok && (await legacy.text()).includes(lettering.toString('base64')), 'An old SVG entry is rebuilt around the stored PNG.');
   assert(await page.locator('.opening-words').count(), 'The recovered document must retain its automatic fihrist entry.');
   assert.equal(errors.length, 0, errors.join('\n'));
   await page.locator('.page').nth(0).screenshot({ path: `${data}/cover.png` });
   await page.locator('.page').nth(1).screenshot({ path: `${data}/fihrist.png` });
   await page.locator('.page').nth(2).screenshot({ path: `${data}/verses.png` });
-  await sharp(await readFile(`${data}/media/${uploaded.id}.png`)).flatten({ background: '#fff' }).png().toFile(`${data}/cleaned.png`);
-  const result = { pages: pdf.getPageCount(), firstExportMs: Math.round(firstMs), repeatExportMs: Math.round(repeatMs), data, assertions: 'upload cleanup, 18 complete lines, intact stanzas, shared kalam pitch, identical stanza gaps, whole marathi kalams, unmasked fihrist openings, automatic fihrist, cover typography, A4 geometry, actual download, self-contained export, missing/corrupt image rejection, original/document recovery after server file loss' };
+  await sharp(lettering).flatten({ background: '#fff' }).png().toFile(`${data}/cleaned.png`);
+  const result = { pages: pdf.getPageCount(), firstExportMs: Math.round(firstMs), repeatExportMs: Math.round(repeatMs), data, assertions: 'upload cleanup, 18 complete lines, intact stanzas, shared kalam pitch, identical stanza gaps, whole marathi kalams, unmasked fihrist openings, automatic fihrist, cover typography, A4 geometry, actual download, self-contained export, missing/corrupt image rejection, booklet-only PDF request with lost-file upload, byte-identical same-name restore after server file loss, versioned-PNG-only storage, legacy SVG fallback' };
   await writeFile(`${data}/result.json`, JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
 } catch (error) { console.error(log); throw error; }
 finally {

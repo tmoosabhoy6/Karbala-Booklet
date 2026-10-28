@@ -1,18 +1,19 @@
 // Local server: stores and cleans screenshots, autosaves the working booklet,
 // and turns it into a PDF with headless Chromium, which renders exactly what
 // the preview shows.
+import compression from 'compression';
 import express from 'express';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, Browser } from 'playwright';
-import { PDFDocument } from 'pdf-lib';
+import type { Browser } from 'playwright';
 import sharp from 'sharp';
-import { addMedia, editMedia, ensureFixedMedia, getMedia, MEDIA, readJson, writeJson } from './store';
-import type { PrintPayload } from '../src/booklet/print';
+import { addMedia, editMedia, ensureFixedMedia, getMedia, MEDIA, pngName, pngSize, readJson, reinstateMedia, writeJson, type MediaMeta } from './store';
+import type { ExportRequest, PrintPayload } from '../src/booklet/print';
 import { mediaSrc, openingSrc } from '../src/booklet/media';
-import { readFile } from 'node:fs/promises';
-import { PROCESSOR_VERSION } from './ink';
+import { readFile, rename, writeFile } from 'node:fs/promises';
+import { PROCESSOR_VERSION, svgWrapper } from './ink';
 import { closeRecognition } from './recognize';
 import { restorationJob, restorationStatus, startRestoration } from './restore';
 import { heavyWork } from './resources';
@@ -53,6 +54,9 @@ if (PASSWORD) {
   });
 }
 
+// Code, JSON and HTML travel compressed; images are already compressed. The
+// print snapshot only goes to the local Chromium, so it is left as is.
+app.use(compression({ filter: (req, res) => !req.path.startsWith('/api/print/') && compression.filter(req, res) }));
 app.use(express.json({ limit: '50mb' }));
 
 const route =
@@ -88,6 +92,24 @@ app.post(
   '/api/media/:id/edit',
   route(async (req, res) => res.json(await editMedia(req.params.id, req.body ?? {}))),
 );
+// After a restart: the browser's copy of a screenshot, under its own name.
+// Body: 4-byte length, JSON { meta, sizes: [original, png, opening] }, then
+// the three files back to back.
+app.post(
+  '/api/media/:id/reinstate',
+  express.raw({ type: () => true, limit: '60mb' }),
+  route(async (req, res) => {
+    const body = req.body as Buffer;
+    if (!Buffer.isBuffer(body) || body.length < 4) return res.status(400).send('No image received.');
+    const headerEnd = 4 + body.readUInt32BE(0);
+    const header = JSON.parse(body.subarray(4, headerEnd).toString()) as { meta: Partial<MediaMeta>; sizes: number[] };
+    const files: Buffer[] = [];
+    let at = headerEnd;
+    for (const size of header.sizes) { files.push(body.subarray(at, at + size)); at += size; }
+    if (at !== body.length || !files[0]?.length) return res.status(400).send('Incomplete screenshot copy.');
+    res.json(await reinstateMedia(req.params.id, header.meta, { original: files[0], png: files[1]?.length ? files[1] : undefined, opening: files[2]?.length ? files[2] : undefined }));
+  }),
+);
 app.get(
   '/api/media/:id',
   route(async (req, res) => {
@@ -107,6 +129,21 @@ app.get(
 );
 // Files are revisioned by ?v=rev, so they can be cached hard.
 app.use('/media', express.static(MEDIA, { maxAge: '1y', immutable: true }));
+// Very old booklet entries ask for `<id>.svg` or `<id>.<rev>.svg`; only the
+// PNG is stored now, so the SVG around it is rebuilt on request.
+async function legacySvg(id: string, rev?: number) {
+  const meta = await getMedia(id);
+  if (!meta) return null;
+  const png = await readFile(path.join(MEDIA, pngName(id, rev ?? meta.rev))).catch(() => null);
+  const size = png && pngSize(png);
+  return size ? svgWrapper(png!, size.width, size.height) : null;
+}
+app.get(/^\/media\/([\w-]+?)(?:\.(\d+))?\.svg$/, route(async (req, res) => {
+  const svg = await legacySvg(req.params[0], req.params[1] ? Number(req.params[1]) : undefined);
+  if (!svg) return res.status(404).end();
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.type('svg').send(svg);
+}));
 
 // ---- working booklet & pinned defaults ----
 app.get('/api/booklet', route(async (_req, res) => res.json(await readJson('booklet.json'))));
@@ -124,8 +161,9 @@ app.get('/api/print/:id', (req, res) => {
 
 // Launch only while printing. Keeping Chromium resident alongside OCR can
 // exceed the free host's memory even when neither request is doing work.
+// The driver itself is loaded on the first download, not at every start.
 let browser: Promise<Browser> | null = null;
-const getBrowser = () => (browser ??= chromium.launch().then((b) => {
+const getBrowser = () => (browser ??= import('playwright').then(({ chromium }) => chromium.launch()).then((b) => {
   b.on('disconnected', () => { browser = null; });
   return b;
 }).catch((e) => { browser = null; throw e; }));
@@ -145,35 +183,51 @@ app.get('/api/pdf/:id/:filename', (req, res) => {
   res.end(pdf);
 });
 
+// Media files a print may use, and where each lives on disk.
+const PRINT_FILE = /^\/media\/([\w-]+)\.(\d+)\.(png|opening\.png)$/;
+// A file the server lost (a restart while the page stayed open) comes back
+// from the browser once, as plain bytes, and is kept for later prints too.
+app.post(
+  '/api/export/asset',
+  express.raw({ type: () => true, limit: '60mb' }),
+  route(async (req, res) => {
+    const match = PRINT_FILE.exec(String(req.query.src ?? ''));
+    if (!match || !Buffer.isBuffer(req.body) || !pngSize(req.body)) return res.status(400).send('Not a verse image.');
+    const file = path.join(MEDIA, `${match[1]}.${match[2]}.${match[3]}`);
+    if (!existsSync(file)) { await writeFile(`${file}.tmp`, req.body); await rename(`${file}.tmp`, file); }
+    res.end();
+  }),
+);
+
 app.post(
   '/api/export',
   route(async (req, res) => {
-    const { doc, assets: supplied = {}, filename, title } = req.body as PrintPayload & { filename: string; title: string };
+    // The phone sends only the booklet; the server prints from its own copies
+    // and asks for any it has lost (`missing`). `assets` (data URLs) are still
+    // accepted, as from older pages.
+    const { doc, assets: supplied = {}, filename, title } = req.body as ExportRequest;
     if (!doc || doc.version !== 2 || !doc.kalams) return res.status(400).send('No booklet received.');
     const assets: Record<string, string> = {};
+    const missing: string[] = [];
     const blocks = Object.values(doc.kalams).flatMap((ks) => ks.flatMap((k) => k.blocks)).filter((b) => b.kind === 'image');
     for (const block of blocks) {
       if (!/^[\w-]+$/.test(block.mediaId)) return res.status(400).send('Invalid screenshot ID.');
-      const src = mediaSrc(block);
-      if (assets[src]) continue;
-      if (supplied[src]?.startsWith('data:image/')) assets[src] = supplied[src];
-      else {
-        try {
-          const name = block.format ? `${block.mediaId}.${Number(block.rev)}.${block.format}` : `${block.mediaId}.svg`;
-          const bytes = await readFile(path.join(MEDIA, name));
-          assets[src] = `data:image/${block.format === 'png' ? 'png' : 'svg+xml'};base64,${bytes.toString('base64')}`;
-        } catch { return res.status(422).send('A verse image is missing. Re-add its original screenshot before downloading.'); }
-      }
-      const opening = openingSrc(block);
-      if (!opening || assets[opening]) continue;
-      if (supplied[opening]?.startsWith('data:image/')) assets[opening] = supplied[opening];
-      else {
-        try {
-          const bytes = await readFile(path.join(MEDIA, `${block.mediaId}.${Number(block.rev)}.opening.png`));
-          assets[opening] = `data:image/png;base64,${bytes.toString('base64')}`;
-        } catch { return res.status(422).send('A fihrist image is missing. Reopen the booklet so it can be rebuilt, then download again.'); }
+      for (const src of [mediaSrc(block), openingSrc(block)]) {
+        if (!src || assets[src] || missing.includes(src)) continue;
+        if (supplied[src]?.startsWith('data:image/')) { assets[src] = supplied[src]; continue; }
+        if (!block.format) {
+          const svg = await legacySvg(block.mediaId);
+          if (svg) assets[src] = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+          else missing.push(src);
+          continue;
+        }
+        if (!/^\/media\/[\w-]+\.\d+\.(png|svg|opening\.png)$/.test(src)) return res.status(400).send('Invalid screenshot revision.');
+        const bytes = await readFile(path.join(MEDIA, src.slice('/media/'.length))).catch(() => null);
+        if (bytes) assets[src] = `data:image/${block.format === 'png' ? 'png' : 'svg+xml'};base64,${bytes.toString('base64')}`;
+        else missing.push(src);
       }
     }
+    if (missing.length) return res.status(422).json({ missing, error: 'A verse image is missing. Re-add its original screenshot before downloading.' });
     const key = createHash('sha256').update(JSON.stringify({ doc, assets, title })).digest('hex');
     const cached = completed.get(key);
     if (cached && cached.expires > Date.now() && pdfs.has(cached.id)) return res.json({ url: `/api/pdf/${cached.id}/${encodeURIComponent(filename)}` });
@@ -190,6 +244,7 @@ app.post(
       const error = await page.evaluate(() => window.__BOOKLET_ERROR__);
       if (error) throw new Error(error);
       const raw = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+      const { PDFDocument } = await import('pdf-lib');
       const pdf = await PDFDocument.load(raw);
       pdf.setTitle(title, { showInWindowTitleBar: true });
       pdf.setAuthor('Faiz-e-Husaini Society (Iraq)');
@@ -220,6 +275,9 @@ app.post(
 );
 
 if (PROD) {
+  // Built code and styles carry a content hash in their names (dist/app/), so
+  // the browser keeps them for good; everything else is checked each visit.
+  app.use('/app', express.static(path.join(ROOT, 'dist/app'), { maxAge: '1y', immutable: true }));
   app.use(express.static(path.join(ROOT, 'dist')));
 }
 

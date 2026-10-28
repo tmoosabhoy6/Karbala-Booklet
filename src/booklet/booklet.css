@@ -1,6 +1,6 @@
 @font-face {
   font-family: 'Kanz al-Marjaan';
-  src: url('/fonts/Kanz-al-Marjaan-Regular.ttf') format('truetype');
+  src: url('/fonts/Kanz-al-Marjaan-Regular.woff2') format('woff2'), url('/fonts/Kanz-al-Marjaan-Regular.ttf') format('truetype');
   font-display: block;
 }
 

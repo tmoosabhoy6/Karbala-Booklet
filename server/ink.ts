@@ -14,7 +14,7 @@ export interface Region extends Rect { lineHeight: number; group: number; top: n
 export interface InkResult {
   width: number; height: number; bands: [number, number][]; lineHeight: number;
   regions: Region[]; opening: Rect; suggestedName: string; recognitionConfidence: number;
-  warnings: string[]; png: Buffer; svg: string; openingPng: Buffer | null;
+  warnings: string[]; png: Buffer; openingPng: Buffer | null;
 }
 const median = (a: number[]) => a.length ? [...a].sort((p, q) => p - q)[a.length >> 1] : 1;
 const lowerMedian = (a: number[]) => a.length ? [...a].sort((p, q) => p - q)[(a.length - 1) >> 1] : 1;
@@ -292,16 +292,24 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
   for (let y = 0; y < H; y++) rgb.set(data.subarray(((y + crop.y) * info.width + crop.x) * 3, ((y + crop.y) * info.width + crop.x + W) * 3), y * W * 3);
   const bg = background(rgb, W, H), dark = Math.max(...bg) < 128;
   const alpha = new Uint8Array(W * H), colors = new Uint8Array(W * H * 3);
+  // Plain arithmetic per pixel (no temporary arrays): this loop runs millions
+  // of times per screenshot. Same formula, so the same pixels.
+  const [b0, b1, b2] = bg;
+  const d0 = Math.max(1, dark ? 255 - b0 : b0), d1 = Math.max(1, dark ? 255 - b1 : b1), d2 = Math.max(1, dark ? 255 - b2 : b2);
   for (let i = 0; i < alpha.length; i++) {
-    const channels = [rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2]];
+    const r = rgb[i * 3], g = rgb[i * 3 + 1], b = rgb[i * 3 + 2];
     // True coverage preserves grey antialiased edges rather than turning them
     // all solid black (the former crayon effect).
-    const coverage = Math.max(...channels.map((v, c) => dark ? (v - bg[c]) / Math.max(1, 255 - bg[c]) : (bg[c] - v) / Math.max(1, bg[c])));
+    const coverage = dark
+      ? Math.max((r - b0) / d0, (g - b1) / d1, (b - b2) / d2)
+      : Math.max((b0 - r) / d0, (b1 - g) / d1, (b2 - b) / d2);
     if (coverage < 0.045) continue;
     alpha[i] = clamp(coverage * 255);
-    if (Math.max(...channels) - Math.min(...channels) > 45) {
+    if (Math.max(r, g, b) - Math.min(r, g, b) > 45) {
       const a = Math.max(coverage, 0.01);
-      for (let c = 0; c < 3; c++) colors[i * 3 + c] = clamp((channels[c] - (1 - a) * bg[c]) / a);
+      colors[i * 3] = clamp((r - (1 - a) * b0) / a);
+      colors[i * 3 + 1] = clamp((g - (1 - a) * b1) / a);
+      colors[i * 3 + 2] = clamp((b - (1 - a) * b2) / a);
     }
   }
   for (const r of edits.erase ?? []) erase(alpha, W, H, { ...r, x: r.x - crop.x, y: r.y - crop.y });
@@ -317,14 +325,24 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
   const warnings: string[] = [];
   let bands = findBands(alpha, W, H);
   const typical = median(bands.map(([a, b]) => b - a));
-  const makePng = async (white: boolean) => {
-    const rgba = Buffer.alloc(W * H * 4);
-    for (let i = 0; i < alpha.length; i++) {
-      const a = alpha[i] / 255;
-      for (let c = 0; c < 3; c++) rgba[i * 4 + c] = white ? clamp(colors[i * 3 + c] * a + 255 * (1 - a)) : colors[i * 3 + c];
-      rgba[i * 4 + 3] = white ? 255 : alpha[i];
+  /** The ink inside `r` (default: all of it) as one PNG; `white` flattens it
+   * onto white for OCR. Cropping before encoding means one PNG pass. */
+  const makePng = async (white: boolean, r: Rect = { x: 0, y: 0, w: W, h: H }) => {
+    const rgba = Buffer.alloc(r.w * r.h * 4);
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+      const i = (y + r.y) * W + x + r.x, o = (y * r.w + x) * 4;
+      if (white) {
+        const a = alpha[i] / 255;
+        rgba[o] = clamp(colors[i * 3] * a + 255 * (1 - a));
+        rgba[o + 1] = clamp(colors[i * 3 + 1] * a + 255 * (1 - a));
+        rgba[o + 2] = clamp(colors[i * 3 + 2] * a + 255 * (1 - a));
+        rgba[o + 3] = 255;
+      } else {
+        rgba[o] = colors[i * 3]; rgba[o + 1] = colors[i * 3 + 1]; rgba[o + 2] = colors[i * 3 + 2];
+        rgba[o + 3] = alpha[i];
+      }
     }
-    return sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
+    return sharp(rgba, { raw: { width: r.w, height: r.h, channels: 4 } }).png().toBuffer();
   };
   let suggestedName = '', recognitionConfidence = 0;
   try { if (options.ocr !== false) {
@@ -342,7 +360,7 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
   if (!bounds) throw new Error('No complete text found. Try a screenshot containing a complete verse.');
   const padding = Math.max(3, Math.round(typical * 0.09));
   const t = clampRect({ x: bounds.x - padding, y: bounds.y - padding, w: bounds.w + padding * 2, h: bounds.h + padding * 2 }, W, H);
-  const png = await sharp(await makePng(false)).extract({ left: t.x, top: t.y, width: t.w, height: t.h }).png().toBuffer();
+  const png = await makePng(false, t);
   const finalBands = bands.map(([a, b]) => [Math.max(0, a - t.y), Math.min(t.h, b - t.y)] as [number, number]).filter(([a, b]) => b > a);
   // Stanza breaks come only from the source's own spacing: a baseline pitch
   // clearly above the screenshot's normal line pitch. Uniformly spaced rows
@@ -396,7 +414,10 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
   }
   const openingPng = await sharp(navy, { raw: { width: ow, height: oh, channels: 4 } }).png().toBuffer();
   if (median(finalBands.map(([a, b]) => b - a)) < 20) warnings.push('Low-resolution source: a larger original screenshot or PDF will print more clearly.');
-  // Compatibility for old thumbnails; lossless source ink, no curve fitting.
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${t.w}" height="${t.h}" viewBox="0 0 ${t.w} ${t.h}"><image width="${t.w}" height="${t.h}" href="data:image/png;base64,${png.toString('base64')}"/></svg>`;
-  return { width: t.w, height: t.h, bands: finalBands, lineHeight: median(finalBands.map(([a, b]) => b - a)), regions, opening: { x: ox, y: oy, w: ow, h: oh }, suggestedName, recognitionConfidence, warnings, png, svg, openingPng };
+  return { width: t.w, height: t.h, bands: finalBands, lineHeight: median(finalBands.map(([a, b]) => b - a)), regions, opening: { x: ox, y: oy, w: ow, h: oh }, suggestedName, recognitionConfidence, warnings, png, openingPng };
 }
+
+/** Old booklet entries without a format point at `<id>.svg`: lossless source
+ * ink wrapped in an SVG, now built only when such an entry asks for it. */
+export const svgWrapper = (png: Buffer, width: number, height: number) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><image width="${width}" height="${height}" href="data:image/png;base64,${png.toString('base64')}"/></svg>`;

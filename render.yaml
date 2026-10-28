@@ -13,3 +13,13 @@ services:
     region: frankfurt
     branch: main
     healthCheckPath: /api/health
+    # Changes that only touch docs, tests, reference files or tools (and
+    # their notes) do not rebuild or restart the live app.
+    buildFilter:
+      ignoredPaths:
+        - docs/**
+        - tests/**
+        - references/**
+        - tools/**
+        - "**/*.md"
+        - .claude/**

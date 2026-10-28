@@ -1,8 +1,8 @@
 // OCR is used for index suggestions and identifying printed page numbers.
 // Verse artwork always comes from the source; recognition never rewrites it.
-import { createWorker, PSM, type Worker } from 'tesseract.js';
+import type { Worker } from 'tesseract.js';
 import { createRequire } from 'node:module';
-import { mkdir, copyFile } from 'node:fs/promises';
+import { mkdir, copyFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
@@ -14,9 +14,14 @@ async function getWorker() {
     const langPath = path.resolve(process.env.DATA_DIR ?? 'data', 'ocr');
     await mkdir(langPath, { recursive: true });
     await Promise.all(['ara', 'urd'].map(async (lang) => {
-      const source = require(`@tesseract.js-data/${lang}`) as { langPath: string };
-      await copyFile(path.join(source.langPath, `${lang}.traineddata.gz`), path.join(langPath, `${lang}.traineddata.gz`));
+      const source = path.join((require(`@tesseract.js-data/${lang}`) as { langPath: string }).langPath, `${lang}.traineddata.gz`);
+      const target = path.join(langPath, `${lang}.traineddata.gz`);
+      // Already copied by an earlier start (a persistent disk): keep it.
+      const [have, want] = await Promise.all([stat(target).catch(() => null), stat(source)]);
+      if (have?.size !== want.size) await copyFile(source, target);
     }));
+    // Loaded on the first screenshot, not at every server start.
+    const { createWorker, PSM } = await import('tesseract.js');
     const w = await createWorker(['urd', 'ara'], 1, { langPath, cachePath: langPath, gzip: true });
     await w.setParameters({ tessedit_pageseg_mode: PSM.AUTO, preserve_interword_spaces: '1' });
     return w;

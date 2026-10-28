@@ -2,7 +2,10 @@
 // IndexedDB holds blobs, not localStorage's small synchronous string quota.
 import type { Booklet, Defaults, MediaMeta } from '../booklet/model';
 import type { Edits } from './api';
-export interface MediaBackup { original: Blob; meta: MediaMeta & { edits?: Edits } }
+/** The untouched upload, its metadata and, once fetched, the finished files
+ * of `meta.rev` (print lettering and fihrist opening words). With those the
+ * server takes the screenshot back as is, without cleaning it again. */
+export interface MediaBackup { original: Blob; meta: MediaMeta & { edits?: Edits }; png?: Blob; opening?: Blob }
 let database: Promise<IDBDatabase> | undefined;
 function db() {
   return database ??= new Promise((resolve, reject) => {

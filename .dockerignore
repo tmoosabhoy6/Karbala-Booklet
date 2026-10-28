@@ -1,7 +1,12 @@
 node_modules
 dist
+build
 data
 tmp
+work
 references
+docs
+tests
+tools
 .git
 .claude
