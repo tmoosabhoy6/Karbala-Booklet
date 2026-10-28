@@ -8,7 +8,7 @@ import { mediaSrc, openingSrc } from './media';
 export { mediaSrc } from './media';
 
 // Every piece of generated text is wrapped in <Editable>. Its id says where the
-// text sits; ids starting cover./fihrist./line. are template wording that a new
+// text sits; ids starting cover./fihrist. are template wording that a new
 // booklet keeps (see templateOverrides).
 
 const A = '/assets';
@@ -126,12 +126,7 @@ function FihristEntry({ item }: { item: FihristItem }) {
                 <span className="name">
                   <img src={`${A}/fihrist-bullet.png`} alt="" />
                   <span className="txt">
-                    {k.fixed === 'all' ? (
-                      // Fixed content is rebuilt on load, so its name is edited as an override.
-                      <Editable id={`fihrist.name.${k.id}`} text={k.name} plain />
-                    ) : (
-                      <Editable text={k.name} plain fallback={k.opening?.opening ? <OpeningWords block={k.opening} /> : undefined} onCommit={(e, t) => e.kalamName(k.id, t)} />
-                    )}
+                    <Editable text={k.name} plain fallback={k.opening?.opening ? <OpeningWords block={k.opening} /> : undefined} onCommit={(e, t) => e.kalamName(k.id, t)} />
                   </span>
                 </span>
                 <span className="pg">
@@ -212,11 +207,7 @@ function Item({ item }: { item: PlacedItem }) {
             const i = row + (item.textStart ?? 0);
             return (
             <div className="line" key={i}>
-              {item.fixed ? (
-                <Editable id={`line.${id}.${i}`} text={line} />
-              ) : (
-                <Editable text={line} onCommit={(e, t) => e.textLine(id, i, t)} />
-              )}
+              <Editable text={line} onCommit={(e, t) => e.textLine(id, i, t)} />
             </div>
           ); })}
         </div>

@@ -10,11 +10,19 @@ import { heavyWork } from './resources';
 export const DATA = path.resolve(process.env.DATA_DIR ?? 'data');
 export const MEDIA = path.join(DATA, 'media');
 mkdirSync(MEDIA, { recursive: true });
-/** The fixed Matam page, already cleaned by `npm run build`. */
+/** The built-in default pages, already cleaned by `npm run build`. */
 export const FIXED_BUILD = path.resolve('build/fixed');
-const FIXED: [string, string][] = [
+/** Built-in default content (src/booklet/model.ts BUILTIN_MEDIA): id, source,
+ * and crop/erase applied to the untouched source (a clipped line, verse numbers). */
+const FIXED: [string, string, Edits?][] = [
   ['fixed-matam', 'public/fixed/matam-husain-panjatan.png'],
   ['fixed-matam-najaf', 'public/fixed/matam-husain-panjatan-najaf.png'],
+  // Made from the scan in references/ by tools/prepare_dua.py.
+  ['fixed-dua', 'public/fixed/dua-allahumma-anta-thiqati.png'],
+  ['fixed-sawari', 'public/fixed/sawari-gham-ni-avi.webp', { erase: [{ x: 208, y: 728, w: 60, h: 60 }, { x: 202, y: 865, w: 16, h: 16 }, { x: 926, y: 955, w: 18, h: 20 }] }],
+  ['fixed-qasida', 'public/fixed/qasida-fuzto-fawzan.png', { crop: { x: 0, y: 6, w: 1094, h: 1380 } }],
+  ['fixed-manqabat', 'public/fixed/manqabat-mazhar-che-bhala.png'],
+  ['fixed-salam-arz-najaf', 'public/fixed/salam-arz-najaf.png'],
 ];
 
 export interface MediaMeta {
@@ -146,15 +154,15 @@ export async function reinstateMedia(id: string, given: Partial<MediaMeta>, file
 
 /** Revision of a fixed page: fixed by its source and the cleaner version, so
  * every build of the same image gives the same file names. */
-export const fixedRev = (source: Buffer) =>
-  parseInt(createHash('sha256').update(source).update(`processor-${PROCESSOR_VERSION}`).digest('hex').slice(0, 8), 16) + 1;
+export const fixedRev = (source: Buffer, edits: Edits = {}) =>
+  parseInt(createHash('sha256').update(source).update(`processor-${PROCESSOR_VERSION}`).update(JSON.stringify(edits)).digest('hex').slice(0, 8), 16) + 1;
 
 /** `npm run build` cleans the fixed pages once, so a start only copies them. */
 export async function buildFixedMedia(): Promise<void> {
   mkdirSync(FIXED_BUILD, { recursive: true });
-  for (const [id, file] of FIXED) {
+  for (const [id, file, edits = {}] of FIXED) {
     const source = await readFile(file);
-    const { meta, png, openingPng } = await cleanMedia(id, source, {}, fixedRev(source));
+    const { meta, png, openingPng } = await cleanMedia(id, source, edits, fixedRev(source, edits));
     await Promise.all([
       writeFile(path.join(FIXED_BUILD, pngName(id, meta.rev)), png),
       ...(openingPng ? [writeFile(path.join(FIXED_BUILD, openingName(id, meta.rev)), openingPng)] : []),
@@ -163,13 +171,13 @@ export async function buildFixedMedia(): Promise<void> {
   }
 }
 
-/** The fixed Matam pages (حسين حسين، پنجتن ماتم; Najaf's in green): copied from the build, or
- * cleaned on first start when running from source without a build. */
+/** The built-in default pages (the Matam, Najaf's in green; Dua, Sawari, Qasida…): copied
+ * from the build, or cleaned on first start when running from source without a build. */
 export async function ensureFixedMedia(): Promise<void> {
-  for (const [id, file] of FIXED) {
+  for (const [id, file, edits = {}] of FIXED) {
     const built = path.join(FIXED_BUILD, `${id}.json`);
     if (!existsSync(built)) {
-      if (!(await getMedia(id))) await addMedia(await readFile(file), id);
+      if (!(await getMedia(id))) await addMedia(await readFile(file), id, { edits });
       continue;
     }
     const meta: MediaMeta = JSON.parse(await readFile(built, 'utf8'));

@@ -152,3 +152,11 @@ The cover also has a small blue date line under `ماتم مجلس` showing the 
 - **Mac only** for now.
 - **No prefilled verses.** Any processed screenshot can be pinned as the default for its kalam slot and unpinned later.
 - **Commits:** every change is committed and pushed to `main`, references included.
+
+## 10. Decisions (28 Oct 2026)
+
+- **"Fixed" is now "default"**: the Matam, Salam Arz, Marathi names and the new built-in pages start every booklet but are never locked. They take extra screenshots or text, can be removed (and restored), and ★ / unpin changes what new booklets get.
+- **Sections move**: each kalam type moves up and down, also across the seated/standing boundary; the order is kept per venue and by New booklet.
+- **New sections** after the Quran in every venue: القصيدة المباركة, النعت, منقبة (optional).
+- **Dua (Karbala only)**: دعاء after the Matam (Haram: end of the seated part; Najmi Masjid: in the standing part), default اللهم انت ثقتي في كل كرب from the scan.
+- **Najaf defaults**: the Qasida فزت فوزا اذ انادي يا علي, the Manqabat مظهر چهے بهلا كون and its own Salam Arz screenshot. Both cities: the Sawari screenshot.

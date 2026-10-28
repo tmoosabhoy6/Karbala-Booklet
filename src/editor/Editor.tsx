@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookletView } from '../booklet/Booklet';
 import { stripMarkup } from '../booklet/RichText';
-import { Block, CATEGORY_ADDABLE, CATEGORY_HINT, CATEGORY_LABEL, CITIES, Category, City, ImageBlock, VENUES, uid } from '../booklet/model';
+import { Block, CATEGORY_HINT, CATEGORY_LABEL, CITIES, Category, City, ImageBlock, VENUES, sectionsOf, uid } from '../booklet/model';
 import { paginate } from '../booklet/paginate';
 import { dateLine, raatTitle, raatTitleLatin } from '../lib/hijri';
 import { ImageEditor } from './ImageEditor';
@@ -13,7 +13,7 @@ import './editor.css';
 
 export function Editor({ city, onCity }: { city: City; onCity: (city: City) => void }) {
   const state = useBooklet(city);
-  const { doc, setDoc, defaults, saved, undo, redo, updateKalams, updateKalam, replaceMedia, reset, textEdits, addTextBox } = state;
+  const { doc, setDoc, defaults, builtin, saved, undo, redo, updateKalams, updateKalam, restoreDefault, moveSection, replaceMedia, reset, textEdits, addTextBox } = state;
   const [active, setActive] = useState<{ category: Category; id: string } | null>(null);
   const [uploads, setUploads] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<ImageBlock | null>(null);
@@ -74,6 +74,7 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
   if (!doc || !layout) return <div className="loading" role={state.loadError ? 'alert' : 'status'}>{state.loadError ? <>Could not load the booklet: {state.loadError} <button onClick={() => location.reload()}>Try again</button></> : 'Loading…'}</div>;
   const d = new Date(`${doc.date}T12:00:00`);
   const pageCount = layout.pages.length;
+  const sections = sectionsOf(doc);
 
   const activate = (category: Category, id: string) => {
     setActive({ category, id });
@@ -155,12 +156,14 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
         </header>
 
         <div className="sections">
-          {VENUES[doc.venue].sections.map((section) => (
+          {sections.map((section, si) => (
             <section key={section.title} className="section">
               <h2 dir="rtl">{section.title}</h2>
-              {section.categories.map((category) => {
+              {section.categories.map((category, ci) => {
                 const kalams = doc.kalams[category];
                 const filled = kalams.filter((k) => k.blocks.length).length;
+                // Built-in defaults removed from this booklet can be put back.
+                const missing = Object.entries(builtin).filter(([slot, d]) => d.category === category && !kalams.some((k) => k.slot === slot));
                 return (
                   <div className="category" key={category}>
                     <div className="category-head">
@@ -170,6 +173,14 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
                       <span className="en">{CATEGORY_HINT[category]}</span>
                       <span className={`count${filled ? '' : ' none'}`} title="Kalams that will print">
                         {filled}
+                      </span>
+                      <span className="category-tools">
+                        <button title="Move this section up" disabled={si === 0 && ci === 0} onClick={() => moveSection(category, -1)}>
+                          ↑
+                        </button>
+                        <button title="Move this section down" disabled={si === sections.length - 1 && ci === section.categories.length - 1} onClick={() => moveSection(category, 1)}>
+                          ↓
+                        </button>
                       </span>
                     </div>
                     {kalams.map((k, i) => (
@@ -189,11 +200,14 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
                         onUpload={(files) => upload(category, k.id, files)}
                       />
                     ))}
-                    {CATEGORY_ADDABLE[category] && (
-                      <button className="add" onClick={() => addKalam(category)}>
-                        + Add {CATEGORY_HINT[category].replace(/ \(.*\)$/, '')}
+                    <button className="add" onClick={() => addKalam(category)}>
+                      + Add {CATEGORY_HINT[category].replace(/ \(.*\)$/, '')}
+                    </button>
+                    {missing.map(([slot, d]) => (
+                      <button key={slot} className="add restore" title="Put this default back into the booklet" onClick={() => restoreDefault(slot)}>
+                        ↺ Default: <bdi>{d.name}</bdi>
                       </button>
-                    )}
+                    ))}
                   </div>
                 );
               })}

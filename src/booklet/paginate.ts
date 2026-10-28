@@ -1,5 +1,5 @@
 // Lays the booklet's content out onto A4 pages. All units are PDF points.
-import { Block, Booklet, CATEGORY_FLOW, CATEGORY_LABEL, Category, ImageBlock, Kalam, VENUES } from './model';
+import { Block, Booklet, CATEGORY_FLOW, CATEGORY_LABEL, Category, ImageBlock, Kalam, sectionsOf } from './model';
 
 export const PAGE = { width: 595.32, height: 841.92 };
 export const CONTENT = { left: 72, right: 523.32, top: 66, bottom: 780 };
@@ -27,12 +27,12 @@ const F_COLS = 50;
 const F_ROW = 34.7;
 const F_END = 46;
 
-/** Categories whose fixed content carries its own title instead of a heading. */
-const NO_HEADING: Partial<Record<Category, boolean>> = { matam: true };
+/** A full-page image (the default Matam page) carries its own title instead of a heading. */
+const selfTitled = (k: Kalam) => k.blocks[0]?.kind === 'image' && !!k.blocks[0].fixedWidthPt;
 
 export type PlacedItem =
   | { kind: 'heading'; label: string; anchor: string }
-  | { kind: 'block'; block: Block; height: number; anchor?: string; crop?: [number, number]; imageRect?: { x: number; y: number; w: number; h: number }; imageScale?: number; gap?: number; lead?: number; titleLink?: boolean; fixed?: boolean; textStart?: number; textEnd?: number }
+  | { kind: 'block'; block: Block; height: number; anchor?: string; crop?: [number, number]; imageRect?: { x: number; y: number; w: number; h: number }; imageScale?: number; gap?: number; lead?: number; titleLink?: boolean; textStart?: number; textEnd?: number }
   | { kind: 'separator' }
   | { kind: 'ornament' };
 
@@ -42,7 +42,7 @@ export interface FihristGroup {
   /** False on a continuation chunk, where the label is repeated lightly. */
   first: boolean;
   /** `name` is the kalam's name with its markup; the fihrist shows it plain. */
-  kalams: { id: string; name: string; opening?: ImageBlock; fixed?: Kalam['fixed']; anchor: string; page: number }[];
+  kalams: { id: string; name: string; opening?: ImageBlock; anchor: string; page: number }[];
 }
 
 export type FihristItem =
@@ -191,7 +191,7 @@ function kalamHeight(kalam: Kalam, plan: ReturnType<typeof kalamUnits>) {
 }
 
 export function paginate(doc: Booklet): Layout {
-  const sections = VENUES[doc.venue].sections
+  const sections = sectionsOf(doc)
     .map((s) => ({
       title: s.title,
       entries: s.categories
@@ -217,7 +217,7 @@ export function paginate(doc: Booklet): Layout {
     fpush({ kind: 'section', title: s.title, index: si }, F_BAR);
     if (si === 0) fpush({ kind: 'cols' }, F_COLS);
     for (const e of s.entries) {
-      const rows = e.kalams.map((k) => ({ id: k.id, name: k.name, opening: !k.name.trim() && k.blocks[0]?.kind === 'image' ? k.blocks[0] : undefined, fixed: k.fixed, anchor: kalamAnchor(k), page: 0 }));
+      const rows = e.kalams.map((k) => ({ id: k.id, name: k.name, opening: !k.name.trim() && k.blocks[0]?.kind === 'image' ? k.blocks[0] : undefined, anchor: kalamAnchor(k), page: 0 }));
       let first = true;
       while (rows.length) {
         const room = Math.floor((FIHRIST_BOTTOM - fy) / F_ROW);
@@ -372,8 +372,8 @@ export function paginate(doc: Booklet): Layout {
     kalam.blocks.forEach((block, i) => {
       const a = i === 0 && !withHeading ? anchor : undefined;
       const units = plan.units.get(block.id);
-      if (units) units.forEach((u, j) => placeUnit(u, plan, j === 0 ? a : undefined, j === 0 && NO_HEADING[category] && i === 0));
-      else if (block.kind === 'image') placeImage(block, a, NO_HEADING[category] && i === 0);
+      if (units) units.forEach((u, j) => placeUnit(u, plan, j === 0 ? a : undefined, j === 0 && selfTitled(kalam) && i === 0));
+      else if (block.kind === 'image') placeImage(block, a, selfTitled(kalam) && i === 0);
       else {
         const lines = block.text.split('\n');
         for (let start = 0; start < lines.length;) {
@@ -382,7 +382,7 @@ export function paginate(doc: Booklet): Layout {
           if (count < Math.min(2, lines.length - start)) { newPage(); continue; }
           if (lines.length - start - count === 1 && count > 2) count--;
           const h = count * perLine;
-          place({ kind: 'block', block, height: h, anchor: start === 0 ? a : undefined, fixed: kalam.fixed === 'all', textStart: start, textEnd: start + count }, h + BLOCK_GAP);
+          place({ kind: 'block', block, height: h, anchor: start === 0 ? a : undefined, textStart: start, textEnd: start + count }, h + BLOCK_GAP);
           if (start === 0 && a) anchorPage.set(a, pageNo);
           start += count;
         }
@@ -393,7 +393,6 @@ export function paginate(doc: Booklet): Layout {
   for (const s of sections) {
     for (const e of s.entries) {
       const flow = CATEGORY_FLOW[e.category] === 'flow';
-      const heading = !NO_HEADING[e.category];
       e.kalams.forEach((kalam, i) => {
         if (flow && i > 0) {
           // A kalam that fits on one page is never split: it moves whole to
@@ -406,7 +405,7 @@ export function paginate(doc: Booklet): Layout {
           placeKalam(e.category, kalam, false, plan);
         } else {
           newPage();
-          placeKalam(e.category, kalam, heading);
+          placeKalam(e.category, kalam, !selfTitled(kalam));
         }
         if (!flow || i === e.kalams.length - 1) placeOrnament();
       });

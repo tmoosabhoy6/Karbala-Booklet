@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readdir, readFile, rename, writeFile } from 'node:fs/pr
 import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { createBooklet, imageBlockFrom } from '../src/booklet/model';
+import { BUILTIN_MEDIA, Booklet, builtinDefaults, createBooklet, effectiveDefaults, imageBlockFrom, moveCategory, sectionsOf, upgradeBooklet } from '../src/booklet/model';
 import { CONTENT, kalamImageScales, paginate } from '../src/booklet/paginate';
 import { mediaSrc } from '../src/booklet/media';
 
@@ -61,7 +61,7 @@ try {
   const mixed = { id: 'pitch-regression', name: '', blocks: [thin, bold] };
   const mixedScales = kalamImageScales(mixed);
   assert(Math.abs(60 * mixedScales.get(thin.id)! - 90 * mixedScales.get(bold.id)!) < 0.01, 'Screenshots of one kalam must share one line pitch.');
-  const pitchDoc = createBooklet('2026-10-27', 'haram', {}, null);
+  const pitchDoc = createBooklet('2026-10-27', 'haram', {});
   pitchDoc.kalams.noha = [mixed];
   const units = paginate(pitchDoc).pages.flatMap((p) => (p.kind === 'content' ? p.items : [])).filter((i): i is Extract<typeof i, { kind: 'block' }> => i.kind === 'block' && !!i.imageRect);
   assert.equal(units.length, 4, 'Only real source stanza breaks split a screenshot.');
@@ -77,12 +77,39 @@ try {
   const breaks = [1, 3, 5].map((i) => centres[i + 1] - centres[i]);
   assert(breaks.every((b) => Math.abs(b - breaks[0]) < 0.01), `Every stanza gap in a kalam must be identical (${breaks.map((b) => b.toFixed(2))}).`);
   // A marathi kalam that fits on a page must never straddle a page break.
-  const flowDoc = createBooklet('2026-10-27', 'haram', {}, null);
+  const flowDoc = createBooklet('2026-10-27', 'haram', builtinDefaults('karbala', {}));
   flowDoc.kalams.marathi.forEach((k, i) => { k.blocks = [imageBlockFrom(uploaded, { height: 700, regions: rowsAt(110, 80, i === 2 ? 6 : 5) })]; });
   const flowPages = paginate(flowDoc).pages.filter((p) => p.kind === 'content').map((p) => new Set((p as { items: { kind: string; block?: { id: string } }[] }).items.flatMap((i) => (i.block ? [i.block.id] : []))));
   for (const k of flowDoc.kalams.marathi.filter((m) => m.blocks.length)) assert.equal(flowPages.filter((p) => p.has(k.blocks[0].id)).length, 1, 'A kalam that fits on one page must stay together.');
-  const fixed = await fetch(origin + '/api/media/fixed-matam').then((r) => r.json());
-  const doc = createBooklet('2026-10-27', 'haram', {}, fixed);
+  // Built-in default pages: cleaned at build time into complete rows.
+  const builtinRows: Record<string, number> = { 'fixed-sawari': 12, 'fixed-dua': 8, 'fixed-qasida': 8, 'fixed-manqabat': 8, 'fixed-salam-arz-najaf': 4 };
+  const builtinMedia = Object.fromEntries(await Promise.all([...new Set(Object.values(BUILTIN_MEDIA).flat())].map(async (id) => [id, await fetch(`${origin}/api/media/${id}`).then((r) => r.json())])));
+  for (const [id, rows] of Object.entries(builtinRows)) assert.equal(builtinMedia[id].regions.length, rows, `${id} must clean into ${rows} complete rows.`);
+  // Section order: Dua after the Matam (Karbala only), Qasida, Naat and Manqabat after the Quran.
+  const order = (venue: Booklet['venue'], o?: Booklet['order']) => sectionsOf({ venue, order: o }).map((s) => s.categories.join(' '));
+  assert.deepEqual(order('haram'), ['quran qasida naat manqabat marathi nasihat salam noha matam dua', 'salamArz ratha madh']);
+  assert.deepEqual(order('najmi'), ['quran qasida naat manqabat marathi nasihat salam', 'noha matam dua salamArz ratha madh']);
+  assert.deepEqual(order('najaf'), ['quran qasida naat manqabat marathi nasihat salam noha matam', 'salamArz ratha madh']);
+  const moved = moveCategory(moveCategory(createBooklet('2026-10-27', 'haram', {}), 'dua', 1), 'quran', -1);
+  assert.deepEqual(order('haram', moved.order), ['quran qasida naat manqabat marathi nasihat salam noha matam', 'dua salamArz ratha madh'], 'A section moves across the section edge, never past the ends.');
+  assert.deepEqual(order('haram', { haram: [['quran', 'qasida', 'madh'], ['salamArz', 'ratha']] })[0], 'quran qasida naat manqabat marathi nasihat salam noha matam dua madh', 'A category missing from a saved order takes its template place.');
+  // A version 2 booklet: its fixed content becomes default content it owns.
+  const karbalaDefaults = builtinDefaults('karbala', builtinMedia);
+  const najafDefaults = builtinDefaults('najaf', builtinMedia);
+  const old = { version: 2, date: '2026-10-27', venue: 'haram', overrides: { 'line.salam-arz.1': { from: karbalaDefaults.salamArz.blocks[0].kind === 'text' ? karbalaDefaults.salamArz.blocks[0].text.split('\n')[1] : '', text: 'edited' } },
+    kalams: { marathi: [{ id: 'm1', name: 'يا سيد الشهداء', fixed: 'name', slot: 'marathi:1', blocks: [] }, { id: 's', name: 'x', slot: 'marathi:sawari', blocks: [] }], matam: [{ id: 'matam', name: 'm', fixed: 'all', blocks: [] }], salamArz: [{ id: 'salam-arz', name: 'سلام عرض', fixed: 'all', blocks: karbalaDefaults.salamArz.blocks }] } } as unknown as Booklet;
+  const up = upgradeBooklet(old, karbalaDefaults, karbalaDefaults);
+  assert.equal(up.doc.version, 3);
+  assert(Object.values(up.doc.kalams).flat().every((k) => !k.fixed), 'Nothing stays locked after the upgrade.');
+  assert.equal((up.doc.kalams.salamArz[0].blocks[0] as { text: string }).text.split('\n')[1], 'edited', 'A typed-over Salam Arz line moves into the text.');
+  assert(up.pins.salamArz && !up.doc.overrides?.['line.salam-arz.1'], 'The edited Salam Arz becomes the pinned default.');
+  assert.equal(up.doc.kalams.dua.length, 1, 'The Dua default is added once.');
+  assert.equal(up.doc.kalams.marathi[1].blocks[0]?.kind, 'image', 'An empty Sawari gets its default screenshot.');
+  const najafUp = upgradeBooklet({ ...old, venue: 'najaf' }, najafDefaults, najafDefaults).doc;
+  assert(najafUp.kalams.salamArz[0].blocks[0].kind === 'image' && najafUp.kalams.qasida.length === 1 && najafUp.kalams.manqabat.length === 1 && !najafUp.kalams.dua.length, 'Najaf takes its own Salam Arz, Qasida and Manqabat, and no Dua.');
+  assert.equal(Object.keys(effectiveDefaults(karbalaDefaults, { dua: { ...karbalaDefaults.dua, off: true } })).includes('dua'), false, 'An unpinned built-in default leaves new booklets.');
+  const doc = createBooklet('2026-10-27', 'haram', karbalaDefaults);
+  assert(doc.kalams.dua[0].blocks.length && doc.kalams.marathi[3].blocks.length, 'A new Karbala booklet starts with the Dua and Sawari pages.');
   doc.kalams.noha = [{ id: 'regression', name: '', blocks: [imageBlockFrom(uploaded)] }];
   const layout = paginate(doc);
   const groupPages = new Map<number, Set<number>>();
@@ -162,8 +189,9 @@ try {
   await rename(`${data}/media/${uploaded.id}.${uploaded.rev}.opening.png`, `${data}/opening-lost.png`);
   await page.reload();
   await page.waitForFunction((id) => {
-    const image = document.querySelector<HTMLImageElement>('.kalam .thumb');
-    return image && image.src.includes(id) && image.complete && image.naturalWidth > 0;
+    // Default pages (the Sawari screenshot) come first in the panel.
+    const image = [...document.querySelectorAll<HTMLImageElement>('.kalam .thumb')].find((i) => i.src.includes(id));
+    return image && image.complete && image.naturalWidth > 0;
   }, uploaded.id);
   const back = await fetch(`${origin}/api/media/${uploaded.id}`).then((r) => r.json());
   assert.equal(back.rev, uploaded.rev, 'A restored screenshot keeps its name and revision.');
@@ -180,7 +208,7 @@ try {
   await page.locator('.page').nth(1).screenshot({ path: `${data}/fihrist.png` });
   await page.locator('.page').nth(2).screenshot({ path: `${data}/verses.png` });
   await sharp(lettering).flatten({ background: '#fff' }).png().toFile(`${data}/cleaned.png`);
-  const result = { pages: pdf.getPageCount(), firstExportMs: Math.round(firstMs), repeatExportMs: Math.round(repeatMs), data, assertions: 'upload cleanup, 18 complete lines, intact stanzas, shared kalam pitch, identical stanza gaps, whole marathi kalams, unmasked fihrist openings, automatic fihrist, cover typography, A4 geometry, actual download, self-contained export, missing/corrupt image rejection, booklet-only PDF request with lost-file upload, byte-identical same-name restore after server file loss, versioned-PNG-only storage, legacy SVG fallback' };
+  const result = { pages: pdf.getPageCount(), firstExportMs: Math.round(firstMs), repeatExportMs: Math.round(repeatMs), data, assertions: 'built-in default pages, section order and moves, version 2 upgrade, upload cleanup, 18 complete lines, intact stanzas, shared kalam pitch, identical stanza gaps, whole marathi kalams, unmasked fihrist openings, automatic fihrist, cover typography, A4 geometry, actual download, self-contained export, missing/corrupt image rejection, booklet-only PDF request with lost-file upload, byte-identical same-name restore after server file loss, versioned-PNG-only storage, legacy SVG fallback' };
   await writeFile(`${data}/result.json`, JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
 } catch (error) { console.error(log); throw error; }
 finally {

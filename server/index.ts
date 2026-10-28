@@ -209,7 +209,7 @@ app.post(
     // and asks for any it has lost (`missing`). `assets` (data URLs) are still
     // accepted, as from older pages.
     const { doc, assets: supplied = {}, filename, title } = req.body as ExportRequest;
-    if (!doc || doc.version !== 2 || !doc.kalams) return res.status(400).send('No booklet received.');
+    if (!doc || (doc.version !== 2 && doc.version !== 3) || !doc.kalams) return res.status(400).send('No booklet received.');
     const assets: Record<string, string> = {};
     const missing: string[] = [];
     const blocks = Object.values(doc.kalams).flatMap((ks) => ks.flatMap((k) => k.blocks)).filter((b) => b.kind === 'image');
