@@ -1,4 +1,4 @@
-import { cityOf, type Booklet, type City, type Defaults, type MediaMeta } from '../booklet/model';
+import { cityOf, isLibraryMedia, type Booklet, type City, type Defaults, type MediaMeta } from '../booklet/model';
 import { mediaSrc } from '../booklet/media';
 import type { ImageBlock } from '../booklet/model';
 import type { ExportRequest } from '../booklet/print';
@@ -9,8 +9,9 @@ async function json<T>(res: Response): Promise<T> {
   return res.json();
 }
 
-/** Fixed pages are built into the app and need no browser copy. */
-const builtIn = (id: string) => id.startsWith('fixed-');
+/** Fixed pages are built into the app and library verses are made again from
+ * the PDF on demand: neither needs a browser copy. */
+const builtIn = (id: string) => id.startsWith('fixed-') || isLibraryMedia(id);
 const finishedSrc = (m: MediaMeta) => ({
   png: m.format === 'png' ? `/media/${m.id}.${m.rev}.png` : null,
   opening: m.format === 'png' && m.openingImage ? `/media/${m.id}.${m.rev}.opening.png` : null,
@@ -140,6 +141,9 @@ export const api = {
     if (!res.ok) throw new Error(await errorText(res));
     return ((await res.json()) as { url: string }).url;
   },
+  /** The Zikre Husain library: which images make up a kalam (or chosen verses). */
+  libraryPlan: (n: number, verses: number[] | null) =>
+    fetch(`/api/library/${n}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses }) }).then((r) => json<{ ids: string[] }>(r)),
   loadBooklet: (city: City) => fetch(`/api/booklet?city=${city}`).then((r) => json<Booklet | null>(r)),
   saveBooklet: (doc: Booklet) => fetch(`/api/booklet?city=${cityOf(doc.venue)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc) }),
   loadDefaults: (city: City) => fetch(`/api/defaults?city=${city}`).then((r) => json<Defaults>(r)),

@@ -1,0 +1,1946 @@
+# Transliterated kalam titles for the search (id|title). Ids follow the
+# kalam order of tools/build_library.py (page order through the PDF).
+0|Ya Sayyid al-Shuhada
+1|Falak al-Husain bi Karbala
+2|Zikr al-Husain khair zaad al-zaakireen
+3|Husaini dino gham si aaya
+4|Salli ala Muhammadin Rabbuhu
+5|Utar ke arsh-e-ula se dekho, zameen pe khair-ul-anaam aaya
+6|Azal ki khushbuon ho jis mein pinhaan koi bataaye to naam aisa
+7|Aa gaye hain Rahmat-ul-lil-Aalameen
+8|Al-Madad ae Nabi main gunahgaar hoon
+9|Ausaaf-e-Payambar ke tumhein kaise sunaaein
+10|Ae Rasool-e-Khuda ya Nabi ya Nabi
+11|Tajdaar-e-Risaalat Muhammad hai
+12|Hudood-e-taair-e-sidra Huzoor jaante hain, kahan hai arsh-e-mualla
+13|Haqeeqat mein woh lutf-e-zindagi paaya nahin karte
+14|Huzoor aisa koi intezaam ho jaaye
+15|Khaatam-ul-Anbiya aap khair-ul-bashar, fakhr-e-takhleeq kul Rab ke Paighambar
+16|Khuda nahin magar mazhar-e-Khuda hain Rasool
+17|Dar-e-Nabi pe pahunchna naseeb ho jaaye
+18|Do aalam tujh pe sadqe ae Habeeb-e-Khaaliq yakta
+19|Do aalam ke Aqa salaam alaikum
+20|Deen-o-imaan ki roshni ke liye mash'al hubb-e-khair-ul-bashar chaahiye
+21|Rahmat-ul-lil-Aalameen ho ya Muhammad Mustafa
+22|Rauze pe bula lo mujhe ya Shah-e-Madina
+23|Soz-e-dil chaahiye chashm-e-nam chaahiye
+24|Tala'al Badru Alaina
+25|Faaslon ko takalluf hai hum se agar
+26|Khula hai sabhi ke liye baab-e-rahmat
+27|Qalb mein naam-e-Nabi jis ne basa rakha
+28|Koi saleeqa hai aarzoo ka na bandagi meri bandagi hai
+29|Koi misl-e-Mustafa ka kabhi tha na hai na hoga
+30|Kya naat-e-Muhammad ki padhe koi zabaan aur
+31|Lab pe Muhammad ka naam hai
+32|Muhammad Rahmat-ul-lil-Aalameen hain
+33|Muhammad mu'ayyad hai khair-ul-bashar
+34|Muhammad hamaare badi shaan waale
+35|Mere dil mein hai yaad-e-Muhammad
+36|Ae Bat'ha waale, Madina waale
+37|Nabi hai na to kibriya kya karega
+38|Nabiyon mein bartar maqaam aap ka hai
+39|Na kahin se door hain manzilen na koi qareeb ki baat hai
+40|Ya Nabi ho jaaye mujh par nazar-e-rahmat aap ki
+41|Ye tamanna qubool ho jaaye
+42|Dil maqaam-e-Rasool ho jaaye
+43|Nabi Mustafa par hazaaron salaam
+44|Waawaila sad waawaila sar peeto mujbo waawaila (Rasoolullah SAW)
+45|Aaj khair-ul-wara ka maatam hai
+46|Husain alaihis salaam par Ibrahim ne fida kida
+47|Patthar thi kamar baandhi bandagi ma khada rehta
+48|Ek roz the mashghool namaaz Ahmad-e-Mukhtaar
+49|Aakhri namaaz baithi ne padhaawi
+50|Oowi nawaasa Husain bola Nana kaafoor oparey
+51|Husain nawaasa bola Nabi thi kaafoor Nana oparey
+52|Mazhar che bhala kon Khuda na ane hamnaam
+53|Aap ki zikr se mehfil ko sajaayenge Ali
+54|Aaj tak koi samjha kahan ae Ali teri shaanaat ko
+55|Usi ka noor har ek shai mein jalwagar dekha
+56|Aawaaz de ke Ali ko bulaao
+57|Ae dil tu Khuda hai yehi iltija kar jhukaayein jabeen hum dar-e-Murtaza par
+58|Ae Moula Ali ae Khuda ke pyaare
+59|Bas Ali ko pukaarte rehna
+60|Taufeeq de Khuda to yehi bas dua karein
+61|Sana-e-Ali kar tu saanjh aur savere
+62|Paida hua jo Kaabe ke andar Moula Ali hai Moula Ali hai
+63|Tal jaayenge ranj-o-alam bas Ya Ali kehte raho
+64|Jo ho maqbool-e-Rab aisi dua kar
+65|Haajat rawaa-e-aalam mushkil kusha Ali hai
+66|Haq ka pyaara dekho Ya Murtaza Ali hai
+67|Khuda ki baat yahan apni baat chhoti hai
+68|Khalq ke mushkil kusha mushkil kushaai keejiye
+69|Khuloos-e-dil se Ali ka jo naam leta hoon
+70|Dil mein Ali Ali hai lab par Ali Ali hai
+71|Donon jahan mein khalq ka sardaar hai Ali
+72|Zameen se arsh tak lalkaar Ali Moula Ali Moula
+73|Sab ki bigdi banaaye Ali, dil se gham ko mitaaye Ali
+74|Ajab hai tera martaba Ya Ali
+75|Ali Ali hai Ali Ali hai, hai kon saaqi-e-hauz-e-kausar
+76|Ali ka naam leta hoon Khudaai jhoom jaati hai
+77|Ali ki bakhshish hai sab se badh kar, sawaal dekho jawaab dekho
+78|Ali ki shaan ajab dekhi
+79|Ali mere Aqa Ali mere Moula
+80|Gham nahin Moula hamaara aa gaya
+81|Kya bataaun tujhe kya waqt kya auqaat meri
+82|Kiya qasd main ne Najaf ki taraf jab, to soorat Ali ki
+83|Gulshan-e-dahr ka nazaara kar
+84|Le ja baad-e-saba bandagi kamtar ki
+85|Mehkoom tera aalam-e-baala hai Ya Ali
+86|Mushkil se dil na ghabra mushkil kusha Ali hai
+87|Mushkil kusha Ali meri haajat rawaai ho
+88|Mushkil mein yaad-e-Hazrat-e-mushkil kusha rahe
+89|Mushkil ho hal meri mushkil kusha Ali
+90|Mushkilon se nahin ghabraate hum Ali waale
+91|Mazhar-e-kibriya hai ye aalam, jiski wajh-e-bina hain Ali
+92|Moula-e-kaainaat Ali Ya Ali madad
+93|Momino ka jo wali hai, woh Ali hai woh Ali hai
+94|Meri zindagi ka sahaara Ali
+95|Naam tera lete hi bala har tali
+96|Na kyun mafhoom waahid ho Ali ka aur Muhammad ka
+97|Hum se mat poochhiye kyun naam-e-Ali lete hain
+98|Wird hai mushkil kusha Moula Ali ka baar baar
+99|Wasf kya saaqi-e-kausar ka sunaaya jaaye
+100|Ya Rab mera wazeefa ho payham Ali Ali
+101|Ya Ali Sher-e-Khuda Hasanain ka hai waasta
+102|Ya Ali Ya Ali Ya Ali ae Khuda ke wali Mustafa ke wasi
+103|Ya Ali Ya Ali keh ke jeete hain hum
+104|Ye fazeelat kon rakhta hai siwaaye Bu Turaab
+105|Ye sochna bhi abas hai kahan kahan hai Ali
+106|Ye maana ke daaman jo khaali hai mera
+107|Ye wazeefa mera Ya Ali Ya Ali
+108|Aaj Moula Ali ka maatam hai
+109|Aqa na jaaiye mere Moula na jaaiye
+110|Kufa ma thayo shor-o-buka
+111|Waawaila sad waawaila sar peeto mujbo waawaila (Maulana Ali AS)
+112|Logo saru Saqeefa ma jama thaya tamaam
+113|Ummat thai gayi daamak dol
+114|Jan Ali nu mubaah che saru
+115|Amirul Mumineen na shahaadat ni zikr
+116|Pehla to Fatema par karo zulm o nimat
+117|Sooraj aaya gham na abaala
+118|Beemari mein Asma se ye farmaaya ke aao
+119|Aaj Khair-un-Nisa ka maatam hai
+120|Waawaila sad waawaila sar peeto mujbo waawaila (Maulatona Fatema AS)
+121|Aise sitam ke koh bhi wallah toot jaaye
+122|Padho Fatema na upar salawaat
+123|Fatema aap ke dil ko hain dukhaaya kis ne
+124|Fatema che Mohammad na pyaari
+125|Maa Fatema ke gham mein rona hai aur rulaana
+126|Zahra par haatho si roti pakaawi
+127|Paighaam-e-Mustafa ka sanaati hai Fatema
+128|Izhaar-e-noor-e-Khaaliq-e-Akbar hai Fatema
+129|Maa Fatema Zahra jo jama karte the aansoo
+130|Aaj Imam Hasan ka maatam hai
+131|Imam pehla Hasan Nabi ni, kahaan na gohar laqiyat
+132|Ja'dah Hasan ni biwi thi ek nutfa-e-haraam
+133|Sibt-e-Mustafa Hasan jaan-e-Murtaza Hasan
+134|Maatam Hasan nu karo azeezo maatam Hasan nu karo
+135|Waawaila sad waawaila sar peeto mujbo waawaila (Imam Hasan AS)
+136|Qayaamat ho gayi barpa Hasan Moula Hasan Moula
+137|Woh Sibt-e-Mustafa pe shahaadat ki raat thi
+138|Al-Hasan wal-Husain Sayyida Shabaab-e-Ahlil Jannah
+139|Ya Hasan Ya Hasan Ya Hasan, jaan-e-Zahra Imam-e-zaman
+140|Ilaahi in aankhon se aansoo baha kar
+141|Ae dil tu Khuda se yehi iltija kar jhukaayein jabeen hum dar-e-Murtaza
+142|Ae Moula Mufaddal karo is ghulaam ki kul mushkilein hal
+143|Dar-e-Husain pe jaana naseeb ho jaaye
+144|Dar-e-Shabbir Burhan-ul-Huda hai
+145|Ae Fatema Zahra, ae Sayyidat-e-Hoora
+146|Ae Moula Aba Abdillah dikhla do apna rauza
+147|Dil mein ziyaarat ka hai walwala ab bula lo Shah-e-Karbala
+148|Saath Moula Mufaddal ke aaun choomne tere rauze ki jaali
+149|Shah-e-Karbala ab to bashaara sunaao
+150|Abbas ghareebon ki bigdi ko bana dena
+151|Ae mere Khuda meri duaon ko asar de
+152|Abbas ka le kar naam mushkil mein dua karna
+153|Jab naao bhanwar mein ho Abbas kaha karna
+154|Jo tujh ko maangna ho Shah-e-Karbala se maang
+155|Kaash aise chalein ye hawaaein, hum ko pahuncha de Moula ke dar pe
+156|Liya Husain Ibn-e-Ali teri ataa hai
+157|Majhdhaar mein kashti hai kinaare se lagaao
+158|Moula ki baargaah mein gunahgaar aaye hain
+159|Mera soya hai muqaddar ae Husain ab jaga do
+160|Meri bigdi bana deejiye, Karbala ab bula leejiye
+161|Meri zeest hai jo gayi sanwar ye karam hai teri nigaah ka
+162|Meri qismat jaga deejiye, Karbala ab bula leejiye
+163|Meri kashti hai tere hawaale
+164|Main karb-o-bala ja ke kya maang laaya
+165|Ye iltija meri Parwardigaar tu sun le
+166|Ye maana ke daaman jo khaali hai mera
+167|Shireen nu waaqia Imam Husain AS par ahna ghar padhaarwa nu
+168|Imam Husain AS ni barakat si Khuda saail ne saat
+169|Parindao Imam Husain AS waaste Aashura na din chonch ma
+170|Imam Husain AS Rasoolullah SAW ne arz kidi ke
+171|Imam Husain AS Majoosi ne jangal ma sher si bachaaya
+172|Kya Husain Ibn-e-Ali teri ataa hai
+173|Imam Husain AS ni barakat si Khuda saail ne saat
+174|Haraan rahe che ehamj man ma
+175|Ae Momin Hatim nu darbaar che
+176|Jis ja tera madfan hai woh waadi-e-Ayman hai
+177|Hatim na mojizaat ni che zikr ghar ghar
+178|Hal kar de meri mushkil
+179|Dai Hatim majma-ul-khairaat si pehchaanaai che
+180|Darbaar-e-Hatim ma laakho salaam
+181|Darbaar-e-Hatimi hai yahan sar jhukaaiye
+182|Syedna Hatim Maulana Syedna Hatim
+183|Faiz na darbaar Hatim Shah na darbaar che
+184|Madad madad ae noor-e-Khuda
+185|Mashhoor sab duaao ma jeh Shah nu naam che
+186|Moula-e-jahan zi jaah Ya Syedna Hatim
+187|Jeh haadsa namood thaya che jahan thi (Kaamil)
+188|Jeh haadsa namood thaya che jahan thi (Mukhtasar)
+189|Shah Beg par jeh khaadim jaanib nazar kari
+190|Kehne lagi ajab bewa sar par le haath maar
+191|Aaj Qutb-ul-Huda ka maatam hai
+192|Phir aao kare Qutb-e-Deen Sarkaar ka maatam
+193|Hai yaum-e-shahaadat Qutb-ul-Huda
+194|Qaanoon parwari ka shuroo jo kare bayaan
+195|Sar basar to subh mein reeh-e-saba ho ustuwaar
+196|Hai jahan tak ye mulk-e-Khudaai ka intezaam
+197|Noor ropaala suhaamna jeewa kamla na phool
+198|Aasmaan-e-deen ke ae maah-e-akhtar as-salaam
+199|Shah-e-Badr ko jeete ji to dukh se na kitna mar gaye
+200|Pyaara Wajeeh Shah kahan gaya, kahan dhoondhiye kahan joiye
+201|Sana Abd-e-Ali Saifuddin ni
+202|Hai urs ye kis ka ye azaa khaana hai kis ka
+203|Ae Aal-e-Taha ke pyaare ae Saif-e-Deen sarwar
+204|Ae Saif-e-Deen Dai-e-Athar salaam lo
+205|Ae Taahir-e-mutahhar Rab ka salaam tum par
+206|Ae Maulana Taher aap upar salawaat na moti nisaar karun
+207|Jannat nu nazaaro karwa chalo Rauzat-e-Taahera
+208|Che urs aa Saif-ul-Huda Sultan-e-umam nu
+209|Che urs ni majlis rachaani Maulana Saif-ul-Huda ni
+210|Raaqi-e-Illiyeen Moula
+211|Rajab na maheena jeewaare che aaya
+212|Saif-ul-Huda Moula ni tasbeeh kari lijo
+213|Mashiyyat thi ilaahiyya inaayat thi imaamiyya
+214|Millat ke woh rehbar ko hum kabhi na bhoolenge
+215|Noorani khaima gaah ma pahunchi ne sar jhukaawe
+216|Qaalaha al-Dai al-Ajal Syedna Aali Qadr Mufaddal Saifuddin TUS
+217|Ab-e-mushfiq Burhan-e-Deen Shah hamaare
+218|Ae Burhan-e-Deen Syed sun lo meri aarzoo
+219|Burhani gham mana lo aansoo mein bas baha lo
+220|Burhan-e-Deen ki ne'matein kar yaad Momineen
+221|Burhan-e-Deen ni yaad che
+222|Burhan-e-Deen waalid-e-mushfiq gaye kahan
+223|Pyaare Aqa mere Moula, kahan gaye ab aao
+224|Ashk jaari hain thamte nahin hain
+225|Aankhein nam hain ye dil hai hazeen
+226|Al-Wida al-Wida Burhan-e-Deen Aqa al-Wida
+227|Aah guzri gaya Shah Burhan-ul-Huda
+228|Ahl-e-walaa ke lab pe hai ye fughaan kahan ho
+229|Ae Burhan-ul-Huda aap humko yaad aaye bahut yaad aaye
+230|Ae Burhan-ul-Huda tum humein chhod kar chal diye ho kahan
+231|Ae Burhan-ul-Huda Dai-e-Panjatan
+232|Ae Burhan-e-Deen Moula humein yaad teri aaye
+233|Burhan-e-Deen sidhaara, aim Momineen pukaara
+234|Jeene mein nahin lazzat Moula hum tumko bhula na paayenge
+235|Dil mein teri soorat hai Burhan-ul-Huda
+236|Burhan-e-Deen Moula guzri gaya che
+237|Burhan-e-Huda sarwar, mushfiq ae hamaare pidar
+238|Ba naam-e-Moula Muhammad hi itminaan aaya
+239|Bheegi hui palkein kehti hai
+240|Bahut yaad aati hai Moula tumhaari
+241|Jaan mein meri kahan sukoon dil mein nahin hai chain
+242|Chalo Burhan-ul-Huda ke pyaaro badhaao apne qadam qadam ko
+243|Chho aap kahan Moula, chho aap kahan Moula
+244|Rakha tha Saifi Mahal mein laasha Huzoor ka
+245|Salaam tum pe salaam tum pe
+246|Salaam paikar-e-Rooh-ul-Quds Huzoor salaam
+247|Shah Muhammad pe laakho salawaat-o-salaam
+248|Shah Muhammad ni firaaqi si dilo mahzoon che
+249|Ae Burhan-ul-Huda ae Burhan-ul-Huda
+250|Shah Mufaddal ke lab par yehi hai sada
+251|Mushkil mein haalaat ke aa jaaiye Moula
+252|Moula Muhammad padhaari gaya, Aqa Moula sidhaari gaya
+253|Momineen mukhliseen, thai ne gham ma hazeen aim pukaara
+254|Nahin tu ae Moula to kuchh bhi nahin hai
+255|Hum na bhoolenge kabhi tujhko ae Burhan-e-Huda
+256|Ro kar main pukaarun mere Moula se mila do
+257|Saal ba saal jo guzre hai haaye
+258|Kya sach hai ye ke chal diye Rab ke jawaar mein
+259|Ghanaa yaad aawe Muhammad Shah sarwar
+260|Muhammad ka tabassum hai Muhammad ka tarannum hai
+261|Mazhar-ul-Aayaat Mansoor-ul-Yaman Burhan-e-Deen
+262|Mazhar-e-Haq majma-e-anwaar Burhan-ul-Huda
+263|Maulaak madha, Maulaak baqi
+264|Moula Burhan-e-Deen jannat ni taraf che chaala
+265|Moula ki yaad aaye, Moula ki yaad aaye
+266|Haaye mushkil ko liye humko khilaane waale
+267|Hai Mufaddal Muhammad Khuda ki qasam
+268|Yaad aati hai ahl-e-walaa ko kaise bhoolein Burhan-ul-Huda ko
+269|Hamaare aaj aur kal mein, humein tum yaad aate ho
+270|Yaad aao chho ghana ae Shaha Burhan-e-Deen
+271|Yaad Moula ki har dam hai har aan hai
+272|Aaj Fakhr-ul-Huda ka maatam hai
+273|Ae Muhibbo peer he bedaar Fakhruddin Shaheed
+274|Fakhr-e-Deen sarwar ae Moula aap na darbaar par
+275|Kaashif-ul-kurubaat si ma'roof che Fakhr-ul-Huda
+276|Fakhr-e-Deen pe jo guzra woh sitam na bhoolenge
+277|Ya Fakhr-e-Deen al-Shaheed
+278|Ae Hakeem-ud-Deen Syed sun to meri aarzoo
+279|Dargaah-e-Hakeemi mein sar ko jhuka ke aayein
+280|Zabaan-e-khalq pe rehta hai tera naam rozaana
+281|Mujhko din aur raat ho haafiz Hakeem-ud-Deen ji
+282|Chalo Hakeem-ul-Huda ke dar par zameen pe sajda baja kar
+283|Hakeem-ud-Deen Moula aapka chhoda na dar main ne
+284|Hakeem-ud-Deen Moulaya main tere dar pe aaya hoon
+285|Shah Hakeem-ud-Deen Moula quds ni sarkaar che
+286|Firdaus se kya kam hai rauza mere Moula ka
+287|Moula Hakeem-ud-Deen Bawa Hakeem-ud-Deen
+288|Qaadir Hakeem-ud-Deen hai a'la qadr mubaarak Burhanpur tujhko
+289|Ae Hasan ji teri qabr par haajatein hoti tamaam
+290|Asghar Muhammad ne ilm-e-nawaan do
+291|Allah Ta'ala nu hamd tu kar je
+292|Gham ma Husain na rojo biraadar
+293|Shimr par aawi ne thokar ne maari
+294|Qutb-e-Deen sarwar nu maatam kari lo
+295|Biraadar tu naseehat sun
+296|Ilm na moti jado
+297|Chalo ae pyaara azeezo chalo
+298|Dil na kaano si suni Moula Ali ni waat lo
+299|Ek pal tu mat Khuda ne ae banda wisaar je
+300|Alhamdulillah shukraano karjo
+301|Aankh thi tanha nirkhi ae dosto dekhaay che
+302|Aankh to khol baari ni qudrat na waaste
+303|Ae bhai khauf-e-Khuda nu tu raakh chhod gunaah
+304|Ae dil naseehat sun meri duniya ka mat tu yaar ho
+305|Jeh koi bashar ni aankh thi aansoo jhamka kare
+306|Kumlaaya din ni dhoop ma wahdat na woh gulaab
+307|Jeh koi Khuda na naam ni mala jaapa kare
+308|Khaawind na bol neecha kari ne
+309|Dil si hasad ne nikaal
+310|Saad guru farmaawi gaya tarlakh hirda ni takhti ma
+311|Saain sirjan aho wo che surta
+312|Sada raakh santosh so khaas tha se
+313|Soo ajab Khaaliq ni qudrat che aql hairaan che
+314|Azeezo suno dil na kaano ne dhaalo
+315|Kahaan talak yaaro shikaayat mein karun duniya ni
+316|Gar maara jism ni aa khaal ne ukhaadun to
+317|Gar chaahe to ae Momin uqba ni sa'aadat ne
+318|Mat bhoolje jigar thi Muhammad ni aal ne
+319|Murshid che logo Khuda na baraabar
+320|Moti jawaahiro thi gur na sukhan bhala che
+321|Waat che faaida daar azeezo waat ne maano
+322|Gunaao chhoon ghano aaqil magar be-had thiyo ghaafil
+323|Har roz zindagi no sooraj doobe che yaaro
+324|Wasi-e-Mustafa ni aa wasaaya par raho daaim
+325|Janmaaya aaj noor bashar ni simaat par
+326|Sooraj na jeem Imam che Dai che chaand jeem
+327|Maulana Abul Qasim Kausar che par Kausar thi
+328|Abd-e-Ali Moula mufrad che duaato ma
+329|Faanoos-e-Khudaai ma deewa che baseerat na
+330|Saif-ul-Huda Maulana shamsheer-e-samaawi che
+331|Tarshaan oopar tar na Abd-e-Ali che naaib
+332|Sunto tha duaato sab aa tar na maakhan che
+333|Mumtaaz che jahan ma Abd-e-Ali ni zaat
+334|Afzal che jeem Imam aa Dai che tar qadr
+335|Aakaash Maimanat na che Zuhra ne Mushtari
+336|Ahna siwa nathi koi hasti na takiya gaah
+337|Pusht-e-falak che Abd-e-Ali na qadam tale
+338|Woh duaato ma alam che azki na nastaran
+339|Jeh ghadi Abd-e-Ali qibla na qibla laa mira
+340|Saif-e-Deen ehraam na takbeer ne bole agar
+341|Deen na maathaa na aa Izz-ul-Huda ikleel che
+342|Nathi mila apne koi Nabi ya kar koi Wasi ya kar koi A'imma
+343|Dai che masjid ne masjid che
+344|Abd-e-Ali nu fazl soo sunaaun tika che sees fazl na
+345|Duaat saru na aaj Saif-ul-Huda che naadir khalaf-e-giraami
+346|Waadi ni zikr (Imam Ali Zain-ul-Aabideen AS)
+347|Imam amr AS atraj si ishaara ni zikr
+348|Ma'na "Anin-Na'eem"
+349|Noorani chehro dekhi ne Shah nu akbar thaato tha qurbaan
+350|Syedna Fir Khan Shujauddin RA ni zikr
+351|Dai che masjid
+352|Dai Imam ni misl che
+353|Awliya qabr ma hayaat che
+354|Shariat ni zikr
+355|Taareekh
+356|Dars ni zikr
+357|Moulai Raj QS / Jafar laeen ni fitna
+358|Dawat ni majlis
+359|Jan jaarwa ni zikr
+360|Tawaazo ni zikr
+361|Ilm seekhwa ni zikr
+362|Ilm talab karwaani zikr
+363|Inkaar ni zikr
+364|Ae azeezaan dekh lo hai ye riyaazat ka sabab
+365|Ae Hasan Peer Shaheed tum pe laakho salaam aap ka ye mazaar
+366|Ae Hasan Peer Shaheed tum pe laakhon salaam Peer Rabb-e-Majeed
+367|Ye hikaayat sab hikaayat mein ajaaib anwari
+368|Bu Saheba kem chaala gaya
+369|Ae Bu Saheba lo hamaaro salaam
+370|Bu mere chal diye hain dil ko yaqeen na aaye
+371|Salaam Bu Saheba na upar Burhan-e-Deen na che jeh aqeela
+372|Soo duniya ma utri museebat kidi Amatullah Aai par rehlat
+373|Maa Saheba ka jaana kya sach hai ye bataana
+374|Maut che haq par dil si, kem aa khabar manaai
+375|Pur bahaa Jamea pur sanaa Jamea
+376|Jamea che chaman pur na'm pur min
+377|Jamea ke saaye mein rehte hain hum shukr-e-Khuda
+378|Jamea ne yaad che, Jamea ne yaad che
+379|Jamea ni shaan che Azhar ni jeh hamshaan che
+380|Chhaai ilm ki fazaa
+381|Seekha hai tum sabhi se hi tum se hi hum padhe
+382|Meri khuld mera makaan Jamea
+383|Hain kaarwaan-e-Jamea mein hum sabhi baham chalein
+384|Jamea ke saaye mein rehte hain hum shukr-e-Khuda
+385|Ya Jamea Ya Jamea Ya Jamea Ya Jamea
+386|Sajadtu lir-Rahmaan aamantu bil-Quran
+387|Ae naunihaalo hifz ni che raah pur ziya chalo
+388|Dai-Allah ni che aa nida hifz karun Quran poora
+389|Saaya ma Aqa Moula na chalta raho sada
+390|Khoon chhoon main tumne ae pyaara ameero
+391|Saif-ul-Huda ka poora ye armaan hoyega
+392|Moula Mufaddal nu uthaao Momino farmaan
+393|Fatemiyya nishaani hai Jaame-e-Anwar
+394|Ahsin ila man asaa'a ilaik (aa qaul che Ali nu)
+395|Ahsin ila man asaa'a ilaik (jeh farmaawe Moula che laazim alaik)
+396|Athaara al-asa wal-baththa wajdun tamakkana
+397|Alaika salaamullahi mazloomu Karbala
+398|Huznun adhaaba jawaanihi wa fu'aadi
+399|Khairatullahi minal khalqi abi
+400|Khair-ul-anaami Muhammadun wa wasiyyuhu
+401|Fakam abaahu hima al-at'haari wantahaku
+402|Qifa nabki min zikra al-Husain Ibn Fatim
+403|Qum saahibi fi ma'tamin linanooha
+404|Qaumi ubku alash-shaheedi bi-Taffin
+405|Karbala'u wa ya laha Karbala'u
+406|La as-sabru feeka wa la al-azaa'u jameelu
+407|Ya Imam al-Haqqi Maulana al-Husain
+408|Ya Husaina wa ma naseetu Husaina
+409|Ya Taffu hayyatka as-sahaab al-joon
+410|Ala fabku ala haal ar-ru'oos
+411|Inna zikr al-Husain yadoom
+412|Ilbasoo thiyaab al-bukaa
+413|Aba Hasanin ya nazeer an-nazeer
+414|Agheethoo ayaa Aal an-Nabiyyi agheethoo
+415|Aal-e-Taha manaabi' al-barakaat
+416|Ilaahi sa'altuka fil-Jumuah
+417|Ya Aal-e-Taha ar-rida anwaarukum laami'ah
+418|Ya habbaza shajarun fil-khuldi dhu thamar
+419|Ya sabaah al-khamees ahlan wa sahla
+420|Jo karb-o-bala mein zibh hua us Sibt-e-Nabi ka chehlum hai
+421|Arbaeen ke sogwaaro al-wida
+422|Aati hai sada-e-karb-o-bala Shabbir ka chehlum aaya hai
+423|Aashoor ke din mazloom luta ye us ka chehlum aaya hai
+424|Azaa khaanon mein maatam hai Shah-e-Athar ka chehlum hai
+425|Yaum-e-Aashoor ghar luta jis ka us Shaheed-e-jafa ka chehlum hai
+426|Naseemu as-sabaa yammim zara Hatim al-jadwa
+427|Banu al-Mustafa al-Mukhtar khair al-khalaaiq
+428|Alamma bi-deen Allahi uzma al-masaa'ib
+429|Alaika salaamullahi daaiban mu'abbada
+430|Alamma bi-deen Allahi adha ash-shadaa'id
+431|Ae Allah na Dai Nabi na pyaara
+432|Chalo ae pyaara azeezo chalo
+433|Rojo biraadar Husain ne rojo
+434|Ya Husaina par hain qurbaan che
+435|Karbala mere Aqa sidhaare
+436|"Allamal insaana ma lam ya'lam" ek e'zaaz hai
+437|Jeh haadsa namood thaya che jahan thi
+438|Ae Muhibbo peer he bedaar Fakhruddin Shaheed
+439|Ae Hakeem-ud-Deen Syed sun to meri aarzoo
+440|Allah Ta'ala nu hamd tu kar je
+441|Darbaar-e-Hatim ma laakho salaam
+442|Moula-e-jahan zi jaah Ya Syedna Hatim
+443|Burhan-ud-Deen na jaani ghano jeewo ghano jeewo
+444|Maulatona Fatema az-Zahra
+445|Ya Sayyid al-Shuhada (Mithi Shitabi)
+446|Jeh haadsa namood thaya che jahan thi
+447|Padho Fatema na upar salawaat
+448|Fatema che Mohammad na pyaari
+449|Bint-e-Nabi ki zikr ki khushboo hai muntashir
+450|Ae Fatema Zahra, ae Sayyidat-e-Hoora
+451|Fatema aap ke dil ko hain dukhaaya kis ne
+452|Shah Mufaddal nu Fatemi darbaar che
+453|Ye Dai Mufaddal Muhammad ke Dai
+454|Chala Bu Saheba jannat taraf yahaan si kari rehlat
+455|Chala Bu Saheba jannat taraf yahaan si kari rehlat
+456|Maa Saheba ka jaana kya sach hai ye bataana
+457|Aa dekh apni aankhon se aaj ae zamaana
+458|Sakina Shabbir na che dukhtar salaam un par
+459|Shabbir ne to ran mein ajab shaan dikhaai hai
+460|Shabbir Karbala mein shaadi racha rahe hain
+461|Shabbir Karbala mein shaadi racha rahe hain
+462|Shabbir Karbala mein shaadi racha rahe hain, jannat se aaj Ahmad
+463|Shabbir ke ghar mein shaadi hai aur qatra nahin hai paani ka
+464|Shah ne rachaai shaadi karb-o-bala ke ban mein
+465|Haaye re dulha ran mein joojha
+466|Parwaan chadhaalo koi armaan nikaalo
+467|Bhoolenge na hum Karbal mein woh chand pahar ki shaadi
+468|Ran mein soye ho khasta tan dulha
+469|Shaadi ki ajab dhoom hai Karbal tere ban mein
+470|Karbala se lo dulhan widaa ho chali
+471|Karb-o-bala ki karb mein shaadi hai Momino
+472|Kaisi ajeeb shaadi hai Karbala ke ban mein
+473|Ek dulhan ka noha hai, mera dulha gaya maara
+474|Ibn-e-Hasan ne khol ke taaweez jab padha
+475|Raziyat bima raziya bihi Rasoolullah
+476|-
+477|-
+478|Sada Zahra ki kehti hai Husaini jaan nisaaron se
+479|Salaam un par jo aaghosh-e-pidar mein ran ko jaate hain
+480|Ab aaiye ho Baba mere
+481|Ibn-e-Mushkil Kusha, soo-e-karb-o-bala ghar lutaane chala
+482|Abhi khanjar na chala abhi khanjar na chala
+483|Utha to li hai jawaan ki mayyat
+484|Utho Husain tum se behan milne aayi hai
+485|Uthi ek sada qaid khaane mein Baba
+486|Aaj Shabbir pe kya aalam-e-tanhaai hai
+487|Ijaazat ke liye jab Akbar-e-gulgoo qaba aaye
+488|Arbaeen ke sogwaaro al-wida
+489|Islam bachaane ki khaatir ghar apna lutaate hain Sarwar
+490|Asghar ko bula do, Asghar ko bula do
+491|Asghar ko roeingi Ali Akbar ko roeingi
+492|Asghar ko le ke jab chale Sultan-e-Karbala
+493|Asghar ke tabassum ne taleem bayaan di hai
+494|Asghar ki tishnagi pe aansoo baha baha ke
+495|A'da-e-haram ko misl-e-gunahgaar le gaye
+496|A'da ne Karbala mein Shah ko sata sata ke
+497|Aqa ko mere ek bhi qatra na de sake
+498|Ek din mein bhara ghar lut jaaye
+499|Ek din Nabi ke hamraah baithe the Shah waala
+500|Akbar bhi gaye Asghar bhi gaye
+501|Akbar tumhein maaloom hai kya maang rahe ho
+502|Akbar ki judaai ka jab daagh mila hoga
+503|Akbar ki judaai ka jab daagh mila hoga
+504|Akbar ki laash uthaaye Shabbir Karbala mein
+505|Agar dil mein hubb-e-Mufaddal Shaha hai to Shabbir ke gham mein aansoo bahaao
+506|Allah re rutba ye falak hai ke zameen hai
+507|Allah ki raza hai mohabbat Husain ki
+508|Alam Shabbir ka taff mein alam ban kar nazar aaya
+509|Aansoo khud ba khud chhalke Shabbir ka jo naam aaye
+510|Aankhon se meri khoon ka dariya ubal raha hai
+511|Aane ko to watan mein ab aa rahi hai Zainab
+512|Ahl-e-jahan ye dard ka manzar na bhoolna
+513|Aawaaz aa rahi hai karb-o-bala ke ban se
+514|Aao Asghar pyaare jhoolon
+515|Aao Shabbir Sakina ke gohar chhinte hain
+516|Ae khaak nasheenon kya kehna kya takht mila kya taaj mila
+517|Ae zameen-e-Karbala teri to aabaadi hui
+518|Ae Sakina ab tera khaak bichhauna hoga
+519|Ae Salaami dekh kar abroo-e-Akbar chaand ki
+520|Ae zaalimon na sitam dhaao main Sakina hoon
+521|Ae mere masoom Asghar raat aayi ghar chalo
+522|Aisa Shaheed-e-zulm koi be-watan na ho
+523|Ek baar aur mujhe god mein le lo Baba
+524|Ek daur Salaami duniya ka sadiyon mein aisa aata hai
+525|Imaan ki aayaton se jangal basa hua hai
+526|Imaan ki aayaton se jangal basa hua hai
+527|Imaan hai hamaara Quran aur Husain
+528|Aayi nida-e-ghaib ke Shabbir marhaba
+529|Chalte the chaar simt se bhaale Husain par
+530|Aayi hai Fatema yahan ye majlis-e-Husain hai
+531|Baat aayegi parde ki to yaad aayegi Zainab
+532|Bakhshwaane ummat-e-Ahmad ko aate hain Husain
+533|Bazm-e-Shabbir mein aa jaao bahaane aansoo
+534|Ban ban roye Bano dukhiya shaam bhai ab aao Asghar
+535|Bano pukaari roi che naakhi ne bas maatha ma dhool
+536|Bano ka jigar tharraaye na kyun reh reh ke sambhalne se pehle
+537|Bano ne kaha ro kar turbat pe sada doongi
+538|Bano ne kaha ro kar turbat pe sada doongi
+539|Behte hue aansoo mere behte hi to jaana
+540|Boli Bano pyaare Asghar shaam bhai ghar aao
+541|Boli behan main bhaai tak aa loon to zibh kar
+542|Boli Zainab salaam lo bhaai
+543|Boli Zainab ke nahin naaz uthaane waala
+544|Bete ke janaaze ko uthaana nahin aasaan
+545|Beti Husain ki thi roti thi subh-o-shaam
+546|Bain the Sakina ke shaam hone waali hai
+547|Tujh sa koi duniya mein pyaasa na raha Moula
+548|Tanhaai mein kaise uthega Akbar ka janaaza rehne do
+549|Teer zaalim ne jo Asghar ko lagaaya hoga
+550|Tumhaari yaad mein kaise bhulaaungi Baba
+551|Tha kishwar-e-Iraq mein ek mard-e-ba-safa
+552|Thaam kar apne dil ko Shah-e-Huda laash Karbal jawaan uthaate hain
+553|Thar thar aata raha jo nikalte hue
+554|Thamte na the aankhon se aansoo Shah-e-muztar
+555|Thi ye hasrat ke tumhein dulha banaati Akbar
+556|Paamaal hoga dasht-e-sitam mein chaman koi
+557|Pardes se ye dukhiya aayi hai watan dekho
+558|Pardes mein Aal-e-Ahmad ko be-jurm-o-khata loot liya
+559|Parwaan chadhaalo koi armaan nikaalo
+560|Pukaari Shaana hila ke maadar utho Sakina sahar hui hai
+561|Pahuncho haram Madina ma Karbal ne Shaam si
+562|Peeri mein naujawaan ko maidaan se laane waale
+563|Jaati hai Zainab watan ko saath mein Sarwar nahin
+564|Jaao maqtal ko bhaiya sidhaaro ye bhi sadma uthaayegi Zainab
+565|Jab ujad jaayega Zahra ka makaan asr ke baad
+566|Jab pahunchi watan Bint-e-Ali seh ke jafaaein
+567|Jab khaime mein rukhsat ko Shah-e-bahr-o-bar aaye
+568|Jab zibh ran mein ho gaye Shabbir al-amaan
+569|Jab ran mein Husain Asghar-e-be-sheer ko laaye
+570|Jab Shimr ne bujha diya sham'-e-Batool ko
+571|Jab Shimr ne juda kiya tan se sar-e-Husain
+572|Jab zaeefi mein laal marta hai
+573|Jab qatl hua Fatema Zahra ka pyaara
+574|Jab laasha-e-pisar ko uthaaya Husain ne
+575|Jis jagah Shah ka rauza hai zamaane waalon
+576|Jag ke Imam Zain-ul-Aba saarbaan hai
+577|Jawaan bete ki maadar se ab hone ko judaai hai
+578|Jhoole mein hai qaraar na maadar ki god mein
+579|Jhoola Asghar ka maadar jhulaati rahi
+580|Jhoolo masoom tishna dahan jhoolna
+581|Haakim ka hukm ye hai ke paani bashar piye
+582|Haakim ne likha Shaam ke lashkar ko sunaana paani na pilaana
+583|Husn-o-jamaal tera ae Akbar kamaal hai
+584|Ujad gaya hai ghar magar, Husain to Husain hai (Shaakir)
+585|Husain to Husain hai ujad gaya hai ghar, magar (Shaakir)
+586|Husain tumko Madina salaam kehta hai
+587|Husain par chashm jo hai pur nam Burhan-e-Deen Shah ka mojiza hai
+588|Husain jaisa Shaheed-e-Azam jahan mein koi hua nahin hai
+589|Husain maqtal mein ye pukaare kahan ho athaara saal waale
+590|Husain hota hai Karbal ko ab rawaan Nana
+591|Husaini kaarwaan pyaasa tha Karbal ke bayaabaan mein
+592|Hashr ke din aasiyon ko bakhshwaane ke liye
+593|Khaak pe thi be-kafan laashe koi saaya na tha
+594|Khuda hai haafiz tumhaara Zainab mujhe na roko ae pyaari behna
+595|Khuda ka paighaam aakhri hai
+596|Khwaahar-e-Shaha Zainab dukhtar-e-Ali Zainab
+597|Khoon-e-Shabbir ko hai Shimr ka khanjar pyaasa
+598|Khoon ki nadiyon se bhi ahl-e-wafa guzar gaye
+599|Khoon mein dooba jalti zameen par laasha-e-Sarwar gira hua hai
+600|Khaime mein udaasi chhaai hai, Shabbir hai tanha koi nahin
+601|Dab ke ghodon ke sumon se Shah ka laasha reh na jaaye
+602|Dasht pukaare sehra bole, dariya paani de
+603|Dukh bhari daastaan Karbala ki hum zabaan se sunaayenge kaise
+604|Dukhiya Bano chillaati hai Asghar ka hum se chhudaaye liyo
+605|Dukhiya Bano ro kar boli Asghar ka khaali jhoola hai
+606|Din dhal chuka hai shaam aayi sar par
+607|Doobi hui dukh ke saagar mein sooraj ki sunehri thaali
+608|Dayaar-e-Shaam mein Aabid ka haal kya hoga
+609|Zibh hone ko hain sar Shah ka aao Abbas
+610|Zara thehro dil Sibt-e-Payambar dekhte jaao
+611|Zikr karne azaa mein tere zaakireen aaye hain ae Husain
+612|Ra's-ul-Husain upar salawaat ne salaam che
+613|Raah imaan ki ummat ko dikhaao Zainab
+614|Din andhera hai koi sham' jalaao Zainab
+615|Ran mein soye ho khasta tan dulha
+616|Ran mein ye sitam Aal-e-Payambar pe hua hai
+617|Ro ro kehti thi baali Sakina zaalimon mere gohar na chheeno
+618|Ro ro ke poochhti hain Bano Shah zaman se
+619|Ro ke Zainab ne kaha reh gaye Sarwar tanha
+620|Ro ke kehti thi Zainab ye ran mein
+621|Ro le gham-e-Shabbir mein kal ho ke na ho
+622|Maidaan mein koi jaane waala na raha
+623|Zakhm se choor jabeen Shah ki jhuki sajde mein
+624|Zakhmi hai bahut gesuon waala na uthega
+625|Peeri hai jawaan laal ka laasha na uthega
+626|Zameen-e-Karbala par aise kuchh manzar nazar aaye
+627|Zainab pukaari bhaai ka sadma jigar mein hai
+628|Zainab Hasan Husain ki khwaahar ka naam hai
+629|Zainab riza-o-sabr ke paikar ka naam hai
+630|Zainab ko gumaan kab tha ek hashr bapa hoga
+631|Dekhe Madina saara Zainab ke aansuon mein
+632|Zainab ke aansuon mein, dekhe Madina saara
+633|Zainab ke donon laadle aaye jo Shah ke paas
+634|Zainab ne kaha ro kar armaan nikaalungi
+635|Zainab ye boli hashr ka manzar nazar mein hai
+636|Zainab ye ro ke kehti thi bhaai tere baghair
+637|Zainab ye keh ke ro padi poochho na kya hua
+638|Zindagi jab zulm se ghabraayegi
+639|Zahra ke do dulaare Moula Hasan Husain
+640|Saahil pe hai pyaasi Aal-e-Nabi
+641|Sibt-e-Rasool-e-Azam mazloom be-nawa hai
+642|Sibt-e-Sarkaar-e-do-aalam ka kata sar ran mein
+643|Sakina Shabbir na che dukhtar salaam un par
+644|Salaam un par jo raah-e-haq mein mataa-e-hasti luta gaye hain
+645|Salaam khaak nasheenon pe sogwaaron ka
+646|Sawaari dosh-e-Ahmad par Shaheed-e-Karbala ki hai
+647|Salaam-e-widaa lo nawaase ka Nana
+648|Salaami chashm se reh reh ke khoon-e-dil tapakta hai
+649|Salaami roz-e-Aashura jo sar Shah ka kata hoga
+650|Salaami ho gham-e-Sarwar mein giryaan aaj kal parson
+651|Sambhalta raha ladkhadaata raha
+652|Sochti hai ye maadar kal na jaane kya hoga
+653|Sochti hai ye maadar kal na jaane kya hoga
+654|Seena-e-Shah pe badkaar Khuda khair kare
+655|Soye ho kahan ja ke mere Asghar-e-naadaan
+656|Saif-ul-Huda ne wa'z mein farmaai ye zikr
+657|Seena-e-Shah pe badkaar Khuda khair kare
+658|Seena-e-Shah kahan Shimr-e-sitamgar kahan
+659|Shah ko Akbar ka laasha mil gaya
+660|Shah kehte the ae meri khwaahar
+661|Shah kehte the luta ghurbat mein haaye ghar mera
+662|Shabbir tere sajde ke ewaz duniya mein ibaadat baaqi hai
+663|Shabbir ran mein tanha the zakhmon se choor the
+664|Shabbir ka sar tharraata tha jab chehra chhupaati thi Zainab
+665|Shabbir ka sar hai neze par Zainab ka sahaara koi nahin
+666|Shabbir ko khanjar ke neeche kya jaaniye kya kya yaad aaya
+667|Shabbir ko roi hai mazloom behan barson
+668|Shabbir ke bachche pyaase hain aur saamne behta paani hai
+669|Shabbir ke seene par jab Shimr chadha hoga
+670|Shabbir ki sada thi Akbar zara thehar ja
+671|Shabbir ki mazloomi Zainab se koi poochhe
+672|Shabbir ki majlis mein aankhon se chala jaaye
+673|Shabbir ki majlis hai ye mazloom ka gham hai
+674|Shabbir ne to ran mein ajab shaan dikhaai hai
+675|Shabbir ne najaat ka rasta dikha diya
+676|Duniya se jo Abbas-e-Alamdaar sidhaare
+677|Do laakh ke narghe mein Muhammad ka nishaan hain
+678|Shireen ka waaqia hai ye ahl-e-azaa suno
+679|Shimr-e-bad par chalaawi ne khanjar
+680|Shah ko mehmaan bula ke dekh liya
+681|Shah ne Ali Asghar ko jab dafn kiya hoga
+682|Sabr karte the Salaami Shah waala kya kiya
+683|Sehra-e-Karbala mein ek qaafila rawaan hai
+684|Hai sab ke aage aage Sultan-e-deen-o-deena
+685|Aabid ke ruk rahe hain qadam Shaam aa gaye
+686|Aashoor ke tapte sehra mein Islam ko kaisa loot liya
+687|Aashoor ke sooraj doob na ja maqtal ka nazaara dekh to le
+688|Aashoor ke sooraj ne kya huzn dikhaaya hai
+689|Aashoor ko Husain par kya kya guzar gayi
+690|Aashoor ko Zainab ne ye zulm naya dekha
+691|Abbas Ali Moula Haidar ke pyaare hain
+692|Itrat-e-Nabi jaan-e-Murtaza khwaahar-e-Husain Bint-e-Fatema
+693|Kya bataaein ke Zainab ki kya shaan hai
+694|Ajab pur dard zameen-e-Taff mein ek manzar nazar aaya
+695|Arsh girne laga farsh hilne laga
+696|Alam jo le ke aata hai use Abbas kehte hain
+697|Gham-e-Husain mein ro mujrai sawaab ye hai
+698|Gham-e-Shabbir meri zindagi hai
+699|Gham-e-Shabbir mein ae ashk bahaane waale
+700|Gham-e-Karbala hai dil mein aur maatam-e-Husain
+701|Farmaate the har ek se main be-qusoor hoon
+702|Farmaate hain yoon Shabbir ae Fatema Sughra
+703|Falak al-Husain bi Karbala sehra mein hain rawaan
+704|Qaafila ab Karbala mein le ke aayenge Husain
+705|Qaafila-e-haram haaye Shaam chala, al-wida al-wida Karbala
+706|Qabr-e-Asghar bana rahe hain Husain
+707|Qabr-e-Asghar pe maadar pukaari ghar chalo shaam hoti hai Asghar
+708|Qatl-e-Asghar ho gaye veeraan jhoola ho gaya
+709|Qurbaan gah-e-haq mein bhaai ka yoon haath bataaya Zainab ne
+710|Qalb-e-pisar se Moula barchhi na kheenchna
+711|Qaid khaane mein ye ahwaal-e-Ruqayya hoga
+712|Qaid-e-sitam se chhoot ke jo Zainab watan chali
+713|Qaid se ho ke riha qabr pe aana Zainab
+714|Qaidi hoon main Baba jaan
+715|Lab-e-Shah ko raaste mein khayaal-e-qaza na tha
+716|Kitna dil-e-Zainab ko a'da ne rulaaya hai
+717|Kuchh laashe aisi dekhi jin par kafan nahin tha
+718|Karbala aa ke boli ye Zainab
+719|Karbala teri zameen par gham ke baadal chhaaye hain
+720|Karbala Shah ko Akbar ka janaaza na dikha
+721|Karbala ke mehmaan ae be-nawa salaam lo
+722|Karbala ki ajab bayaani hai
+723|Karbal ki museebat par nikle jo tere aansoo
+724|Karbala ma soo bala ma Mustafa ni aal che (Muntakhab)
+725|Karbala ma soo bala ma Mustafa ni aal che (Kaamil)
+726|Karbala mein Shah kya kya saaz-o-saamaan le gaye
+727|Karbala mein sabr ke jauhar dikhaate hain Husain
+728|Karbala waalon ka jis waqt bayaan hota hai
+729|Karte rahe Husain jo sajda tamaam raat
+730|Kis tarah apne lute ghar ko behan le jaaye
+731|Kal do pahar mein hoga qayaamat ka saamna
+732|Kaha ro ro ke Zainab ne Ilaahi subh kya hoga
+733|Kaha Zainab ne Sarwar se ke Bano ghul machaati hai
+734|Kehte the Zain-ul-Aabideen tum ko sata ke kya mila
+735|Kehti thi ek dukhiya Asghar mera kahan hai
+736|Kehti hai Sakina ro kar aa jaao mere Baba
+737|Kehti hai Sakina mere Baba ko bulaao
+738|Kaheen milega na Moula Husain ke jaisa
+739|Khaate hain Shah waala thokar qadam qadam par
+740|Kho gaye tum kahan mere Asghar ho gayi shaam ghar laut aao
+741|Kaun tujh sa hai khasta tan Moula
+742|Kaun samjha aaj tak sanjeedgi ka cheez hai
+743|Kya khoob hai jahan mein tauqeer-e-Karbala
+744|Kya ajab taur-e-zamaan dekh rahi hai Zainab
+745|Kya qayaamat guzar gayi Baba
+746|Kya kya guzar gaye hain aazaar Karbala mein
+747|Kaise Shabbir tere baad jiyegi Zainab
+748|Kyun na ban jaaye teri shahaadat sharaf
+749|Guzar gaye the kayi din ke ghar mein aab na tha
+750|Gul ki rangat khoon-e-Husaini naghma-e-bulbul haaye Husain
+751|Gale mein daale hue hain Quran Husain par haath utha rahe hain
+752|Ghar lut gaya chaadar bhi abhi chhin jaayegi Zainab
+753|Ghode bata mujhe mere Baba kidhar gaye
+754|Ghode Shah-e-waala ko kahan chhod ke aaya
+755|Gahwaare se Husain jo Asghar ko le chale
+756|Lab-e-Huzoor se sada gham-e-Husain mein suna Husain to Husain hai
+757|Laash-e-Akbar pe sar ko jhukaaye, Moula maqtal mein tanha
+758|Laash-e-Akbar jawaan hai uthaao nahin
+759|Laashe kitni uthaai thi Shah ne
+760|Larazti hai zameen-e-Karbala patthar tadapte hain
+761|Likha hai ke ansaar jo sab ho chuke qurbaan
+762|Lahu mein dooba Kaabe ka makeen hai
+763|Lutaayo hoowo qaafilo Karbala si Madina ma pahuncho
+764|Luta hua ek qaafila ran se chala kehta hua
+765|Loota hai Karbala mein bhara ghar Husain ka
+766|Le ke ek qaafila ghamzada saarbaan chal raha hai
+767|Maare gaye Husain be-sar hue Husain
+768|Maa ghamzada pukaari aa jaao pyaare Asghar
+769|Mujra use jo laaghar-o-ranjoor tan bhi hai
+770|Mujrai khalq mein in aankhon ne kya kya dekha
+771|Mujrai qaid se jab Aabid-e-be-par chhoote
+772|Marzi-e-Rab jab suni Jibreel se Shabbir ne
+773|Mujhko Baba sada do agar ho sake
+774|Mohtaaj-e-aab-o-daana Zahra ka hai gharaana
+775|Mashk-o-alam udaas hai dariya udaas hai
+776|Mustafa ka laeen ghar jalaane lage
+777|Museebat hai bala hai Karbala mein
+778|Maqtal se suno Zainab dukhiya ki sada
+779|Manzar jo Karbala ka dikhaaya to ro diye
+780|Moula ki baargaah mein gunahgaar aaye hain
+781|Maidaan mein be-khata Ali Akbar ki laash hai
+782|Mere Baba ko na maqtal mein tu le ja Duldul
+783|Mere be-qusoor mehmaan main sabr kahan se laaun
+784|Nabi Mustafa par hazaaron salaam
+785|Nishaan-e-fauj-e-Payambar sajaaya jaata hai
+786|Na tha Husain sa Moula na koi aayega
+787|Na poochho baad-e-Sarwar Aal-e-Paighambar pe kya guzri
+788|Na poochho baad-e-Shaha Karbala mein kya kya hua
+789|Na poochhiye ke kya Husain hai
+790|Na loon jahan ki daulatein agar Husain na mile
+791|Nanha sa ek sipaahi godi mein aa raha hai
+792|Nanhe Shaheed Asghar nafsi fidaa alaikum
+793|Neza jigar se kheenchna poochhe koi Husain se
+794|Haaye re dulha ran mein joojha
+795|Neza seene mein sitamgar ne lagaaya hoga
+796|Haaye re dulha ran mein joojha
+797|Haaye Aashoor ko Shabbir ne kya kya dekha
+798|Haaye kaisa ghareeb-ul-watan hai Husain
+799|Ae aasmaan waale hadiya qubool kar le
+800|Har ek qadam pe sochte the Sibt-e-Mustafa
+801|Himmat na haarna Zainab
+802|Hote hain Shah rukhsat giryaan kunaan hai Sughra
+803|Hua zibh bhaai kahan jaaye Zainab
+804|Waajib-ur-rahm the zindaan ke sazaawaar na the
+805|Watan se pardes ja rahe hain woh Karbala ke Husain waale
+806|Watan waalon se Zainab aaj pehchaani nahin jaati
+807|Waqt ki baat hai zamaane mein
+808|Woh daaira-e-sabr mein simte hue naale
+809|Ummat ke liye marg-e-jawaan bhoolne waale
+810|Woh dhoop maidaan-e-Karbala mein, woh lo qayaamat ki chal rahi hai
+811|Woh nek seer Durra ne ek khwaab ye dekha
+812|Ya Rab ba-haqq-e-gohar-e-dandaan-e-Mustafa
+813|Ya Rab sagheer sin mein koi be-pidar na ho
+814|Ya Rab koi jahan mein aseer-e-mehan na ho
+815|Ya Rab ye hai saadaat ka ghar tere hawaale
+816|Yaad-e-Asghar ki jab dil jalaane lagi
+817|Yaad aa gayi Husain ki aankhon mein aansoo aa gaye
+818|Yazeed-e-nahs bhi hai mehfil-e-sharaab bhi hai
+819|Ye bhari jawaani mein kis ka chaand dooba hai
+820|Ye pukaari Zainab-e-khasta tan
+821|Ye inaayaton ki jazaa mili ye hidaayaton ka sila diya
+822|Ye kis ka laal hai kis dil ka ye sahaara hai
+823|Ye kaun Karbala tera mehmaan ho gaya
+824|Yoon Ruqayya ke lab par fughaan hai
+825|Ye kehte the Shah waala Sakina hum nahin honge
+826|A'da-e-haram ko misl-e-gunahgaar le gaye
+827|Ahl-e-azaa karo gham-e-beemaar naatawaan ka
+828|Ae ahl-e-Madina Zahra ka luta ghar
+829|Pahuncho haram Madina ma Karbal ne Shaam si
+830|Jag ke Imam Zain-ul-Aba saarbaan hai
+831|Dayaar-e-Shaam mein Aabid ka haal kya hoga
+832|Zain-ul-Aabideen ne kiya bayaan baagh-e-Fatema kis tarah luta
+833|Shab andheri aur manzil door hai
+834|Aabid ke ruk rahe hain qadam Shaam aa gaye
+835|Karb-o-bala se nikle Sajjad chalte chalte
+836|Kehte the Zain-ul-Aabideen tum ko sata ke kya mila
+837|Le ja rahe hain zaalim Sajjad-e-naatawaan ko
+838|Le ke ek qaafila ghamzada saarbaan chal raha hai
+839|Mujra use jo laaghar-o-ranjoor tan bhi hai
+840|Mujrai qaid se jab Aabid-e-be-par chhoote
+841|Waajib-ur-rahm the zindaan ke sazaawaar na the
+842|Haaye re dulha ran mein joojha
+843|Ran mein soye ho khasta tan dulha
+844|Ibn-e-Hasan ne khol ke taaweez jab padha
+845|Kya khoob hai jahan mein tauqeer-e-Karbala
+846|Parwaan chadhaalo koi armaan nikaalo
+847|Utha to li hai jawaan ki mayyat
+848|Ijaazat ke liye jab Akbar-e-gulgoo qaba aaye
+849|Akbar-e-naujawaan ka maatam hai
+850|Akbar tumhein maaloom hai kya maang rahe ho
+851|Akbar ki judaai ka jab daagh mila hoga
+852|Akbar ne di sada seene mein hai neza
+853|Tanhaai mein kaise uthega Akbar ka janaaza rehne do
+854|Akbar ki laash uthaaye Shabbir Karbala mein
+855|Ummat ke liye marg-e-jawaan bhoolne waale
+856|Ae maara Karbal jawaan kahan chho
+857|Ae Salaami dekh kar abroo-e-Akbar chaand ki
+858|Bete ke janaaze ko uthaana nahin aasaan
+859|Thamte na the aankhon se aansoo Shah-e-muztar
+860|Thi ye hasrat ke tumhein dulha banaati Akbar
+861|Peeri mein naujawaan ko maidaan se laane waale
+862|Zakhmi hai bahut gesuon waala na uthega
+863|Peeri hai jawaan laal ka laasha na uthega
+864|Husain maqtal mein ye pukaare kahan ho athaara saal waale
+865|Jab laasha-e-pisar ko uthaaya Husain ne
+866|Zainab ne kaha ro kar armaan nikaalungi
+867|Shah ko Akbar ka laasha mil gaya
+868|Shabbir ki sada thi, Akbar zara thehar ja
+869|Qalb-e-pisar se Moula barchhi na kheenchna
+870|Karbala Shah ko Akbar ka janaaza na dikha
+871|Karna hai azaadaaron noha Ali Akbar ka
+872|Kaleja maa ka dil tadpa raha hai
+873|Kehti hai Bano andhera ho gaya
+874|Kehti hai Bano andhera ho gaya mera Akbar Karbal mein kho gaya
+875|Goonjti hai Ali Akbar ki sada kaanon mein
+876|Laash-e-Akbar pe sar ko jhukaaye, Moula maqtal mein tanha
+877|Laash-e-Akbar jawaan hai uthaao nahin
+878|Maidaan mein be-khata Ali Akbar ki laash hai
+879|Mere laadle idhar aa tujhe maa gale laga le
+880|Neza jigar se kheenchna poochhe koi Husain se
+881|Hai noha kunaan Sarwar ae noor-e-nazar Akbar
+882|Ye bhari jawaani mein kis ka chaand dooba hai
+883|Ab shaam dhal chuki hai ae laal ghar mein aa ja
+884|Asghar ko bula do, Asghar ko bula do
+885|Asghar ko le ke jab chale Sultan-e-Karbala
+886|Asghar ko le ke god mein kehne lage Husain
+887|Asghar ke tabassum ne taleem bayaan di hai
+888|Asghar ki tishnagi pe aansoo baha baha ke
+889|Asghar-e-masoom tera jhoolna
+890|Aao Asghar pyaare jhoolon
+891|Ae mere masoom Asghar raat aayi ghar chalo
+892|Bano ka bayaan tha jangal mein aaghosh ka paala chheen liya
+893|Ban ban roye Bano dukhiya shaam bhai ab aao Asghar
+894|Bano pukaari roi che naakhi ne bas maatha ma dhool
+895|Bano ne kaha ro kar turbat pe sada doongi
+896|Boli Bano pyaare Asghar shaam bhai ghar aao
+897|Teer zaalim ne jo Asghar ko lagaaya hoga
+898|Ai waaye Asghar laadla
+899|Jab chale Asghar ko apni god mein le kar Husain
+900|Jab ran mein Husain Asghar-e-be-sheer ko laaye
+901|Jhoola Asghar ka maadar jhulaati rahi
+902|Jhoola si Shah chhota musaafir ne lai gaya
+903|Jhoole mein hai qaraar na maadar ki god mein
+904|Jhoolo masoom tishna dahan jhoolna
+905|Jhoola tera jhulaayegi Asghar maa saari raat
+906|Dukhiya Bano chillaati hai Asghar ka hum se chhudaaye liyo
+907|Dukhiya Bano ro kar boli Asghar ka khaali jhoola hai
+908|Din dhal chuka hai shaam aayi sar par
+909|Ro ro ke poochhti hain Bano Shah zaman se
+910|Sochti hai ye maadar kal na jaane kya hoga
+911|Soye ho kahan ja ke mere Asghar-e-naadaan
+912|Shah ne Ali Asghar ko jab dafn kiya hoga
+913|Qabr-e-Asghar bana rahe hain Husain
+914|Qabr-e-Asghar pe maadar pukaari ghar chalo shaam hoti hai Asghar
+915|Qatl-e-Asghar ho gaye veeraan jhoola ho gaya
+916|Kehti thi ek dukhiya Asghar mera kahan hai
+917|Kehti thi Bano Asghar pyaare jhoola tera khaali hai
+918|Kho gaye tum kahan mere Asghar ho gayi shaam ghar laut aao
+919|Gahwaare se Husain jo Asghar ko le chale
+920|Naashaad zamaane se sidhaare Ali Asghar
+921|Maa ghamzada pukaari aa jaao pyaare Asghar
+922|Nanha sa ek sipaahi godi mein aa raha hai
+923|Nanhe sipaahi Asghar maidaan mein aa rahe hain
+924|Nanhe Shaheed Asghar nafsi fidaa alaikum
+925|Nanhe mujaahid ran mein ja kar tum nahin aaye
+926|Nanhe masoom ki shahaadat hai
+927|Yaad-e-Asghar ki jab dil jalaane lagi
+928|Har ek qadam pe sochte the Sibt-e-Mustafa
+929|Ya Rab sagheer sin mein koi be-pidar na ho
+930|Ye kis ka laal hai kis dil ka ye sahaara hai
+931|Ek baar aur mujhe god mein le lo Baba
+932|Ae zaalimon na sitam dhaao main Sakina hoon
+933|Boli Zainab ke nahin naaz uthaane waala
+934|Bain the Sakina ke shaam hone waali hai
+935|Tumhaari yaad mein kaise bhulaaungi Baba
+936|Paani to pilaane tujhe jaayega Sakina
+937|Paani to pilaane tujhe jaayega Sakina
+938|Pukaari Shaana hila ke maadar utho Sakina sahar hui hai
+939|Ro ro kehti thi baali Sakina zaalimon mere gohar na chheeno
+940|Sakina Shabbir na che dukhtar salaam un par
+941|Qaidi hoon main Baba jaan
+942|Kehti thi Sakina muztar ae Shimr na lena gohar
+943|Kehti hai Sakina ro kar aa jaao mere Baba
+944|Kehti hai Sakina mere Baba ko bulaao
+945|Kya qayaamat guzar gayi Baba
+946|Mujhko Baba sada do agar ho sake
+947|Ye kehte the Shah waala Sakina hum nahin honge
+948|Dariya pe utha shor Alamdaar Alamdaar
+949|Zibh hone ko hain sar Shah ka aao Abbas
+950|Ek teer se Ghaazi ki jab mashk chhidi hogi
+951|Aaya hain alam aur Alamdaar na aaya
+952|Baazu kate the lekin ek hausla baaqi tha
+953|Be-dast pada hai dariya par Abbas ka laasha waawaila
+954|Paani salaam bheje Saqqa-e-Karbala par
+955|Jaata hai sher-e-besha-e-Haidar Furaat par
+956|Rote hain ghamkhwaar Abbas Alamdaar
+957|Dariya pe shor hai ke Alamdaar mar gaya
+958|Duniya se jo Abbas-e-Alamdaar sidhaare
+959|Dariya pe hai kohraam Alamdaar mar gaya (Haami)
+960|Sarwar pukaare ro kar Abbas tum kahan ho
+961|Shabbir hai tanha mera Abbas kahan hain
+962|Do laakh ke narghe mein Muhammad ka nishaan hain
+963|Abbas utho aag lagi jalte hain khaime
+964|Aashoor ki woh raat woh sannaate ka aalam
+965|Abbas tujhe ahl-e-wafa yaad karenge
+966|Alam jo le ke aata hai use Abbas kehte hain
+967|Abbas Ali Moula Haidar ke pyaare hain
+968|Abbas kahan ho zara bhaai ko sambhaalo
+969|Ghaazi teri mashk par teer chal gaye
+970|Ghaazi Alamdaar Ya Husain sun lo behan ki pukaar Ya Husain
+971|Gham-e-Abbas mein kamar kham hain
+972|Gham-e-Abbas mein kamar kham hain
+973|Maatam-e-Abbas karte jaayenge jab bhi taareekh-e-wafa duhraayenge
+974|Mashk-o-alam udaas hai dariya udaas hai
+975|Nishaan-e-fauj-e-Payambar sajaaya jaata hai
+976|Kehti thi Zainab kyun na pukaaroon
+977|Uthi ek sada qaid khaane mein Baba
+978|Pyaare Baba tum laut aao
+979|Qaid khaane mein ye ahwaal-e-Ruqayya hoga
+980|Karti thi zindaan mein fughaan pyaari Ruqayya
+981|Yoon Ruqayya ke lab par fughaan hai
+982|Asghar ko roeingi Ali Akbar ko roeingi
+983|Farmaate hain yoon Shabbir ae Fatema Sughra
+984|Hote hain Shah rukhsat giryaan kunaan hai Sughra
+985|-
+986|-
+987|Maatam karo Husain alaihis salaam nu
+988|Maatam karo Husain alaihis salaam ka
+989|Ab shaam dhal chuki hai ae laal ghar mein aa ja
+990|Aati thi sada-e-Zahra beta maara gaya
+991|Aayi hai sar khule Zainab bazaar-e-Shaam mein
+992|Athaara janaaze nikle ek din mein Ali ke ghar se
+993|Utho azaadaaro sar kataane Husain maqtal mein aa rahe hain
+994|Aaj to mazloom ka maatam hoyega
+995|Aaj Shabbir upar bala che
+996|Aaj maatam Shah-e-umam hai
+997|Asghar-e-masoom tera jhoolna
+998|Aqa Husain aao Moula Husain aao
+999|Ujaad daala zaalimon ne gulshan Zahra ka
+1000|Ujda tera phoola phala gulzaar Husaina
+1001|Ujde chaman ko le kar Karbal se jaaye Zainab
+1002|Ashk-e-azaa bahaana maatam ki saf bichhaana
+1003|Asghar-e-masoom tera jhoolna
+1004|Aaghosh mein jisko paala pardes mein usko maara
+1005|Ek teer se Ghaazi ki jab mashk chhidi hogi
+1006|Ek hashr bapa hoga jab aayegi maa Zahra
+1007|Ek daur Ali ka tha Kufe mein ameeraana
+1008|Akbar pe qayaamat hai Asghar pe qayaamat
+1009|Akbar-e-naujawaan ka maatam hai
+1010|Akbar ne di sada seene mein hai neza
+1011|Aalaam-o-masaaib mein giraftaar hai Zainab
+1012|Ummat pe saare ghar ko lutaaya Husain ne
+1013|Al-wida ae bekas-o-ranjoor-o-muztar al-wida
+1014|Al-wida al-wida ae Sibt-e-Mustafa Husain
+1015|Aane ko to watan mein ab aa rahi hai Zainab
+1016|Aah aah aah karo chashm azeezo pur nam karo
+1017|Ahl-e-haram ko le kar Shabbir aa rahe hain
+1018|Ahl-e-haram mein rone ki dhoom waawaila
+1019|Ahl-e-azaa karo gham-e-beemaar naatawaan ka
+1020|Aulaad-e-Ali pyaasi hai dariya ke kinaare
+1021|Aao Shah-e-Deen ka josh se maatam karein
+1022|Aao azaadaaron aao Shabbir ka gham karein azeezon Shabbir ka gham karein
+1023|Aao azeezo aao, maatam karo Husaina
+1024|Maqtal se aa rahi hai sada aao Fatema
+1025|Aao Fatema aao Fatema maqtal se aa rahi hai sada
+1026|Aao milke maatam karein Shah-e-Shaheed-e-Karbala ka
+1027|Ae ahl-e-Madina Zahra ka luta ghar
+1028|Ae parinde zikr Karbal ki suna
+1029|Ae Husain tere maatam mein fida ye jaan karenge
+1030|Ae sar ko kataane waale ae ghar lutaane waale
+1031|Ae Shimr chala na khanjar Shabbir ke sookhe gale par
+1032|Ae Shaheed-e-arz-e-Karbala Husain
+1033|Ae Karbala ae Neenawa ye kaun hai jo lut gaya
+1034|Ae Karbala ke mehmaan gham tera jaawedaan hai
+1035|Ae Karbala ye sab ne dekha teri zameen par
+1036|Ae Fatema ke dilbar Shabbir jaan-e-Haidar
+1037|Ae maara Karbal jawaan kahan chho
+1038|Ae Momino tasbeeh karo din raat Khamsat-e-At'haar ki
+1039|Ae Momino Shabbir nu gham karo woh mazloom Karbal nu maatam karo
+1040|Ae Nana apne ghar ko lutaaya Husain ne
+1041|Ae Nana tera waada nibhaayega nawaasa
+1042|Aainda baras hum ho ke na ho aao kare maatam Sarwar ka
+1043|Aao Fatema aao Fatema aao Fatema aao Fatema
+1044|Ai waaye Asghar laadla
+1045|Aaya hain alam aur Alamdaar na aaya
+1046|Ek baar aur mujhe god mein le lo Baba
+1047|Imaan ki haqeeqat hai Shabbir tera maatam
+1048|Batool raaj dulaare talaash karti hai
+1049|Baazu kate the lekin ek hausla baaqi tha
+1050|Behtar is taraf hai us taraf laakho ka lashkar hai
+1051|Bhaai bhaai kehte hue Zainab khaime se nikli
+1052|Bhaale ki nok par sar-e-Shabbir hai
+1053|Bhara ye ghar mein laai thi ye ghar to sab ujad gaya
+1054|Bhool jaayenge sab kuchh Karbala na bhoolenge
+1055|Bhoolenge na hum Karbal mein woh chand pahar ki shaadi
+1056|Bothi chhuri Shah ki gardan pe chalti hai
+1057|Beta tumhein pukaarta hai aao Fatema
+1058|Bete ko roti hai jannat mein Fatema
+1059|Bete ke maqtal ko aa kar sajaalo Fatema
+1060|Beti Ali ki turbat-e-Zahra pe aayi hai
+1061|Bekason ka qaafila ja raha hai Shaam ko
+1062|Be-sar pada hai ran mein woh Fatema ka jaaya
+1063|Tadap ke Zahra pukaari ae mere laal Husain
+1064|Tishna dahan Husain ghareeb-ul-watan Husain
+1065|Tan jalti zameen par hai sar nezon ke oopar hai
+1066|Tera sajda tah-e-khanjar na bhoolein hain na bhoolenge
+1067|Tera gham Zahra ke pyaare bhool na paayenge
+1068|Tera ghar ho gaya veeraana ae Nana faryaad hai
+1069|Paani to pilaane tujhe jaayega Sakina
+1070|Paani salaam bheje Saqqa-e-Karbala par
+1071|Pukaarta hai jahan saara Husain Husaina Husain Husaina
+1072|Pukaari Zainab-e-muztar mere Husain aao
+1073|Parwaan chadhaalo koi armaan nikaalo
+1074|Pyaare Baba tum laut aao
+1075|Peeri mein jawaan dilbar ki mayyat ko uthaane waala
+1076|Peeri mein jawaani ka ye daagh to gehra hai
+1077|Ja raha hai Karbala se kaarwaan Zainab chalo
+1078|Ja raha hoon main sar kataane ko saunp kar tum
+1079|Jab chale Asghar ko apni god mein le kar Husain
+1080|Jab saamne aankhon ke behta hua dariya ho
+1081|Jaan-e-Muhammad ke maatam mein arsh
+1082|Jis par koi sabr na ho Shabbir ka woh gham hai
+1083|Jhoola tera jhulaayegi Asghar maa saari raat
+1084|Jhoolo masoom tishna dahan jhoolna
+1085|Jalti zameen pe utra hai arsh ka sitaara
+1086|Jahan ek ghareeb-ul-watan lut gaya, woh karb-o-bala ki zameen hai
+1087|Jahan mein chaar soo maatam bapa hai
+1088|Chalte hue khanjar ko bhooli nahin hai Zainab
+1089|Haram ko chhod ke Shabbir jaayenge kaise
+1090|Husain Imam ka gham hai ae Momino aao
+1091|Husain al-wida Husain al-wida
+1092|Husain bachpan ke apne waade Salaami kaise nibhaa gaye
+1093|Husain to Husain hai, jo ek na ho naseeb mein ye saat
+1094|Husain to Husain hai, ye Panjatan ka paanchwaan (Jaali)
+1095|Husain to Husain hai, Nabi ke dil ka chain hai
+1096|Husain tere maatam mein - paai aath jannat hai
+1097|Husain tere maatam mein jo maut bhi aaye kam hai
+1098|Husain hashr talak gham tera rulaayega
+1099|Husain Husain Shaheed-e-Karbala Husain Husain Husain
+1100|Husain sabr-o-wafa ke paikar
+1101|Husain gham tera shaam-o-sahar manaayenge
+1102|Husain ka gham makaan makaan mein
+1103|Husain maqtal mein tanha hai Ali Sher-e-Khuda aao
+1104|Husain hai Husain hai Husain hai woh Husain hai
+1105|Husain hai woh Husain hai, hai jaan-e-Zahra dil-e-Payambar
+1106|Husaini Dai bata rahe hain Husain hum ko bacha rahe hain
+1107|-
+1108|Husaini Dai Shah Saif-ul-Huda hai
+1109|Hashr se badh kar widaa ka manzar
+1110|Hashr ki ghadi hai aao Fatema
+1111|Hallaal-e-mushkilaat hai Sibt-e-Nabi Husain
+1112|Dasht-e-museebat mein Shah ko sambhaalo Fatema
+1113|Dil se laga liya hai humne gham-e-nihaan ko
+1114|Dariya pe utha shor Alamdaar Alamdaar
+1115|Dariya pe shor hai ke Alamdaar mar gaya
+1116|Dariya pe hai kohraam Alamdaar mar gaya (Haami)
+1117|Dasht-e-Karbala mein hashr ka samaa hai
+1118|Dil-e-Fatema se poochhoon, jo Husain par hai guzri
+1119|Dilbar-e-Haidar Husain kushta-e-khanjar Husain
+1120|Dehakti ret par baitha sar-e-aqdas kataata hai
+1121|Dil-e-maadar lahu ke ashk jannat mein bahaata hai
+1122|Do pahar mein Husain par kya kya guzar gayi
+1123|Deen-e-Muhammad ki baqaa Ya Husain
+1124|Raaj dulaara Zahra ka zakhmi hai aur pyaasa hai
+1125|Raaj dulaara Zahra ka mehmaan ban kar aaya
+1126|Raah-e-haq mein Aal-e-Zahra yoon jahan ke rang dekhe
+1127|Raha Karbala mein bhooka pyaasa Nabi ka pyaara
+1128|Ro raha aapko Quran ka paara ae Husain
+1129|Rote hain ghamkhwaar Abbas Alamdaar
+1130|Zalzalon mein duniya thi aasmaan larazta tha
+1131|Zinda taareekh-e-Karbala Zainab
+1132|Zahra ka pisar Rab se dua maang raha hai
+1133|Zahra ka laadla teri godi mein lut gaya ae arz-e-Karbala
+1134|Zahra ka laal kaise waada nibha raha hai
+1135|Zahra ka raaj dulaara Ahmad ki aankhon ka taara
+1136|Zahra ne di ye duhaai asr ko Karbal mein
+1137|Baagh-e-Fatema kis tarah luta
+1138|Zainab aseer ho ke jaati hai Shaam bhaiya
+1139|Zainab ka haal kya ho bhaai guzar gaya hai
+1140|Zainab ko gumaan kab tha ek hashr bapa hoga
+1141|Zainab ki aseeri ka kya haal kaha jaaye
+1142|Zainab hai Karbala hai aur bhaai ka laasha hai
+1143|Salaami ahl-e-haram ko aakhir falak ye manzar dikha raha hai
+1144|Salaami ho gham-e-Sarwar mein giryaan aaj kal parson
+1145|Saaye mein Panjatan ke sajda bajaaya Shah ne
+1146|Sibt-e-Rasool lut gaya masoom be-khata
+1147|Sibt-e-Mustafa pe ye kaisi zulm raani hai
+1148|Sajdon mein pehla sajda jaan-e-Zahra ka sajda
+1149|Sar kat gaya Husain ka kaisa sitam hua
+1150|Sar khole apne laal ko roti hai Fatema
+1151|Sarwar pukaare ro kar Abbas tum kahan ho
+1152|Sarwar se watan chhoota Allah se milne ko
+1153|Sarwar ko maqtal mein a'da ne ghera hai
+1154|Sarwar ke gham mein rona bhi ibaadat hai
+1155|Sakina Shabbir na che dukhtar salaam un par
+1156|Sooraj se zara keh do parde mein chala jaaye
+1157|Shah-e-zaman Husaina tishna dahan Husaina
+1158|Shabbir akele hain Shabbir akele hain
+1159|Shabbir tera gham hi har dil ka sahaara hai
+1160|Shabbir tera maatam kar ke har ek zamaan roya hai
+1161|Shabbir tere gham mein saara jahan roya
+1162|Shabbir teri mazloomi par ta hashr ye gham hoyega
+1163|Shabbir dhoondhte rahein pyaare gaye kahan
+1164|Shabbir ko ek pal ki raahat hi nahin milti
+1165|Shabbir ki sada thi, Akbar zara thehar ja
+1166|Shabbir ki majlis mein aankhon se chala jaaye
+1167|Shabbir ne farmaaya Zainab nahin ghabraana
+1168|Shabbir ne Karbal mein ghar apna lutaaya hai
+1169|Shabbir hai tanha mera Abbas kahan hain
+1170|Shabbir hai mahw-e-yaad-e-Khuda ek raat ki duniya ki baaqi hai
+1171|Shabbir hai maqtal mein tanha bete ko sambhaalo ae Zahra
+1172|Sharm rakhna lute ghar ki ae behan Zainab
+1173|Shukr Burhan-e-Huda shukr tera Saif-e-Huda
+1174|Shimr-e-abtar bothaa khanjar haaye Husaina waaye Husain
+1175|Shah ko hai mehboob sada Ya Husain
+1176|Shah-e-mazloom-e-karb-o-bala tera maatam karenge sada
+1177|Shah ne rachaai shaadi karb-o-bala ke ban mein
+1178|Shah waala ne farmaaya behan Zainab na ghabraana
+1179|Shaheed ho gaye Asghar ujad gaya jhoola
+1180|Sehra-e-Karbala mein ab asr ki ghadi hai
+1181|Sada ye aati thi ran mein ae Husain aao
+1182|Sada ye deti hai khwaahar Husain aa jaao
+1183|Zulm-o-sitam ke ban mein gulzaar-e-Panjatan hai
+1184|Aashoor dhal chuka hai ajab gham ka hai samaa
+1185|Ajeeb dard-o-alam mein dooba Husain ka sar Husain ka sar
+1186|Aashoor ka ahwaal Zainab sunaati hai
+1187|Aashoor ko jis ka halq kata hum us ka maatam karte hain
+1188|Aashoor ko Nabi ke pyaaro ka sar katega
+1189|Aashoor ke din Shah ko kya kya nazar aata hai
+1190|Aashoor ke dhalte sooraj mein karb-o-bala ka naqsha hai
+1191|Aashoor ke sooraj kuchh to bata kya guzri thi kya dekha tha
+1192|Aashoor ki woh raat woh sannaate ka aalam
+1193|Abbas tujhe ahl-e-wafa yaad karenge
+1194|Aashoor mein Husain ghar apna lutaayenge
+1195|Aashura ke roz bapa ho gaya mehshar Karbal mein
+1196|Abbas kahan ho zara bhaai ko sambhaalo
+1197|Arsh pe chadhaane waala farsh pe gira hua hai
+1198|Azaadaaro buka kar lo Madina ke musaafir ka
+1199|Azaadaaron Sarwar ka maatam karein do aalam ke Parwar ka maatam karein
+1200|Asr-e-Aashoor tha Shabbir the tanhaai thi
+1201|Garm reti pe main girta hoon sambhaalo Ammaan
+1202|Asr ki ghadi hai aur Husain hai
+1203|Asr mein goonji ye maqtal mein sada-e-Zahra
+1204|Ghaazi teri mashk par teer chal gaye
+1205|Ghaazi Alamdaar Ya Husain sun lo behan ki pukaar Ya Husain
+1206|Ghurbat mein Muhammad ka pisar maara gaya hai
+1207|Gham-e-Husain zamaana bhula nahin sakta
+1208|Gham-e-Husain se har ek dil hai sad paara
+1209|Gham-e-Husain manaana bahut zaroori hai
+1210|Gham-e-Husain mein jitna bhi roiye kam hai
+1211|Gham-e-Sarwar mein jannat hai sila aansoo bahaane ka
+1212|Gham-e-Shah mein kaun-o-makaan ro raha hai
+1213|Gham-e-Shabbir ki dhun yehi hai
+1214|Gham-e-Shabbir hi kya jaaye
+1215|Gham-e-Abbas mein kamar kham hain
+1216|Gham-e-Moula mein jaan lutaana hai
+1217|Fatema aap ke dil ko hai dukhaaya kis ne
+1218|Fatema Zahra ka bhara ghar luta kat gaya Shabbir ka sookha gala
+1219|Fatema Fatema mera saara ghar ujad gaya
+1220|Fatema ke laal ko sataaya hai
+1221|Ek bekas-o-ghareeb ka kunba ujad gaya
+1222|Qatl-e-rehbar hai aaj waawaila
+1223|Kitne sitam Husain ne dil par uthaaye hain
+1224|Kuchh bhi na bachaaya apne liye ummat ko bachaane waale ne
+1225|Kuchh der ka mehmaan dilband-e-Ali hai
+1226|Karb-o-bala se nikle Sajjad chalte chalte
+1227|Karb-o-bala ke jangal mein aayi Husain pe aafat hain
+1228|Karb-o-bala mein aaye Husain saath haram ko laaye Husain
+1229|Karb-o-bala mein bhaai behan ek hai Zainab ek Husain
+1230|Karb-o-bala mein tanha Zahra ka laal hai
+1231|Karbal tu ne loot liya ghar Zahra ka (Karbala mein lut gaya ghar ka)
+1232|Karbal se ujda ghar laai Zainab Nana ke rauze pe aayi Zainab
+1233|Karbal mein museebat ka toofaan hai Sarwar par rote hain Ali
+1234|Karbala bata Karbala bata kis ka sar kata god mein teri
+1235|Karbala ke maqtal se tanha Zainab aayi hai
+1236|Karbala Karbala tujhko bhoole nahin
+1237|Karbala ma sab bala ne gham uthaawi lo Husain
+1238|Karbala ma soo bala ma Mustafa ni aal che (Muntakhab)
+1239|Karbala ma soo bala ma Mustafa ni aal che (Kaamil)
+1240|Karbala mein aaj to qayaamat hai
+1241|Karti thi zindaan mein fughaan pyaari Ruqayya
+1242|Karna hai azaadaaron noha Ali Akbar ka
+1243|Kaaba bachaane waala ghar ko luta raha hai
+1244|Kal do pahar mein hoga qayaamat ka saamna
+1245|Kal ran mein bapa hoga mehshar waawaila
+1246|Kaleja maa ka dil tadpa raha hai
+1247|Kaha Shah ne widaa ho kar ae maa jaai behan Zainab
+1248|Kahan ho Baba kahan ho maadar pukaari Zainab madad ko aao
+1249|Kehte the Burhan-e-Huda Ya Husain karte the maatam woh sada
+1250|Kehte hain ye Saif-ul-Huda maatam karo Husain ka
+1251|Kehti thi Bano Asghar pyaare jhoola tera khaali hai
+1252|Kehti thi ro kar Zainab-e-muztar haaye Husaina waaye Husain
+1253|Kehti thi Zainab kyun na pukaaroon
+1254|Kehti thi Sakina muztar ae Shimr na lena gohar
+1255|Kehti hai Sakina ro kar aa jaao mere Baba
+1256|Kaho Momino subh-o-masaa Husain Ya Husain Ya Husain
+1257|Kaun lut gaya pyaasa saamne tere dariya
+1258|Koi Husain sa duniya mein doosra to nahin
+1259|Kufa ma thayo shor-o-buka
+1260|Kya gham hai biraadar ka poochhe koi Zainab se
+1261|Kaisa qayaamat khez ye manzar Zainab ne dekha
+1262|Ghar ghar teri majlis hai ghar ghar tera maatam hai
+1263|Ghoda bhi ro raha hai Zainab bhi ro rahi hai
+1264|Goonjti hai Ali Akbar ki sada kaanon mein
+1265|Laachaar Husaina be-yaar Husaina
+1266|Lut ke Zainab aayi hai
+1267|Larze mein ye zameen hain girne ko aasmaan hain
+1268|Maatam-e-Abbas karte jaayenge jab bhi taareekh-e-wafa duhraayenge
+1269|Maatam karo Momino Karbal ke mehmaan ka
+1270|Maatam ki saf bichhi hai aur ro raha jahan hai
+1271|Maatam na rukega maatam na rukega
+1272|Maara gaya bhaai ran mein Zainab jaaye kahan
+1273|Maa boli be-sheer se pyaas bujhegi teer se
+1274|Mehboob-e-Khuda bandah Shabbir tera sajda
+1275|Mehshar bapa hain Sarwar-e-be-sar ki laash par
+1276|Madina jaddana la taqbaleena
+1277|Mashk pe chal gaye Abbas teri teer-e-sitam
+1278|Mustafa ka pyaara hai, Murtaza ka pyaara
+1279|Mazloom-e-Karbala ko kaise bhulaayenge
+1280|Mazloom Ya Husaina mazloom Ya Husaina
+1281|Mazloomi-e-Shabbir pe roeiga zamaana
+1282|Ma'bood ka pyaara Husain Husain
+1283|Maqtal ki simt shaan se badhne lage Husain
+1284|Maqtal mein aayi Fatema karti hui buka
+1285|Mere Baba ko na maqtal mein tu le ja Duldul
+1286|Mere be-zabaan aa ja shaam hone waali hai
+1287|Main Husain hoon woh Husain hoon
+1288|Main ghar mein na jaaungi, main ghar mein na jaaungi
+1289|Naashaad zamaane se sidhaare Ali Asghar
+1290|Nana ko diya tha jo waada Shabbir nibhaane aaye hain
+1291|Nabi-o-Zahra ka naaz uthaana Husain ko yaad aa raha hain
+1292|Nabi ka ghar jalaaya ja raha hai
+1293|Nabi ke kaandhon pe chadhne waala
+1294|Nida-e-Saif-ul-Huda hai Husain ka maatam
+1295|Nazdeek-e-Najaf hai koi Haidar ko bula le
+1296|Na daagh-e-dil mitaane se mitega
+1297|Nanhe mujaahid ran mein ja kar tum nahin aaye
+1298|Nanhe masoom ki shahaadat hai
+1299|Neenawa bata woh kis ka laal tha
+1300|Neenawa ke dasht mein hashr ka saamaan hai
+1301|Haaye Sayyid-e-Abraar teen din se pyaasa hai
+1302|Haaye Karbala waalon haaye Karbala waalon - Shah ke ashaab the
+1303|Haaye Karbala waalo haaye Karbala waalo
+1304|Har ek tere gham mein hain noha kunaan Zahra
+1305|Har ghadi aah-o-buka maatam hamaari shaan che
+1306|Hum ahl-e-azaa dete hain Dai ko yoon pursa
+1307|Hum Husain ka maatam subh-o-shaam karte hain
+1308|Hai ghareeb-ul-watan aah Husaina
+1309|Hai Fatema ke jigar ka tukda Husain Aqa Husain Moula
+1310|Hai noha kunaan Sarwar ae noor-e-nazar Akbar
+1311|Hai woh shaad jiske dil mein teri yaad hai Husain
+1312|Wa Muhammadaah wa museebataah
+1313|Waawaila sad waawaila sar peeto mujbo waawaila (Maatam-e-Sayyid al-Shuhada AS)
+1314|Maatam-e-Sayyid al-Shuhada AS
+1315|Woh jo tera mehmaan tha Fatema ki jaan tha
+1316|Woh kaam Ibn-e-Ali ne kiya deen ko bachaane mein
+1317|Woh Fatema ka laal tha jise paani nahin diya
+1318|Ya Karbala Ya Karbala Ya Karbala
+1319|Ya Husain keh ke maatam mein ye zindagi bita de
+1320|Sajde mein qatl hote hain Zahra ke gulbadan Husain
+1321|Ye to mazloom ka maatam hai kam na hoga
+1322|Ye Husain hai, hamaari zindagi Husain hai
+1323|Ye maatam sada rahe ye gham ye azaa rahe
+1324|Ye na poochho gham-e-Husain hai kya
+1325|Yoon Karbala mein lut gaya kunba Husain ka
+1326|-
+1327|-
+1328|Ikhlaas-o-e'teqaad badhaate hue chalo
+1329|Is sham'-e-Huda ka jo ho jaata hai parwaana
+1330|Izhaar-e-aqeedat kar ke kaho Maulana Mufaddal zindabaad
+1331|Agar dil mein mohabbat ho nazar aana zaroori hai
+1332|Aqa Mufaddal na chehra ropaala, chamke che ahna noor-e-Khuda
+1333|Aqa Moula ae jaan-e-jahan tum Kaaba-e-dil tum qibla-e-jaah
+1334|Anjum teri jabhat pe fida balke qamar bhi
+1335|Ek tera faiz hi deta hai sar-a-sar daana
+1336|Ek dhoom si machi hai Mufaddal ke saaye mein
+1337|Ae hamd-o-haamid-o-Mahmood Mufaddal Moula
+1338|Ae dil tujhe tehseel-e-sa'aadat ka jo ham ho
+1339|Ae Rab tu Mufaddal Shah ni tool-e-baqaa kar je
+1340|Ae rukh-e-Panjatan tum salaamat raho
+1341|Tum salaamat raho, tum salaamat raho
+1342|Ae Syedna Mufaddal Saif-e-Deen Moula mubaarak ho
+1343|Ae Wali-e-zaman tum salaamat raho
+1344|Ae Saifuddin ae Moula aaya Moula aaya Moula
+1345|Ae Saif-ul-Huda ta qayaamat raho tum
+1346|Ae Shah-e-Saif-e-Huda baad Shah-e-jinn-o-malak
+1347|Ae Shah-e-Aali Qadr hum aap par qurbaan hain
+1348|Ae Aali Qadr ae Shah-e-zamaan mubaarak ho mubaarak ho
+1349|Ae kaash ye maal-e-tamanna dikhaai de
+1350|Ae Moula ek nazar sada hai har lab par
+1351|Ae Moula teri ek nigaah-e-karam ne
+1352|Ae Moula Mufaddal ae Dai al-Husain
+1353|Ae Moula Mufaddal Aali Qadr hum tum se mohabbat karte hain
+1354|Ae Momineen Allah ni aayaat dekho
+1355|Ae Momineen Allah ni aayaat dekho
+1356|Ae mere Aqa, ae mere Sarkaar
+1357|Baaqi rahe Saif-ul-Huda az hurmat-e-aansoo
+1358|Baaqi rahe Saif-ul-Huda Moula ye jahan mein
+1359|Burhan-ud-Deen ke jaani raho baaqi raho baaqi
+1360|Burhan-ud-Deen na jaani ghano jeewo ghano jeewo
+1361|Burhan-e-Deen ki zikriyaan Saif-ul-Huda kare
+1362|Burhan-e-Deen ka laal hai ye Saahib-e-kamaal hai
+1363|Burhan-e-Deen na laal che
+1364|Burhan-e-Deen na dilbar aa Moula Mufaddal che
+1365|Bazm-e-Aali Qadr soorat-e-Nabawi darbaar ki
+1366|Bas ek dua shaam-o-sahar aur kya kahoon
+1367|Bi-fazl-e-Khuda paaya Moula Mufaddal
+1368|Behr-e-aqeedat sagla pukaaro, Moula Moula Mufaddal Moula
+1369|Ta hashr baaqi raho Shah Saif-ul-Huda
+1370|Tujh sa paida ho kahan ek hazaaron ke beech
+1371|Tujh se hum dil lagaaye baithe hain
+1372|Tujhe jab Shah-e-bahr-o-bar dekhte hain
+1373|Taqdeer badal dete hain jo nazar-e-karam se
+1374|Tamaari aa shahenshaahi mubaarak tha jo dawat ne
+1375|Tumhein Panjatan ki milegi ataa ya dar-e-Shah Mufaddal pe aa kar to dekho
+1376|Tamein baagh-e-Imam-uz-Zamaan na gul-e-laala chho
+1377|Tu Imam ka mazhar hai
+1378|Tu is tarah aankhon mein meri samaaye
+1379|Tu aisi sham'-e-mehfil hai fida hai jis pe parwaane
+1380|Tu noor ka qibla hai tu noor ka Kaaba hai
+1381|Tu hi khwaab-o-khayaalon mein rahe Sarkaar kya kehna
+1382|Tera shaida ho phir woh aur shai se dil lagaaye kyun
+1383|Tere deedaar ko har waqt machalta hai ye dil
+1384|Tere rukhsaar se ae noor-e-noor-e-Panjatan nikle
+1385|Tere ishq ka ye jo jaam hai
+1386|Tere noor ka jalwa ae Moula hum dekhenge
+1387|Tere sifaat jo likhne ka ehtimaam kare
+1388|Teri milaad hai Moula khushi se jhoom rahe hain hum
+1389|Teri nazar-e-karam ki ataa chaahiye
+1390|Paabos jo hua Shah-e-Aali Janaab ka
+1391|Padhaaro ae Moula mein nainon bichhaaun
+1392|Parda zara utha de chehra zara bata de
+1393|Panchotterme milaad Aali Qadr mubaarak (75mi milaad madh)
+1394|Phala phoola chaman dekha
+1395|Jab tak chaman mein gul rahe aur gul mein boo rahe
+1396|Jabhat gulru hai khur-e-taabaan, abroo shakl-e-hilaali hai
+1397|Jis dil mein baagh-e-ulfat Shah-e-zaman lage
+1398|Jug jug jeeyo ae Sarkaar Moula jeeyo hazaaron saal
+1399|Jamaal-e-maah ko Shah se mehr ko noor haasil
+1400|Jamaal-e-Mustafa ko dekh jalaal-e-Murtaza ko dekh
+1401|Jannat ki haqeeqat hai Sarkaar tera daaman
+1402|Jannat nu gulzaar che Kausar ni anhaar che
+1403|Jo tu mizaaj ko angoor-e-naab ke badle
+1404|Jo tere hilm se ae Shah-e-ins-o-jaan phir jaaye
+1405|Jo teri deed ho jaaye ae Saifuddin Maulana
+1406|Jo chhalke apni palkon se teri hazrat mein aate hain
+1407|Jo suni zikr teri qalb-o-jaan hua roshan
+1408|Jo aaye naam aaye zabaan pe meri zabaan mehke
+1409|Jo mila hum ko Khuda se mere Moula ka karam
+1410|Jo Muhammad Mufaddal pukaara kare us bashar ka Khuda paar beda kare
+1411|Jo ye pahunchaaye to pahunche Khuda tak
+1412|Jhukaawine aa peshaani humein labbaik kahiye che
+1413|Jhoome re jhoome saara aalam jhoome
+1414|Jeewo mein aa jahan ma Moula na saath ma
+1415|Chaman roo-e-mubaarak pe rahe Shah ke bahaar
+1416|Che aa Saif-ul-Huda Tayyib ni nishaani samjho
+1417|Husn aapka ae Mufaddal Shahenshaah nazar na hataane ko deta hai humko
+1418|Husn-e-gulroo maah-e-taabinda se poochha chaahiye
+1419|Haqeeqi Eid se apni mubaarak ho gayi ginti
+1420|Khaak-e-qadam ke aage tere duniya ke khazaane kuchh bhi nahin
+1421|Khuda ne tujhko duaato mein Aali Qadr kiya
+1422|Dai che Allah na ne deen na Sultan che
+1423|Dai Saif-ul-Huda hai ye mohkam yaqeen
+1424|Duaat-us-Satr na waaris Mufaddal falak na qutbaan
+1425|Dawat ka baagh Moula sar sabz taaza tar hai
+1426|Dawat na gulshan ma rahesu, Moula na saathe Moula na saathe
+1427|Bas ek nazar kar do Shah-e-Huda
+1428|Dil mein hain har aan yehi iltija
+1429|Dilo ma khushi nu Huzoor mubaarak mubaarak
+1430|Dam Mufaddal ki mohabbat ka sada bharte hain
+1431|Deedaar-e-Muhammad ho isi aarzoo mein hai
+1432|Dekhne hum jo rukh-e-Dai-e-dawar nikle
+1433|Deen-o-duniya mere Huzoor se hai
+1434|Rakhna to humein baaqi Moula ta umr tere deewaanon mein
+1435|Zeb-o-zeenat aasmaan ki, rukhsaar-e-taabaan aap ka
+1436|Sajda tujhe waajib hai tu Masjid-e-Azam hai
+1437|Saif-ul-Huda tujhko jaah-o-jalaalat mubaarak mubaarak (Milaad 72/105)
+1438|Saif-ul-Huda ki ye milaad se hai shaadmaani (Milaad 73/106)
+1439|Saif-ul-Huda duaat ma lubb-ul-albaab che
+1440|Saif-ul-Huda Shaha jo hai soorat Quran ki
+1441|Saif-ul-Huda Mufaddal Khuda na hijaab che
+1442|Saif-ul-Huda Moula ni hubb dil ma wasaawi lo
+1443|Saif-ul-Huda Maulana warso raho sehat ma
+1444|Saif-ul-Huda na shukr si mehki kali kali
+1445|Saif-e-Deen Aali Qadr Moula Mufaddal nek naam
+1446|Saif-e-Deen Syedna ehsaan tamaara che ghana
+1447|Shaha Saif-e-Deen ki sana karte karte
+1448|Saif-e-Deen Moula tere shaakir dar-o-deewaar hain
+1449|Shah Burhan-e-Deen ke jaani teri madh karoon man maani
+1450|Shah Saif-ul-Huda is jahan se tere parcham tale chalte chalte
+1451|Shah Saif-ul-Huda tere dam se
+1452|Shab-e-qadr ka aaj maulood aaya
+1453|Shab-e-milaad-e-Aali Qadr aayi, Laylatul Qadri khairum min alfi shahr
+1454|Sharminda tujhe dekh ye sooraj hai gagan mein
+1455|Shukr kar Allah ka ae jaan tu
+1456|Shah-e-Deen ke maulid se dil shaadmaan hai
+1457|Shah Saifuddin Aqa pe jalaalat fakhr karti hai
+1458|Shah-e-kaunain se duniya nahin maanga karte
+1459|Shah ke maulid ki Eid manaalo
+1460|Shah Mufaddal paak Quran mein hai Surat-un-Noor ki
+1461|Shah Mufaddal Shah-e-Deen tu Burhan-e-Deen na laal che
+1462|Shah Mufaddal ki sana khwaani jahan hoti hai
+1463|Shaha Saif-e-Deen ki sana karte karte
+1464|Aali Qadr ni shaan thi Daar-us-Salaam ma
+1465|Ajab taazgi aaj gulzaar mein hai
+1466|Ajab Moula Muhammad hain ajab Moula Mufaddal hain
+1467|Ishq ki aadaab aana chaahiye
+1468|Asr Saif-ul-Huda ni bahaa che
+1469|Aks-e-Burhan-e-Deen Shaha Moula
+1470|Alam-e-Huda na Saif-e-Deen silsila Moula Mufaddal
+1471|Ghair madh-e-Shah-e-Deen mujhko sarokaar nahin
+1472|Fatemi Dai Azeez-e-Misr Aali Shaan che
+1473|Qurbaan qurbaan qurbaan hum
+1474|Qadam mein apne basaaya humko ye sab tumhaara karam hai Aqa
+1475|Qudoom Shah si aawe sa'aadato ni bahaar
+1476|Kar wuzu pehle aab-e-Kausar se
+1477|Kul shifa hai Saif-e-Deen bas ek dam teri
+1478|Keh ke labbaik tere qaul pe badh kar aaun
+1479|Koi ajab zor ki hai teri ye jaadu naini
+1480|Gul-e-baagh-e-Iram nakheel-e-karam Shah Saif-ul-Huda marhaba
+1481|Gulshan-e-kaunain mein gulroo hamaara ek hai
+1482|Goonjte hain har jaa khushi ke taraane
+1483|Gulshan ye Saif-e-Deen ka jannat se kam nahin
+1484|Lab pe ausaaf-e-Shah kaun-o-makaan rakhte hain
+1485|Laakho jaan si fida thai jaaun
+1486|Labbaik Ya Dai Allah, Labbaik Ya Dai Allah
+1487|Labbaik Ya Dai Allah, Labbaik Dai al-Husain
+1488|Ladunni ilm na bahr-e-atam che
+1489|Maanind-e-andaleeb ke hoon naghma zaar mein
+1490|Muhammad ka pisar baaqi Khuda rakhe Khuda rakhe
+1491|Muhammad ke pyaare mubaarak mubaarak
+1492|Madh-e-mamdooh ki jis waqt dahan se nikle
+1493|Masarraat-e-maulid-e-Muhammad Mufaddal aalam par hai chhaai
+1494|Mashhoor che jahan ma, aalam ma aashkaar
+1495|Mazhar-e-anwaar tere jaan fida
+1496|Ma'moor teri deed se jab mera khwaab ho
+1497|Mufaddal che pisar Moula Burhanuddin na jaani
+1498|Mufaddal Saif-e-Deen Aqa tujhe Rab ne banaaya hai
+1499|Mufaddal Shah na aansoo ni shaan che
+1500|Mufaddal Shah Mufaddal che
+1501|Mufaddal Shaha ka karam dekhte hain
+1502|Mufaddal Shaha Ya Wali Ya Wali
+1503|Mufaddal Shah ki nazar-e-karam ho
+1504|Mufaddal ki nazar-e-karam chaahte hain
+1505|Mufaddal Mufaddal hamaare Mufaddal
+1506|Mufaddal hamaare humein jaan se pyaare
+1507|Minnat karo inaayat ek qatra bas asal ka
+1508|Manzar-e-Mukhtaar ko dekha kya dekha kya
+1509|Moula tujhe bana loon tujh se hi dil laga loon
+1510|Moula tumhaare chehre ki jab deed hoti hai
+1511|Moula se aqeedat ka izhaar karenge hum
+1512|Moula Aali Qadr ho nigaah-e-karam
+1513|Moula Muhammad ho tum ke Moula Mufaddal ho tum
+1514|Maulana Mufaddal ki Rab tool-e-baqaa karna
+1515|Momino roz-o-shaam-o-sahar Moula Moula pukaara karo
+1516|Meri tasbeeh rozaana hai Saifuddin Maulana
+1517|Mere Sarkaar teri bala loon
+1518|Mere Sarkaar meri jaan-o-jahan tujh pe nisaar
+1519|Mere Moula to zamaane ki fikr rakhte hain
+1520|Ek nazar ek nazar ek nazar chaahiye
+1521|Mere Moula ki milaad aayi mubaarak mehna mubaarak mehna
+1522|Mere Moula Mufaddal ki yaari se hai izzat sa'aadat hamaari
+1523|Milaad-e-Shah-e-khoobroo ki dhoom chaar soo
+1524|Milaad-e-Saif-e-Deen che farhat ma Momineen che
+1525|Milaad-e-Moula Aqeeq-ul-Yaman hai Moula mubaarak, Moula mubaarak
+1526|Main tamne mohabbat karto rahees
+1527|Main to adna adna adna hoon
+1528|Main Saif-ul-Huda par chhoon sadqe ne waari
+1529|Main fida main fida main fida
+1530|Niraali shaan na jalwa Mufaddal par dikhaaya che
+1531|Nazar ho nazar ho nazar ho nazar ho
+1532|Nazar nazar nazar
+1533|Ne'maton mein palte hain Saif-e-Deen ke deewaane
+1534|Haazal Fata Saif-ul-Huda
+1535|Har dam rahe nigehbaan woh Zul-Jalaal tera
+1536|Hazaaron tibb ke nuskhon se tera deedaar achha hai
+1537|Hum tere ishq mein sarshaar rahe achha hai
+1538|Hum dil jo agar tujh se lagaaye to kya ajab
+1539|Hum dekhte hain tere mazaahir naye naye
+1540|Hum karte hain is Shah ke saaye mein basar thandak
+1541|Hum ne duniya mein bahut soorat-e-zeba dekhi
+1542|Hum naam-e-Mufaddal le kar har kaam ko kar jaayenge
+1543|Ho mubaarak tujhe Aali Qadr Shaha teri maulid se pur noor akwaan hai
+1544|Hai aaj fazl-e-Khuda se kamaal khoobi ka
+1545|Hai tahniyat ka ye izhaar mubaarak Moula (76mi milaad madh)
+1546|Wird Saif-ul-Huda ka karta hoon
+1547|Walaa hai Saif-e-Deen Moula ki mere seene mein
+1548|Woh naam aaj jo duniya mein mo'tabar hai bahut
+1549|Ya Rabbana Huzoor-e-Mualla jahan rahe
+1550|Ye taaj-o-takht nasheeni ye Fatemi darbaar
+1551|Ye jo baaraan-e-khushi hai kar raha gohar nisaar
+1552|Ye Dai Mufaddal Muhammad ke Dai
+1553|Ye Saif-ul-Huda Shah jahan bhi rahe
+1554|Ye maal-o-jism hai kya cheez dil bhi to tumhaara hai
+1555|Ye naaib hai zamaane mein Shah-e-mardaan ke jaani ke
+1556|Yoon Mufaddal Saif-e-Deen ke daur ka aaghaaz hai
+1557|-
+1558|-
+1559|Salawaat-o-salaam padho har dam khursheed-e-sipehr-e-risaalat par
+1560|Ab aur tujh sa kahin kya koi kareem mile
+1561|Ibdaa se aane waale
+1562|Ibdaa ke taare mein qurbaan
+1563|Abu Turaab ke Dai ki khaak-e-paa le loon
+1564|Ujainiyon ka zor pe bakht-e-saeed hai
+1565|Ikhlaas-o-e'teqaad badhaate hue chalo
+1566|Aa chaand fida che Muhammad par
+1567|Aa haq ni che Dawat par bustaan che
+1568|Aa mu'izz ni mein shaanaat dekhun
+1569|Is sham'-e-Huda ka jo ho jaata hai parwaana
+1570|Aashiyaan zer-e-mahal gar Shah ke paaye andaleeb
+1571|Aqa ko apne Haadi ko sajda baja baja
+1572|Aqa mere sardaar jug jug jeeyo Sarkaar
+1573|Agar lutf unka na hota to kuchh bhi na hota
+1574|Aankhein is khalq ki laayiq mein bhala Shams ka noor
+1575|Aayi hai tere hisse mein rif'at jahan ki
+1576|Allahu Akbar nu naaro pukaaro
+1577|Imam-ul-Asr ke naaib to khud Saahib nazar aaye
+1578|Imam Tayyib ni paak soorat Burhan-e-Deen aa qamar qamar che
+1579|Anjum teri jabhat pe fida balke qamar bhi
+1580|Andaaz-e-karam hai mere Aqa ke niraale
+1581|An'am Shah Muhammad ni jaariya che kasrat ma
+1582|Ae aa Dawat ma aayat Khuda ni
+1583|Ae baaghbaan-e-Dawat sar sabz tera chaman hai
+1584|Ae Burhan-ul-Huda tu kahan hum kahan
+1585|Ae Khuda tujhse hai ye meri iltija
+1586|Ae Khuda ke noor-e-kaamil teri wajh ki ziya par
+1587|Ae Dai-e-Imam-uz-Zamaan al-wida
+1588|Ae dil tujhe tehseel-e-sa'aadat ka jo ham ho
+1589|Ae dil tujhe paabosi-e-Moula jo naseeb ho
+1590|Ae Rab tu Muhammad na chehra ne dikhaawi de
+1591|Ae saat-e-iqleem na Moula Maalik
+1592|Ae satr na chandrama chamakta raho
+1593|Ae Saifuddin na jaani ghano jeewo ghano jeewo
+1594|Ae Saifuddin na dilbar raho baaqi qayaamat tak
+1595|Ae Shah-e-aali gohar, waala nazaad
+1596|Ae Shah-e-Najm-e-Huda baad Shah-e-jinn-o-malak
+1597|Ae Fatemi Sultan tum salaamat raho, salaamat raho
+1598|Salaamat raho, salaamat raho ae Fatemi Sultan tum
+1599|Ae Muhammad balaa loon tamaari
+1600|Ae mah jabeen, mehr-e-mubeen, matla-e-anwaar
+1601|Ae Moula ek nazar (sada hai har lab par ae Shah-e-bahr-o-bar)
+1602|Sada hai har lab par ae Moula ek nazar
+1603|Ae Moula teri ek nigaah-e-karam ne kahan se kahan
+1604|Ae mere Aqa, ae mere Sarkaar
+1605|Aaya deed na din, aaya Eid na din
+1606|Ek sau ekwein milaad ki ye bahaa (Milaad 101)
+1607|Baaqi rahe Burhan-e-Deen az hurmat-e-aansoo
+1608|Bar aamad ho Shahenshaah-e-zamaan jaah-o-jalaalat se
+1609|Burj-e-sharaf mein Shams-e-Huda jalwagar hai aaj
+1610|Barsaat mein jo aamad-e-dariya-e-noor hai
+1611|Burhan-ul-Huda rahe tu shaadmaan
+1612|Burhan-ul-Huda Shah jahan bhi rahe
+1613|Burhan-ul-Huda ka karam dekhte hain
+1614|Burhan-e-Deen Imam na che naqsh-e-mukhtasar
+1615|Burhan-e-Deen chaman tera sada hara bhara rahe
+1616|Burhan-e-Deen duaat ma lubb-ul-albaab che
+1617|Burhan-e-Deen sardaar jeeyo tum saal hazaar
+1618|Burhan-e-Deen Syedna ehsaan tamaara che ghana
+1619|Burhan-e-Deen Shahaani jaah-o-jalaali dekho
+1620|Burhan-e-Deen ke saaye mein amaan hai Momineen ko
+1621|Burhan-e-Deen ki soorat mein inaarat Ahmadi nikli
+1622|Burhan-e-Deen ki ho umr tool saal hazaar
+1623|Burhan-e-Deen ma jalwa Tayyib Imam nu che
+1624|Burhan-e-Deen Moula ki talabgaar hain aankhein
+1625|Burhan-e-Deen Moula hai tasweer-e-Karbala
+1626|Burhan-e-Deen Maulana warso raho sehat ma
+1627|Burhan-e-Deen Moula ni hubb dil ma wasaawi lo
+1628|Burhan-e-Deen Moula ni shaanaat ma jiddat che
+1629|Burhan-e-Deen Moula ni nazaraat ma rahmat che
+1630|Burhan-e-Deen Moula hai rehnuma hamaara
+1631|Burhan-e-Deen hamaara tashreef laaya aaje
+1632|Burhan-e-Huda teri kya shaan shaahaana hai
+1633|Burhan-e-Huda Shah ki hum madh sunaayenge
+1634|Burhani qaum hum hain baala nishaan hamaara
+1635|Baseerat se jab teri tanweer dekhi
+1636|Baseerat se hum tujhko jab dekhte hain
+1637|Bulbulon ka taraana hai gulshan mein
+1638|Bahaar-e-aish-o-ishrat hai sar-a-sar Eid-e-Qurbaani
+1639|Bahaar hai Deen ke chaman mein
+1640|Bu-wasf-e-husn-o-jamaal-e-Moula naya naya ek ek sukhan hai
+1641|Ta hashr baaqi raho ae Burhan-ul-Huda
+1642|Taaza tar hai Shah se jag mein bustaan-e-Panjatan
+1643|Taajdaari teri bar sau bar sau rahe
+1644|Tujhe Allah Ta'ala ne banaaya apne haathon se
+1645|Tujh pe ae Burhan-e-Huda jaan fida ho
+1646|Tujhe jab Shah-e-bahr-o-bar dekhte hain
+1647|Tujh sa paida ho kahan ek hazaaron ke beech
+1648|Tujh se hum dil lagaaye baithe hain
+1649|Tashreef Moula laaiye
+1650|Ta'aala shaanuhu kya kehna uski kibriyaai kya
+1651|Tum ko sab Najm-e-Huda kehte hain
+1652|Tum pe fida kyun na ho Shams-o-Qamar ae Miyaan
+1653|Tum jug jug jeewo sardaar re
+1654|Tum hi Maalik maana, tum hi ko Moula maana
+1655|Tamaari aa shahenshaahi mubaarak tha jo Dawat ne
+1656|Tamein baagh-e-Imam-uz-Zamaan na gul-e-laala chho
+1657|Tu Imam ka mazhar hai
+1658|Tu ek bashar hai jaante hum ke Rab nahin
+1659|Tu sab se karta hai neki, badi ki jaan ulti
+1660|Tu sooraj hai duaato mein
+1661|Tu Misr ka Yusuf Shaha ban ke aaya
+1662|Tu mera Moula mera Maalik mera imaan
+1663|Tu hi tu hai Moula jidhar dekhte hain
+1664|Tauseef lab pe us gul-e-baagh-e-Huda ki hai
+1665|Tere pur hilm sab bayaan ho gaye
+1666|Teri ek nigaah-e-karam se bhi badh kar
+1667|Teri jabhat pe sooraj fida
+1668|Paabos jo hua Shah-e-Aali Janaab ka
+1669|Pidar-e-mushfiq Muhammad ni baqaa kar tool ae Allah
+1670|Parda zara utha de chehra zara bata de
+1671|Phir baagh-e-Deen mein aaya hai mausam bahaar ka
+1672|Phala phoola chaman dekha sa'aadat ka zaman dekha
+1673|Peer-e-mughaan jaam ek bhar ke pila aur bhi
+1674|Teri dehleez bait-e-bandagi hai
+1675|Tere mukhde mein chamke Imam
+1676|Jaag gaye hain bakht yahan ke inaas-o-zukoor ke
+1677|Jab tak chaman mein gul rahe aur gul mein boo rahe
+1678|Jabhat gulru hai khur-e-taabaan, abroo shakl-e-hilaali hai
+1679|Jis par nigaah-e-lutf-o-nawaazish Khuda kare
+1680|Jis dil mein ulfat-e-Shah kaun-o-makaan nahin
+1681|Jis dil mein baagh-e-ulfat Shah-e-zaman lage
+1682|Justuju hai saba ko tere toor ki
+1683|Jug jug jeeyo ae Moula
+1684|Jannat nu gulzaar che Kausar ni anhaar che
+1685|Jinki soorat qamar se pyaari lagi
+1686|Jalwa tere husn ka hargiz na dekha jaayega
+1687|Jalwa numa bar masnad-e-aali Saif-e-Deen Shah ka jaani hai
+1688|Jamaal-e-Muhammad pe qurbaan jaaun
+1689|Jamaal-e-Muhammad ko paaye Muhammad
+1690|Jahan pe Shah-e-Deen Sultan-e-bahr-o-bar utre
+1691|Jahan Moula qadam rakhe wahan sajda bajaawi laun
+1692|Jahan mein jis ka ke iqbaal aasteen pakde
+1693|Jahan mein chaar soo shohra hai unki neknaami ka
+1694|Jo apne murshid-e-kaamil ko aa salaam kare
+1695|Jo tere hilm se ae Shah-e-ins-o-jaan phir jaaye
+1696|Jo tera bazm mein mazkoor naam hota hai
+1697|Jo tu mizaaj ko angoor-e-naab ke badle
+1698|Jo Dai-e-Fatemi Burhan-e-Deen ke zill mein basta hai
+1699|Jo sukhan madh mein munh se teri baahar nikla
+1700|Jo soo-e-bazm-e-Shahenshaah-e-do-jahan jaawe
+1701|Jo ye pahunchaaye to pahunche Khuda tak
+1702|Jaulaani-e-tabeeat apni dikha dikha ke
+1703|Jeewaare dekha Muhammad Shaha ne
+1704|Jeewo mein aa jahan ma Moula na saath ma
+1705|Chaand sooraj si bar tar-o-baala wali
+1706|Chaahte ho Najm-e-Deen jo baat woh Ya Rab bane
+1707|Chalo ek noor ka bustaan dekho
+1708|Chalo baagh-e-Iram dekho wahan Rab ka karam dekho
+1709|Chalo gulshan-e-Dawat ma jaiye
+1710|Chalo woh apne maah jabeen par ja ke tasadduq hoein
+1711|Chamka sooraj, sitaara, chandarma
+1712|Chaman mein justuju teri
+1713|Chaman mein de rahi bulbul sada hai
+1714|Chehre pe mah laqa ke barse hai roshnaai
+1715|Che aa Burhan-e-Deen Tayyib ni nishaani samjho
+1716|Husn-e-gulroo maah-e-taabinda se poochha chaahiye
+1717|Husaini Dai musaafiron ko safar ka tosha bandhaane aaye
+1718|Hoorein dekhein jo jamaal-e-Shah-e-zi-shaan kabhi
+1719|Khaaliq ne inaayat kiya ek noor-e-nazar aur
+1720|Khuda-e-paak ko rakh kar gawaah kehte hain
+1721|Khuda ka fazl hai aur Panjatan ka saaya hai
+1722|Khuda ka fazl-o-karam jahan pe Burhan-e-Deen Shah tumhaare dam se
+1723|Khuda kare tera nakhl-e-muraad phal jaawe
+1724|Khidmat-e-Dai-uz-Zamaan mein sarf keeje zindagi
+1725|Khuld se aa rahi hai sada
+1726|Farsh pe kya hua kya hua
+1727|Noor hai tere rukh se rakhshaan gulroo
+1728|Eid-e-Fitr bhi hai Eid-e-Zuha bhi hai
+1729|Khush naseebon ne paai khushi doguni
+1730|Khush hoon khayaal-e-roo-e-Shah-e-Deen panaah mein
+1731|Dai-e-Ameen Muhammad noor-e-mubeen Muhammad
+1732|Dai Burhan-e-Deen hai ye mohkam yaqeen
+1733|Dai che Allah na ne deen na Sultan che
+1734|Daaiyon mein mere mamdooh ka rutba hai jaleel
+1735|Daawar hai tere saath to daawar ke saath hai
+1736|Daaudi qaum hum hai baala nishaan hamaara
+1737|Darbaar-e-Muhammad ma a'raabi humein aaya
+1738|Dast-e-khaar aalood ko karta hai gulshan zer-e-paa
+1739|Dawat-ul-Haq na dhani Saif-ul-Huda Sultan che
+1740|Dawat na gulshan ma rahesu, Moula na saathe
+1741|Dekho ajaaibaat ne, Burhan-e-Deen ni zaat ma
+1742|Deen-e-haq na aa gulshan na upar
+1743|Deen-o-duniya mere Huzoor se hai
+1744|Daana daana mere Huzoor se hai
+1745|Raaz kholoon main apne kya dil ke
+1746|Rukh-e-Shah-e-anwar mein dekha karun
+1747|Riza-e-Shah ke rutbe se Muhibb Rizwaan tak pahunche
+1748|Raqam kya wasf mujhe aap ka ae Shah-e-zi-shaan ho
+1749|Roshan hai mashriqain Muhammad ke naam se
+1750|Zabaan se ye sukhan meetha nikalta hai munh mein ho
+1751|Zameen par sama ka qamar dekhte hain
+1752|Zindagi ka maza main ne paaya hai
+1753|Zindabaad zindabaad zindabaad zindabaad
+1754|Saaqiyaan mah jabeen, maah roo, naazneen, seem bar hoor-e-een
+1755|Sab kehte hain woh chand ujaala nazar aaya
+1756|Satr ni aa raat ma Burhan-e-Deen qandeel che
+1757|Sajda tujhe waajib hai tu Masjid-e-Azam hai
+1758|Sar pe jis ke saaya-e-Badr-ul-Huda ho jaayega
+1759|Sardaar-e-Muhammad che Sarkaar-e-Muhammad che
+1760|Saalgirah ni bashaarat aawi
+1761|Saalgirah che Burhan-e-Deen ni jhoome khushi ma haiyaao
+1762|Sama se yahan tu malak ban ke aaya
+1763|Samaaya tu mere dil mein
+1764|Soorat ma aawi shaadi ni mausam
+1765|Saif-ul-Huda na laal che
+1766|Shaan teri waah waah khoob pyaari lagi
+1767|Shah Saif-ul-Huda ke pyaare
+1768|Shah Saif-ul-Huda ke jaani teri madh karoon man maani
+1769|Shah ke qadmon tale se woh khazaane nikle
+1770|Shah na ehsaan che, Shah na ehsaan che
+1771|Shaayaan hai tujhko Deen ki Burhan ka laqab
+1772|Shukr sad shukr ke choome Shah waala ke qadam
+1773|Shukr kar ae jaan tu ne Burhan-e-Deen Moula mila
+1774|Shakl aankhon mein teri subh-o-masaa phirti hai
+1775|Shah Burhan-ul-Huda tere dam se
+1776|Shah-e-Deen ki aamad se dil shaadmaan hai
+1777|Shah Muhammad paak Quran mein hai Surat-un-Noor ki
+1778|Shah Muhammad ki soorat pyaari lagi
+1779|Shah Muhammad na naam ni mala japun
+1780|Shah ni hubb dil ma har dam samaaya karun
+1781|Shah ni khidmat ma adna ghulaam chalun
+1782|Shauq haraan che bas aim man ma
+1783|Sad shukr jamaal-e-Shah-e-kaamil nazar aaya
+1784|Sad shukr ke rehte hain Burhan ke saaye mein
+1785|Salawaat padho salawaat padho
+1786|Salawaat padhi kariye Dai-Allah ni madhat ne
+1787|Soorat teri ae Burhan-e-Deen hai jalwagar aisi
+1788|Taur-e-niyaabat Burhan-e-Deen pe zahoor-e-Tayyib ki dekho behjat
+1789|Tool-e-hayaat-e-Khizr jo paida bashar kare
+1790|Tayyib ka zahoor hoowe Taher ki nazar howe
+1791|Ajab taazgi aaj gulzaar mein hai
+1792|Ajab sa'aadat si pur zaman che
+1793|Ajab Quran ka haafiz hai
+1794|Ajab hai noor-e-Rab naazil hai naqsh-e-mukhtasar haasil
+1795|Saif-e-Deen ke laal par ye jaan bhi qurbaan hai
+1796|Aalam ke waaste tera wujood laazim hai
+1797|Aalam mein yumn-o-khair tumhaare qadam se hai
+1798|Eid-e-Zuha ka meeqaat aaya zareen
+1799|Eid-e-milaad Moula aayi
+1800|Ghair madh-e-Shah-e-Deen mujhko sarokaar nahin
+1801|Fatemi Misr ni shaahi mubaarak
+1802|Farhat se Eid-e-Fitr ki kya taab laaye Shams
+1803|Firdaus na farishta qudsaani jism andar
+1804|Fasaahat naaz karti hai balaaghat naaz karti hai
+1805|Qadam pe tere jo aa kar jhukaawe sar apna
+1806|Qadam se Shah ke chaman mein gayi bahaar phire
+1807|Qatra afshaani mein baarish ke bandha hai taar aaj
+1808|Qamar ma aa dekho jeh tasweer che
+1809|Qamar mein noor tera jalwagar nazar aaya
+1810|Kab jalwa kunaan ho rukh-e-taabaan gul andaam
+1811|Kab charkh pe ye mehr-e-mubeen jalwa figan hai
+1812|Kar wuzu pehle aab-e-Kausar se
+1813|Kare che dua har ghadi Momineen
+1814|Kashti-e-najaat ke nigehbaan Shah-e-Deen Burhan-e-Deen zindabaad
+1815|Kahan woh mah roo naqaab mein hai mah-e-munawwar sahaab mein hai
+1816|Kehte hain Momineen Moula Burhan-e-Deen
+1817|Koocha-e-gulroo mein gar ek baar aawe andaleeb
+1818|Kaunain ki shaahi jise Khallaaq wari de
+1819|Koi roo-e-mubeen sa jalwagar howe to main jaanoon
+1820|Koi ajab zor ki hai teri ye jaadu naini
+1821|Kya shaan hai Burhani dar haikal-e-insaani
+1822|Kya saaf teri ae but-e-mai-goon hai pusht-e-dast
+1823|Kyun na is shehr mein har roz ayaan ho shaadi
+1824|Gulshan-e-kaunain mein gulroo hamaara ek hai
+1825|Ghar noor se maulood ke hai Shah ka ujaala
+1826|Laakho jaan si fida thai jaaun
+1827|Laakho saal laakho saal
+1828|Lab pe ausaaf-e-Shah kaun-o-makaan rakhte hain
+1829|Lubhaaya dil mera jab se tera qudsi chaman dekha
+1830|Lazzat hai nayi sair nayi tere chaman mein
+1831|Lisaan-e-haq pe Burhan-e-Deen ki, qasam Khuda ki sana sana hai
+1832|Lafz farmaate hain Maulaa-e-zaman moti se
+1833|Likha jo Shab ko wasf tumhaari Janaab ka
+1834|Dil mein karta hai asar tera sukhan patthar ke
+1835|London ma ziyaafat Moula ni kidi
+1836|Lene bulaaein teri hazrat mein aaun khush naseebi hai
+1837|Laylat-ul-Qadr se matla-il-fajr tak
+1838|Maanind-e-andaleeb ke hoon naghma zaar mein
+1839|Maah roo khatm hai bas teri ye naazuk badani
+1840|Maaida par bithaawine saathe Shah par barakat na luqma jamaara
+1841|Misl-e-imaan dil mein aana koi tum se seekh jaaye
+1842|Madh Aqa-e-jahan jinn-o-bashar karta hai
+1843|Maari nainon bichhaawi karun chhoon
+1844|Mehfil-e-Burhan-e-Deen hai baagh-e-Rizwaan ka jawaab
+1845|Muhammad bait-e-Rabbaani karaa kar hajj-e-nafsaani
+1846|Muhammad Shah ka darbaar hai ye
+1847|Muhammad ko mushfiq pidar dekhte hain
+1848|Muhammad Muhammad hamaare Muhammad
+1849|Madad madad madad madad Ya Wali-Allah
+1850|Madh-e-mamdooh ki jis waqt dahan se nikle
+1851|Mazkoor madh-e-naaib-e-khair-ul-anaam hai
+1852|Mazaaya-e-Ahl-e-Bait-e-Mustafa sun ke maza aaya
+1853|Mash'al-e-walaa Taher Deen ki baqaa Burhan aasra Mufaddal hain
+1854|Mushkil Kusha ke fazl se mushkil kusha hue
+1855|Mashhoor hue hain hum Moula ki mohabbat mein
+1856|Malak se qadr Shaha aap ki dah chand aali hai
+1857|Muntakhab hai Shah-e-Deen, Deen ke sardaaron mein
+1858|Mawaaid-e-faiz-e-Burhani Mufaddal Shah che baani
+1859|Maulana ni hazrat ma moki ne aa peshaani
+1860|Moula aaje ziyaafat ma aaya
+1861|Moula Burhan-e-Deen hamaara che
+1862|Moula bazm ma tashreef laaya
+1863|Moula tujhe bana loon tujh se hi dil laga loon
+1864|Moula Muhammad noor-e-Khuda hashr talak ho teri baqaa
+1865|Moula mere Moula mere Moula
+1866|Moula Moula ek nazar bas ek lamha ek nazar
+1867|Moula Moula sada denge Moula Moula Aqa Moula
+1868|Moula Moula ki sada har dam har aan hai
+1869|Momino aaj hai har ek bashar ko shaadi
+1870|Mere Huzoor ye ghulaam tum se hai
+1871|Mere Sarkaar teri bala loon
+1872|Mere mehboob sa koi bata de mujhe
+1873|Mere Moula pe waaron hazaaron mein jaan
+1874|Mere Moula ki shaan niraali lagi
+1875|Mere Moula ki madhat ho zabaan ho unke khaadim ki
+1876|Milaad aaya aaje sardaar-e-Anbiya na
+1877|Milaad na naghma sunaaya karun
+1878|Main Burhan-e-Deen par chhoon sadqe ne waari
+1879|Main tamne mohabbat karto rahees
+1880|Main to Panjatan ka ghulaam hoon
+1881|Nabi zaada Tayyib Imam-uz-Zamaan che
+1882|Nazar aaya Eid ka roshan hilaal
+1883|Nazar-e-mehr jo teri Shah-e-Aali ho jaaye
+1884|Nahin maqdoor bashar gin sake ehsaan tere
+1885|Noor ropaala suhaamna che jeh ibdaai noor
+1886|Har dam rahe nigehbaan woh Zul-Jalaal tera
+1887|Har Momin ne jaan si pyaara Burhan-e-Deen Aqa che
+1888|Hubb-e-Moula ni deendaari karun
+1889|Hum us deepak ke parwaane mashhoor hai jinke afsaane
+1890|Hum jo madh-e-Shah-e-zi-jaah raqam karte hain
+1891|Hum dekhenge hum dekhenge
+1892|Tere noor ka jalwa ae Moula
+1893|Hum shab-o-roz sana khwaan hain kin ke in ke
+1894|Hum dekhte hain tere mazaahir naye naye
+1895|Hum kab jahan mein maail-e-husn-e-butaan rahe
+1896|Hum karte hain is Shah ke saaye mein basar thandak
+1897|Hum ne dil apna Shah pe nisaara
+1898|Hum ne duniya mein bahut soorat-e-zeba dekhi
+1899|Hamaara Dai Burhan-e-Deen che, hamaari qismat
+1900|Hamaare Moula Burhan-e-Deen pe jamaal-e-Yusuf fida
+1901|Ho zeb-e-sadr Shah-e-Huda anjuman ke beech
+1902|Ho tasawwur ka tere jab pesh-e-dil roshan chiraagh
+1903|Hua hai baad farhat ke khushi ka phir asar paida
+1904|Hai aaj Badr-e-sa'aadat kamaal ke oopar
+1905|Hai aaj khalq mein milaad-e-Shah-e-gardoon far
+1906|Hai aaj fazl-e-Khuda se kamaal khoobi ka
+1907|Hai baala tere majd ki kibriyaai
+1908|Hai tasadduq Najm-e-Deen ke aasmaan baala-e-sar
+1909|Hai tere chaman mein sada shaadmaani
+1910|Hai teri tarz-e-wa'z judi kaainaat se
+1911|Hai tu ne'mat-e-Ilaahi ataa ki
+1912|Hai Dawat-e-Huda tu ae khush-seer sambhaale
+1913|Hai dhoom bazm mein Dai-ul-Imam aate hain
+1914|Hai zahoor ki Burhan qadr jaah kam
+1915|Hai itrat-e-Mukhtaar ka mukhtaar zameen par
+1916|Hai Kaaba-e-dil Shah ka be-saakhta Rab khaana
+1917|Hain gul badan kayi, par tujh sa gul-e-izaar kahan
+1918|Hai maah se roshan mere gulfaam ki soorat
+1919|Hai noor-e-Imaami se roshan teri peshaani
+1920|Hai Muhammad ke jaise Muhammad
+1921|Hai munh pe tere noor-e-Khuda jalwagar aisa
+1922|Hai ye ummeed ke woh Yusuf-e-saani aawe
+1923|Waasif se kahe aql-e-rasa saaf ke mat poochh
+1924|Wa'z par mere Moula ki fasaahat naaz karti hai
+1925|Woh jinki deed ko aflaak chal ke aate hain
+1926|Waah waah deed tera main karta rahoon
+1927|Woh mauzoon khud ba khud hota hai jo dil se nikalta hai
+1928|Ya Khuda Ya Khuda sun hamaari dua
+1929|Ya Rab mera Huzoor ho sehat ke auj par
+1930|Ya Rabbana Huzoor-e-Mualla Burhan-e-Deen (az qalam Shahzaadi Shireen Behen Saheba)
+1931|Ya Rabbana Huzoor-e-Mualla jahan rahe
+1932|Ye jo baaraan-e-khushi hai kar raha gohar nisaar
+1933|Ye chaman tumhaara hai iske baaghbaan tum ho
+1934|Ye haq ki hai Burhan mein moti lutaa lo
+1935|Ye Dai Muhammad Muhammad ke Dai
+1936|Ye saal girah ho tujhe Ya Shah mubaarak
+1937|Ye sauwein hai milaad mubaarak ho mubaarak
+1938|Ye Shah ki shaan ajab Paighambari hai
+1939|Ye mera Kaaba-e-Deen rukh kare jidhar apna
+1940|Ye naaib hai zamaane mein Shah-e-mardaan ke jaani ke
+1941|Khuda ne tumko makaasir kiya mubaarakbaad
+1942|Maazooniyat ko zeb hai ek mah jabeen se
+1943|Hikmat se apni hilm-o-tahammul ke baab mein

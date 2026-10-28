@@ -34,6 +34,9 @@ export interface ImageBlock {
   opening?: { x: number; y: number; w: number; h: number };
   /** The opening words exist as a ready navy image (see openingSrc). */
   openingImage?: boolean;
+  /** Zikre Husain library: this image's first verse runs on from the image
+   * before it (a verse longer than one image), so no stanza gap between them. */
+  continues?: boolean;
 }
 
 export interface ImageRegion {
@@ -286,6 +289,8 @@ export const BUILTIN_MEDIA: Record<City, string[]> = {
   najaf: ['fixed-matam-najaf', 'fixed-sawari', 'fixed-qasida', 'fixed-manqabat', 'fixed-salam-arz-najaf'],
 };
 export const isBuiltinMedia = (id: string) => id.startsWith('fixed-');
+/** Verses from the Zikre Husain library (server/library.ts). */
+export const isLibraryMedia = (id: string) => /^lib\d+-/.test(id);
 
 /** Slots of the built-in defaults, in the order they fill a new booklet. */
 export const BUILTIN_SLOTS = ['marathi:1', 'marathi:2', 'marathi:3', 'marathi:sawari', 'qasida', 'manqabat', 'matam', 'dua', 'salamArz'];
@@ -336,6 +341,7 @@ export interface MediaMeta {
   warnings?: string[];
   opening?: { x: number; y: number; w: number; h: number };
   openingImage?: boolean;
+  continues?: boolean;
 }
 
 export const imageBlockFrom = (m: MediaMeta, extra: Partial<ImageBlock> = {}): ImageBlock => ({
@@ -353,6 +359,7 @@ export const imageBlockFrom = (m: MediaMeta, extra: Partial<ImageBlock> = {}): I
   warnings: m.warnings,
   opening: m.opening,
   openingImage: m.openingImage,
+  continues: m.continues,
   scale: 1,
   ...extra,
 });

@@ -5,3 +5,4 @@ dist/
 build/
 tmp/
 work/
+__pycache__/

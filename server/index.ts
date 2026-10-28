@@ -18,6 +18,7 @@ import { closeRecognition } from './recognize';
 import { restorationJob, restorationStatus, startRestoration } from './restore';
 import { heavyWork } from './resources';
 import { validScript } from './lettering';
+import { closeLibrary, isLibraryMedia, libraryAvailable, libraryPlan, libraryPreview } from './library';
 
 const PORT = Number(process.env.PORT ?? 3001);
 // 0.0.0.0 when hosted (or to reach it from a phone on the same Wi-Fi).
@@ -127,6 +128,25 @@ app.get(
     res.type('png').send(png);
   }),
 );
+// ---- Zikre Husain library ----
+app.get('/api/library', (_req, res) => res.json({ available: libraryAvailable() }));
+app.post('/api/library/:n/plan', route(async (req, res) => {
+  const verses = req.body?.verses;
+  res.json(libraryPlan(Number(req.params.n), Array.isArray(verses) ? verses.map(Number) : null));
+}));
+// Previews never change for a given library build (the URL carries its version).
+app.get(/^\/api\/library\/(\d+)\/(title|verse-(\d+))\.png$/, route(async (req, res) => {
+  const png = await heavyWork(() => libraryPreview(Number(req.params[0]), req.params[2] !== undefined ? Number(req.params[2]) : 'title'));
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.type('png').send(png);
+}));
+// A library verse image the server no longer has is made again, identically.
+app.use('/media', (req, res, next) => {
+  const match = /^\/(lib[\w-]+?)\.\d+\.(png|opening\.png)$/.exec(req.path);
+  if (!match || !isLibraryMedia(match[1]) || existsSync(path.join(MEDIA, req.path.slice(1)))) return next();
+  getMedia(match[1]).then(() => next(), next);
+});
+
 // Files are revisioned by ?v=rev, so they can be cached hard.
 app.use('/media', express.static(MEDIA, { maxAge: '1y', immutable: true }));
 // Very old booklet entries ask for `<id>.svg` or `<id>.<rev>.svg`; only the
@@ -225,6 +245,7 @@ app.post(
           continue;
         }
         if (!/^\/media\/[\w-]+\.\d+\.(png|svg|opening\.png)$/.test(src)) return res.status(400).send('Invalid screenshot revision.');
+        if (isLibraryMedia(block.mediaId) && !existsSync(path.join(MEDIA, src.slice('/media/'.length)))) await getMedia(block.mediaId).catch(() => null);
         const bytes = await readFile(path.join(MEDIA, src.slice('/media/'.length))).catch(() => null);
         if (bytes) assets[src] = `data:image/${block.format === 'png' ? 'png' : 'svg+xml'};base64,${bytes.toString('base64')}`;
         else missing.push(src);
@@ -236,7 +257,7 @@ app.post(
     if (cached && cached.expires > Date.now() && pdfs.has(cached.id)) return res.json({ url: `/api/pdf/${cached.id}/${encodeURIComponent(filename)}` });
     if (!exporting.has(key)) {
       const job = printQueue.then(() => heavyWork(async () => {
-      await closeRecognition();
+      await Promise.all([closeRecognition(), closeLibrary()]);
       const id = randomUUID();
       const context = await (await getBrowser()).newContext(PASSWORD ? { httpCredentials: { username: 'print', password: PASSWORD } } : {});
       pending.set(id, { doc, assets });
@@ -291,7 +312,7 @@ const shutdown = async () => {
   if (closing) return;
   closing = true;
   http.close();
-  await Promise.allSettled([browser?.then((b) => b.close()), closeRecognition()]);
+  await Promise.allSettled([browser?.then((b) => b.close()), closeRecognition(), closeLibrary()]);
   process.exit(0);
 };
 process.on('SIGTERM', shutdown);

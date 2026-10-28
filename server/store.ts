@@ -6,6 +6,7 @@ import { copyFile, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { cleanScreenshot, Edits, PROCESSOR_VERSION, Region } from './ink';
 import { heavyWork } from './resources';
+import { isLibraryMedia, libraryContinues, libraryImage } from './library';
 
 export const DATA = path.resolve(process.env.DATA_DIR ?? 'data');
 export const MEDIA = path.join(DATA, 'media');
@@ -43,6 +44,8 @@ export interface MediaMeta {
   /** `<id>.<rev>.opening.png` holds the opening words, already navy. */
   openingImage?: boolean;
   restoration?: { sourceId: string; sourceRev: number; model: string; referenceVersion: number };
+  /** A library image whose first verse runs on from the image before it. */
+  continues?: boolean;
 }
 
 const metaPath = (id: string) => path.join(MEDIA, `${id}.json`);
@@ -72,10 +75,13 @@ function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number,
 }
 /** Clean a screenshot into its finished files and metadata (no disk writes). */
 export async function cleanMedia(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration']) {
-  const { png, openingPng, ...geometry } = await cleanScreenshot(original, edits, { ocr: !id.startsWith('fixed-') && !restoration });
+  // Built-in pages and library verses need no OCR: no page numbers to find,
+  // and the fihrist shows their own opening words.
+  const { png, openingPng, ...geometry } = await cleanScreenshot(original, edits, { ocr: !id.startsWith('fixed-') && !isLibraryMedia(id) && !restoration });
   // A 50% tracing threshold erased faint hairlines and small dots. Export the
   // antialiased ink itself, including high-resolution generated drafts.
   const meta: MediaMeta = { id, rev, ...geometry, edits, restoration, processorVersion: PROCESSOR_VERSION, format: 'png', openingImage: !!openingPng };
+  if (isLibraryMedia(id) && libraryContinues(id)) meta.continues = true;
   return { meta, png, openingPng };
 }
 async function processImage(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration']): Promise<MediaMeta> {
@@ -105,8 +111,21 @@ export async function editMedia(id: string, edits: Edits): Promise<MediaMeta> {
 }
 
 const processing = new Map<string, Promise<MediaMeta>>();
+
+/** A library verse image: rendered from the PDF and cleaned, under a name
+ * fixed by its id, so a lost one is simply made again, identically. */
+function makeLibraryMedia(id: string): Promise<MediaMeta> {
+  if (!processing.has(id)) processing.set(id, heavyWork(async () => {
+    const png = await libraryImage(id);
+    await writeFile(path.join(MEDIA, `${id}.orig`), png);
+    return processImage(id, png, {}, fixedRev(Buffer.from(id)));
+  }).finally(() => processing.delete(id)));
+  return processing.get(id)!;
+}
+
 export async function getMedia(id: string): Promise<MediaMeta | null> {
   safeId(id);
+  if (!existsSync(metaPath(id)) && isLibraryMedia(id)) return makeLibraryMedia(id);
   if (!existsSync(metaPath(id))) return null;
   const meta: MediaMeta = JSON.parse(await readFile(metaPath(id), 'utf8'));
   if (meta.processorVersion === PROCESSOR_VERSION) return meta;
@@ -117,7 +136,7 @@ export async function getMedia(id: string): Promise<MediaMeta | null> {
 }
 
 /** Only fields the server itself writes are taken from a browser's copy. */
-const META_KEYS = ['rev', 'width', 'height', 'bands', 'lineHeight', 'edits', 'processorVersion', 'format', 'regions', 'suggestedName', 'recognitionConfidence', 'warnings', 'opening', 'openingImage', 'restoration'] as const;
+const META_KEYS = ['rev', 'width', 'height', 'bands', 'lineHeight', 'edits', 'processorVersion', 'format', 'regions', 'suggestedName', 'recognitionConfidence', 'warnings', 'opening', 'openingImage', 'restoration', 'continues'] as const;
 const positive = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) > 0;
 
 /**

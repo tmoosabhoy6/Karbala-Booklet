@@ -3,6 +3,8 @@ import { mediaSrc } from '../booklet/Booklet';
 import { Block, Category, Defaults, Kalam, imageBlockFrom, isBuiltinMedia, uid } from '../booklet/model';
 import { api } from './api';
 import { BookletState, sameBlocks } from './useBooklet';
+import { LibrarySearch } from './LibrarySearch';
+import type { LibraryHit } from './library';
 
 interface Props {
   category: Category;
@@ -16,7 +18,10 @@ interface Props {
   onEditImage: (block: Extract<Block, { kind: 'image' }>) => void;
   onRestoreImage: (block: Extract<Block, { kind: 'image' }>) => void;
   uploads: number;
+  /** Library images still being made for this card. */
+  fetching: number;
   onUpload: (files: File[]) => void;
+  onLibrary: (hit: LibraryHit) => void;
 }
 
 // Phones have no ⌘V or drag and drop: the drop area just opens the photo picker.
@@ -29,7 +34,7 @@ const move = <T,>(arr: T[], from: number, to: number) => {
   return out;
 };
 
-export function KalamCard({ category, kalam, index, count, active, state, defaults, onActivate, onEditImage, onRestoreImage, uploads, onUpload }: Props) {
+export function KalamCard({ category, kalam, index, count, active, state, defaults, onActivate, onEditImage, onRestoreImage, uploads, fetching, onUpload, onLibrary }: Props) {
   const { updateKalam, updateKalams, pin, unpin } = state;
   const fileInput = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -193,7 +198,14 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
             <span className="spinner" /> Cleaning screenshot…
           </div>
         ))}
+        {fetching > 0 && (
+          <div className="block pending">
+            <span className="spinner" /> Adding from Zikre Husain… {fetching > 1 && `(${fetching} parts to go)`}
+          </div>
+        )}
       </div>
+
+      {!kalam.blocks.length && !fetching && <LibrarySearch category={category} placeholder="Fill this kalam from Zikre Husain: type its first words" onPick={onLibrary} />}
 
       <div
         className={`dropzone${dragOver ? ' over' : ''}${active ? ' armed' : ''}`}

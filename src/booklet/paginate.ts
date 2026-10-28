@@ -171,7 +171,12 @@ function kalamUnits(kalam: Kalam) {
   // Centre-to-centre distance across every stanza break of this kalam, so all
   // its stanza gaps are identical whatever spacing each screenshot had.
   const stanza = pitch * (1 + STANZA_EXTRA);
-  const lead = (prev: Unit | null, next: Unit) => (prev ? Math.max(CROP_PAD, stanza - below(prev) - above(next)) : 0);
+  // A library image that continues the verse before it joins at line pitch.
+  const lead = (prev: Unit | null, next: Unit) => {
+    if (!prev) return 0;
+    if (next.block.continues && units.get(next.block.id)?.[0] === next) return Math.max(0, pitch - below(prev) - above(next));
+    return Math.max(CROP_PAD, stanza - below(prev) - above(next));
+  };
   return { scales, units, lead };
 }
 

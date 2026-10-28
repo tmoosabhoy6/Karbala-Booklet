@@ -21,6 +21,7 @@ import {
   defaultPosition,
   effectiveDefaults,
   isBuiltinMedia,
+  isLibraryMedia,
   kalamFrom,
   moveCategory,
   templateOverrides,
@@ -36,7 +37,7 @@ export const todayIso = () => {
 };
 
 const HISTORY = 60;
-const imageGeometry = (m: MediaMeta) => ({ mediaId: m.id, rev: m.rev, width: m.width, height: m.height, bands: m.bands, lineHeight: m.lineHeight, regions: m.regions, opening: m.opening, openingImage: m.openingImage, format: m.format, suggestedName: m.suggestedName, warnings: m.warnings });
+const imageGeometry = (m: MediaMeta) => ({ mediaId: m.id, rev: m.rev, width: m.width, height: m.height, bands: m.bands, lineHeight: m.lineHeight, regions: m.regions, opening: m.opening, openingImage: m.openingImage, format: m.format, suggestedName: m.suggestedName, warnings: m.warnings, continues: m.continues });
 
 const mapKalams = (d: Booklet, fn: (k: Kalam) => Kalam): Booklet => ({
   ...d,
@@ -114,7 +115,10 @@ export function useBooklet(city: City) {
       const docBlocks = Object.values(upgraded?.doc.kalams ?? {}).flatMap((ks) => ks.flatMap((k) => k.blocks));
       const allBlocks = [...docBlocks, ...Object.values(defs).flatMap((d) => d.blocks)];
       const ids = new Set(allBlocks.flatMap((b) => (b.kind === 'image' ? [b.mediaId] : [])));
-      const media = new Map((await Promise.all([...ids].map(async (id) => {
+      // Library verses are made again from the PDF when a page asks for them:
+      // they are checked in the background instead of holding up the editor.
+      const libraryIds = [...ids].filter(isLibraryMedia);
+      const media = new Map((await Promise.all([...ids].filter((id) => !isLibraryMedia(id)).map(async (id) => {
         let meta: MediaMeta | null = await api.media(id);
         const block = allBlocks.find((b) => b.kind === 'image' && b.mediaId === id);
         if (!meta && block?.kind === 'image') meta = await api.recover(block).catch(() => null);
@@ -122,6 +126,7 @@ export function useBooklet(city: City) {
       }))));
       const refresh = (blocks: Block[]) => blocks.map((b): Block => {
         if (b.kind !== 'image') return b;
+        if (isLibraryMedia(b.mediaId)) return b;
         const meta = media.get(b.mediaId);
         return meta ? { ...b, ...imageGeometry(meta) } : { ...b, warnings: ['The original screenshot is missing. Please add it again.'] };
       });
@@ -134,6 +139,14 @@ export function useBooklet(city: City) {
       } else {
         const fresh = createBooklet(todayIso(), CITIES[city].venues[0], effectiveDefaults(builtinDefs, refreshedDefaults));
         setDocState(copied && kept?.overrides ? { ...fresh, overrides: kept.overrides } : fresh);
+      }
+      for (const id of libraryIds) {
+        const meta = await api.media(id).catch(() => null);
+        const block = allBlocks.find((b) => b.kind === 'image' && b.mediaId === id);
+        if (!meta || (block?.kind === 'image' && block.rev === meta.rev)) continue;
+        // Cleaned again by a newer cleaner: follow its files.
+        const patch = (b: Block): Block => (b.kind === 'image' && b.mediaId === id ? { ...b, ...imageGeometry(meta) } : b);
+        setDocState((d) => (d ? mapKalams(d, (k) => ({ ...k, blocks: k.blocks.map(patch) })) : d));
       }
     })().catch((error: Error) => setLoadError(error.message));
   }, [city]);

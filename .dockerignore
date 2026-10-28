@@ -4,7 +4,10 @@ build
 data
 tmp
 work
-references
+# The Zikre Husain PDF is the kalam library the server renders from.
+references/*
+!references/Zikre Husain AS 1446.pdf
+server/library/analysis.json
 docs
 tests
 tools
