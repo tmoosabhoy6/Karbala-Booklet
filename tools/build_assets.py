@@ -91,15 +91,36 @@ def box(shape, x0, y0, x1, y1):
     return m
 
 
+def woven_grid(src):
+    """The plaid re-woven from its own threads: each row's horizontal-thread
+    profile (from the clean columns either side of the old logos) times each
+    column's vertical-thread profile (from the clean grid below). Every thread
+    then runs straight through a patch, so no seam or misaligned check shows."""
+    paper = np.median(src[230:1000, 120:740].reshape(-1, 3), axis=0)
+    rows = np.median(src[:, np.r_[120:240, 610:740]] / paper, axis=1)
+    rows /= np.median(rows[230:1000], axis=0)
+    cols = np.median(src[230:1000, :] / paper, axis=0)
+    cols /= np.median(cols[120:740], axis=0)
+    return paper * rows[:, None, :] * cols[None, :, :]
+
+
+def weave_patch(img, src, y0, y1, x0, x1, feather=6):
+    """Replace img[y0:y1, x0:x1] with woven plaid, blended softly at the edge."""
+    m = np.zeros(src.shape[:2])
+    m[y0:y1, x0:x1] = 1
+    m = np.array(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(feather))) / 255.0
+    m[y0 + feather:y1 - feather, x0 + feather:x1 - feather] = 1
+    return img * (1 - m[..., None]) + woven_grid(src) * m[..., None]
+
+
 def build_cover(doc):
     raw = doc.extract_image(XREF_COVER)
     src = np.array(Image.open(__import__("io").BytesIO(raw["image"])).convert("RGB")).astype(float)
     H, W = src.shape[:2]  # 1402 x 991
 
-    clean = src.copy()
-    # 1) Remove old logos: borrow the clean grid directly below (same columns keep
-    #    the vertical plaid lines continuous).
-    clean[30:200, 245:600] = src[230:400, 245:600]
+    # 1) Remove old logos. The area is re-woven from the plaid's own threads:
+    #    a borrowed patch left misaligned checks that showed around the logos.
+    clean = weave_patch(src, src, 30, 200, 245, 600)
     # 2) Remove "الحضرة العالية" from the bar: the bar is uniform horizontally.
     bar = slice(1066, 1154)
     patch = src[bar, 12:242]
@@ -132,7 +153,7 @@ def build_cover(doc):
     back = src.copy()
     back[0:1052, 0:110] = src[0:1052, 115:225]
     back[0:1052, 740:848] = src[0:1052, 620:728]
-    back[0:220, 230:620] = src[400:620, 230:620]
+    back = weave_patch(back, src, 0, 220, 230, 620)
     back[1052:1215, 0:848] = back[860:1023, 0:848]  # bar band -> plain grid
     back[:, 848:W] = back[:, 848 - (W - 848):848][:, ::-1]
     img = Image.fromarray(back.astype(np.uint8)).resize(A4_PX, Image.LANCZOS)

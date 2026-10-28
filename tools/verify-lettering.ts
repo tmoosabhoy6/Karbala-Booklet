@@ -54,6 +54,19 @@ try {
   assert(numbered.openingPng, 'The fihrist opening is delivered as its own image.');
   const opening = await sharp(numbered.openingPng!).raw().toBuffer();
   assert(opening.every((v, i) => i % 4 === 3 || [58, 69, 106][i % 4] === v), 'Opening words are pre-coloured navy, with no CSS masking.');
+  // Cover logos: one solid ink colour, fully transparent around it, and solid
+  // strokes fully opaque so the cover's plaid can never tint the letters.
+  for (const logo of ['logo-karbala.png', 'logo-faiz-husaini.png']) {
+    const { data: px, info: li } = await sharp('public/assets/' + logo).raw().toBuffer({ resolveWithObject: true });
+    assert.equal(li.channels, 4, logo + ' must be transparent');
+    const colours = new Set<number>(), alphas: number[] = [];
+    for (let i = 0; i < px.length; i += 4) { colours.add((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]); alphas.push(px[i + 3]); }
+    assert.equal(colours.size, 1, logo + ': no background colour may remain in the logo');
+    const corners = [0, li.width - 1, (li.height - 1) * li.width, li.height * li.width - 1].map((i) => px[i * 4 + 3]);
+    assert(corners.every((a) => a === 0), logo + ': the background must be fully transparent');
+    const strong = alphas.filter((a) => a >= 128);
+    assert(strong.filter((a) => a === 255).length / strong.length > 0.75, logo + ': solid strokes must be fully opaque');
+  }
   for (const [w,h] of [[638,876],[628,112],[508,406],[300,2000],[2000,300]]) {
     const c=restorationCanvas(w,h);
     assert(c.width%16===0 && c.height%16===0);
@@ -64,5 +77,5 @@ try {
   assert.equal(referenceBank.documents,6);assert.equal(referenceBank.pages,153);
   assert.equal((await letteringReferences('auto')).length,6);
   assert.equal((await letteringReferences('urdu')).length,2);
-  console.log('Passed: 11 real screenshot cases, margin numbers/badges, unmerged uniform rows, navy fihrist openings, faint strokes, detached dots, red refrains, portrait/strip sizing, six-PDF reference bank.');
+  console.log('Passed: 11 real screenshot cases, margin numbers/badges, unmerged uniform rows, navy fihrist openings, opaque cover logos, faint strokes, detached dots, red refrains, portrait/strip sizing, six-PDF reference bank.');
 } finally { await closeRecognition(); }

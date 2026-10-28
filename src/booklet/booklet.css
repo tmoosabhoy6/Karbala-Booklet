@@ -67,7 +67,7 @@
   position: absolute;
   width: 158.4pt; /* 20% larger than the former 132pt */
   left: calc((509pt - 158.4pt) / 2);
-  top: calc(77pt - 158.4pt * 989 / 1901 / 2);
+  top: calc(77pt - 158.4pt * 1002 / 1927 / 2);
 }
 
 .cover-title {
