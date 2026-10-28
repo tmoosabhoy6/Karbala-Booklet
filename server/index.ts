@@ -146,10 +146,13 @@ app.get(/^\/media\/([\w-]+?)(?:\.(\d+))?\.svg$/, route(async (req, res) => {
 }));
 
 // ---- working booklet & pinned defaults ----
-app.get('/api/booklet', route(async (_req, res) => res.json(await readJson('booklet.json'))));
-app.put('/api/booklet', route(async (req, res) => res.json(await writeJson('booklet.json', req.body))));
-app.get('/api/defaults', route(async (_req, res) => res.json((await readJson('defaults.json')) ?? {})));
-app.put('/api/defaults', route(async (req, res) => res.json(await writeJson('defaults.json', req.body))));
+// One of each per city: Karbala keeps the original file names, Najaf gets
+// its own (?city=najaf).
+const cityFile = (req: express.Request, name: string) => (req.query.city === 'najaf' ? `${name}-najaf.json` : `${name}.json`);
+app.get('/api/booklet', route(async (req, res) => res.json(await readJson(cityFile(req, 'booklet')))));
+app.put('/api/booklet', route(async (req, res) => res.json(await writeJson(cityFile(req, 'booklet'), req.body))));
+app.get('/api/defaults', route(async (req, res) => res.json((await readJson(cityFile(req, 'defaults'))) ?? {})));
+app.put('/api/defaults', route(async (req, res) => res.json(await writeJson(cityFile(req, 'defaults'), req.body))));
 
 // ---- PDF export ----
 const pending = new Map<string, unknown>();

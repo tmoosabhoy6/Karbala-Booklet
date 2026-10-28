@@ -19,9 +19,11 @@ export interface TextEdits {
 interface Ctx {
   overrides: Record<string, TextOverride>;
   edits?: TextEdits;
+  /** Text box colours of the booklet's city. */
+  colors: string[];
 }
 
-export const EditContext = createContext<Ctx>({ overrides: {} });
+export const EditContext = createContext<Ctx>({ overrides: {}, colors: TEXT_COLORS.karbala });
 
 const SCALE_STEP = 0.05;
 
@@ -207,7 +209,7 @@ const SIZE_STEP = 1;
 
 /** A free text box: click to type, drag to move. */
 export function TextBoxView({ box }: { box: TextBox }) {
-  const { edits } = useContext(EditContext);
+  const { edits, colors } = useContext(EditContext);
   const [editing, setEditing] = useState(!box.text && !!edits);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const field = useRef<HTMLSpanElement>(null);
@@ -257,7 +259,7 @@ export function TextBoxView({ box }: { box: TextBox }) {
           <button title="Larger" onClick={() => edits.box(box.id, { sizePt: Math.min(120, box.sizePt + SIZE_STEP) })}>
             A+
           </button>
-          {TEXT_COLORS.map((c) => (
+          {colors.map((c) => (
             <button key={c} className={`swatch${c === box.color ? ' on' : ''}`} style={{ background: c }} title="Colour" onClick={() => edits.box(box.id, { color: c })} />
           ))}
           <button title="Delete this text box" onClick={() => edits.box(box.id, null)}>

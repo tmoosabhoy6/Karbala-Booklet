@@ -395,3 +395,14 @@
 .booklet.placing .page {
   cursor: crosshair;
 }
+
+/* ---------- Najaf ---------- */
+/* The maroon turned the Najaf green; tools/build_najaf.py prints these. */
+.booklet.najaf {
+  --maroon: #1a5c3a;
+  --maroon-deep: #184f31;
+  --maroon-tint: #dde5db;
+  --rose-tint: #eef1ec;
+  --rule: #1a5c3a;
+  --divider: #99b197;
+}

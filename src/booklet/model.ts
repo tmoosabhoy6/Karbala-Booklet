@@ -1,10 +1,12 @@
-// Booklet document model and the two venue templates.
+// Booklet document model, the two cities and their venue templates.
 //
 // Content is stored per category, not per section: the venue only decides
 // which sections exist and in what order, so switching venue keeps every
-// screenshot you have added.
+// screenshot you have added. Each city keeps its own working booklet and
+// pinned defaults; the city decides the artwork (Karbala maroon, Najaf green).
 
-export type Venue = 'haram' | 'najmi';
+export type City = 'karbala' | 'najaf';
+export type Venue = 'haram' | 'najmi' | 'najaf';
 
 export type Category = 'quran' | 'marathi' | 'nasihat' | 'salam' | 'noha' | 'matam' | 'salamArz' | 'ratha' | 'madh';
 
@@ -97,8 +99,11 @@ export interface Booklet {
   textBoxes?: TextBox[];
 }
 
-/** Text box colours: the booklet's black, heading maroon, fihrist navy and gold. */
-export const TEXT_COLORS = ['#000000', '#8c1a24', '#3a456a', '#c18144'];
+/** Text box colours: the booklet's black, heading maroon (Najaf: green), fihrist navy and gold. */
+export const TEXT_COLORS: Record<City, string[]> = {
+  karbala: ['#000000', '#8c1a24', '#3a456a', '#c18144'],
+  najaf: ['#000000', '#1a5c3a', '#3a456a', '#c18144'],
+};
 
 /**
  * Edits that belong to the template rather than to one night's booklet (cover
@@ -166,8 +171,9 @@ export const CATEGORY_ADDABLE: Record<Category, boolean> = {
   madh: true,
 };
 
-export const VENUES: Record<Venue, { label: string; location: string; sections: { title: string; categories: Category[] }[] }> = {
+export const VENUES: Record<Venue, { city: City; label: string; location: string; sections: { title: string; categories: Category[] }[] }> = {
   haram: {
+    city: 'karbala',
     label: 'Imam Husain AS Haram Mubarak',
     location: 'امام حسين {as} حرم مبارك (Gate no.6)',
     sections: [
@@ -176,6 +182,7 @@ export const VENUES: Record<Venue, { label: string; location: string; sections: 
     ],
   },
   najmi: {
+    city: 'karbala',
     label: 'Najmi Masjid',
     location: 'نجمي مسجد',
     sections: [
@@ -183,7 +190,24 @@ export const VENUES: Record<Venue, { label: string; location: string; sections: 
       { title: 'كهڑا رهي نے ماتم درميان تلاوة', categories: ['noha', 'matam', 'salamArz', 'ratha', 'madh'] },
     ],
   },
+  // The Haram order, with the Najmi Masjid's heading for the standing part.
+  najaf: {
+    city: 'najaf',
+    label: 'Amirul Mumineen AS Haram Mubarak',
+    location: 'امير المؤمنين {as} نا حرم مبارك',
+    sections: [
+      { title: 'بيٹهي نے تلاوة', categories: ['quran', 'marathi', 'nasihat', 'salam', 'noha', 'matam'] },
+      { title: 'كهڑا رهي نے ماتم درميان تلاوة', categories: ['salamArz', 'ratha', 'madh'] },
+    ],
+  },
 };
+
+export const CITIES: Record<City, { label: string; venues: Venue[] }> = {
+  karbala: { label: 'Karbala', venues: ['haram', 'najmi'] },
+  najaf: { label: 'Najaf', venues: ['najaf'] },
+};
+
+export const cityOf = (venue: Venue): City => VENUES[venue]?.city ?? 'karbala';
 
 export const ALL_CATEGORIES: Category[] = ['quran', 'marathi', 'nasihat', 'salam', 'noha', 'matam', 'salamArz', 'ratha', 'madh'];
 

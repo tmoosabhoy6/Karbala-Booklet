@@ -3,6 +3,7 @@ import { BookletView } from './booklet/Booklet';
 import { paginate } from './booklet/paginate';
 import { Editor } from './editor/Editor';
 import type { PrintPayload } from './booklet/print';
+import type { City } from './booklet/model';
 
 declare global {
   interface Window {
@@ -41,7 +42,34 @@ function PrintView({ id }: { id: string }) {
   return doc && layout ? <BookletView doc={doc} layout={layout} assets={payload?.assets} /> : null;
 }
 
+// The city tab: `?city=najaf` opens Najaf directly; otherwise the browser
+// remembers the last one.
+const CITY_KEY = 'booklet-city';
+const isCity = (c: string | null): c is City => c === 'karbala' || c === 'najaf';
+function initialCity(): City {
+  const asked = new URLSearchParams(location.search).get('city');
+  if (isCity(asked)) return asked;
+  try {
+    const kept = localStorage.getItem(CITY_KEY);
+    if (isCity(kept)) return kept;
+  } catch { /* storage blocked: start on Karbala */ }
+  return 'karbala';
+}
+
+function Workspace() {
+  const [city, setCity] = useState(initialCity);
+  const choose = (c: City) => {
+    setCity(c);
+    try { localStorage.setItem(CITY_KEY, c); } catch { /* not remembered */ }
+    const url = new URL(location.href);
+    url.searchParams.set('city', c);
+    history.replaceState(null, '', url);
+  };
+  // A fresh editor per city, so nothing of one booklet carries into the other.
+  return <Editor key={city} city={city} onCity={choose} />;
+}
+
 export default function App() {
   const printId = new URLSearchParams(location.search).get('print');
-  return printId ? <PrintView id={printId} /> : <Editor />;
+  return printId ? <PrintView id={printId} /> : <Workspace />;
 }

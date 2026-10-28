@@ -1,8 +1,8 @@
-import type { Booklet, Defaults, MediaMeta } from '../booklet/model';
+import { cityOf, type Booklet, type City, type Defaults, type MediaMeta } from '../booklet/model';
 import { mediaSrc } from '../booklet/media';
 import type { ImageBlock } from '../booklet/model';
 import type { ExportRequest } from '../booklet/print';
-import { readBackup, saveBackup, type MediaBackup } from './cache';
+import { cityKey, readBackup, saveBackup, type MediaBackup } from './cache';
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
@@ -140,12 +140,12 @@ export const api = {
     if (!res.ok) throw new Error(await errorText(res));
     return ((await res.json()) as { url: string }).url;
   },
-  loadBooklet: () => fetch('/api/booklet').then((r) => json<Booklet | null>(r)),
-  saveBooklet: (doc: Booklet) => fetch('/api/booklet', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc) }),
-  loadDefaults: () => fetch('/api/defaults').then((r) => json<Defaults>(r)),
-  saveDefaults: async (d: Defaults) => {
-    await saveBackup('defaults', d);
-    return fetch('/api/defaults', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+  loadBooklet: (city: City) => fetch(`/api/booklet?city=${city}`).then((r) => json<Booklet | null>(r)),
+  saveBooklet: (doc: Booklet) => fetch(`/api/booklet?city=${cityOf(doc.venue)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc) }),
+  loadDefaults: (city: City) => fetch(`/api/defaults?city=${city}`).then((r) => json<Defaults>(r)),
+  saveDefaults: async (d: Defaults, city: City) => {
+    await saveBackup(cityKey('defaults', city), d);
+    return fetch(`/api/defaults?city=${city}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
   },
 };
 

@@ -4,13 +4,16 @@ import type { TextEdits } from '../booklet/Editable';
 import {
   Block,
   Booklet,
+  CITIES,
   Category,
+  City,
   Defaults,
   Kalam,
   MATAM_MEDIA_ID,
   MediaMeta,
   TEXT_COLORS,
   Venue,
+  cityOf,
   cloneBlocks,
   createBooklet,
   templateOverrides,
@@ -34,7 +37,7 @@ const mapKalams = (d: Booklet, fn: (k: Kalam) => Kalam): Booklet => ({
 
 const replaceLine = (text: string, i: number, line: string) => text.split('\n').map((l, j) => (j === i ? line : l)).join('\n');
 
-export function useBooklet() {
+export function useBooklet(city: City) {
   const [doc, setDocState] = useState<Booklet | null>(null);
   const [defaults, setDefaults] = useState<Defaults>({});
   const [saved, setSaved] = useState(true);
@@ -45,8 +48,9 @@ export function useBooklet() {
 
   useEffect(() => {
     (async () => {
-      const [remoteDoc, remoteDefs, m, localDoc, localDefs] = await Promise.all([api.loadBooklet(), api.loadDefaults(), api.media(MATAM_MEDIA_ID), loadBookletBackup(), loadDefaultsBackup()]);
-      const stored = remoteDoc ?? localDoc;
+      const [remoteDoc, remoteDefs, m, localDoc, localDefs] = await Promise.all([api.loadBooklet(city), api.loadDefaults(city), api.media(MATAM_MEDIA_ID), loadBookletBackup(city), loadDefaultsBackup(city)]);
+      const kept = remoteDoc ?? localDoc;
+      const stored = kept && cityOf(kept.venue) === city ? kept : null;
       const defs = Object.keys(remoteDefs).length ? remoteDefs : localDefs ?? remoteDefs;
       matam.current = m;
       const ids = new Set(Object.values(stored?.kalams ?? {}).flatMap((ks) => ks.flatMap((k) => k.blocks.filter((b) => b.kind === 'image').map((b) => b.mediaId))));
@@ -65,7 +69,7 @@ export function useBooklet() {
       });
       const refreshedDefaults = Object.fromEntries(Object.entries(defs).map(([key, value]) => [key, { ...value, blocks: refresh(value.blocks) }]));
       setDefaults(refreshedDefaults);
-      if (JSON.stringify(defs) !== JSON.stringify(refreshedDefaults)) await api.saveDefaults(refreshedDefaults);
+      if (JSON.stringify(defs) !== JSON.stringify(refreshedDefaults)) await api.saveDefaults(refreshedDefaults, city);
       // Each session starts on today's date; content carries over from last time.
       if (stored?.version === 2) {
         // Fixed content always follows the current version on disk.
@@ -76,19 +80,28 @@ export function useBooklet() {
         });
         setDocState({ ...refreshed, date: todayIso(), kalams: { ...refreshed.kalams, matam: fresh.kalams.matam, salamArz: fresh.kalams.salamArz } });
       } else {
-        setDocState(createBooklet(todayIso(), 'haram', refreshedDefaults, m));
+        setDocState(createBooklet(todayIso(), CITIES[city].venues[0], refreshedDefaults, m));
       }
     })().catch((error: Error) => setLoadError(error.message));
-  }, []);
+  }, [city]);
 
-  // Autosave half a second after the last change.
+  // Autosave half a second after the last change. A change still waiting
+  // when the editor closes (switching city) is saved straight away.
+  const unsaved = useRef<Booklet | null>(null);
   useEffect(() => {
     if (!doc) return;
     setSaved(false);
+    unsaved.current = doc;
     void saveBookletBackup(doc);
-    const t = setTimeout(() => api.saveBooklet(doc).then((r) => { if (r.ok) setSaved(true); }).catch(console.error), 500);
+    const t = setTimeout(() => {
+      if (unsaved.current === doc) unsaved.current = null;
+      api.saveBooklet(doc).then((r) => { if (r.ok) setSaved(true); }).catch(console.error);
+    }, 500);
     return () => clearTimeout(t);
   }, [doc]);
+  useEffect(() => () => {
+    if (unsaved.current) void api.saveBooklet(unsaved.current).catch(console.error);
+  }, []);
 
   // History is kept outside React's updaters (which may run twice in dev).
   const current = useRef<Booklet | null>(null);
@@ -135,8 +148,8 @@ export function useBooklet() {
 
   const persistDefaults = useCallback((next: Defaults) => {
     setDefaults(next);
-    api.saveDefaults(next);
-  }, []);
+    api.saveDefaults(next, city);
+  }, [city]);
 
   const pin = useCallback(
     (category: Category, kalam: Kalam) => {
@@ -210,10 +223,10 @@ export function useBooklet() {
   const addTextBox = useCallback(
     (page: number, x: number, y: number) => {
       const sizePt = 24;
-      const box = { id: uid(), page, x, y: Math.max(0, Math.round(y - sizePt * 0.8)), text: '', sizePt, color: TEXT_COLORS[1] };
+      const box = { id: uid(), page, x, y: Math.max(0, Math.round(y - sizePt * 0.8)), text: '', sizePt, color: TEXT_COLORS[city][1] };
       setDoc((d) => ({ ...d, textBoxes: [...(d.textBoxes ?? []), box] }));
     },
-    [setDoc],
+    [city, setDoc],
   );
 
   return { doc, loadError, setDoc, defaults, saved, undo, redo, updateKalams, updateKalam, pin, unpin, replaceMedia, reset, textEdits, addTextBox };

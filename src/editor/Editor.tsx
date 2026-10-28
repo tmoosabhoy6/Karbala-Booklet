@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookletView } from '../booklet/Booklet';
 import { stripMarkup } from '../booklet/RichText';
-import { Block, CATEGORY_ADDABLE, CATEGORY_HINT, CATEGORY_LABEL, Category, ImageBlock, VENUES, Venue, uid } from '../booklet/model';
+import { Block, CATEGORY_ADDABLE, CATEGORY_HINT, CATEGORY_LABEL, CITIES, Category, City, ImageBlock, VENUES, uid } from '../booklet/model';
 import { paginate } from '../booklet/paginate';
 import { dateLine, raatTitle, raatTitleLatin } from '../lib/hijri';
 import { ImageEditor } from './ImageEditor';
@@ -11,8 +11,8 @@ import { api } from './api';
 import { AIRestore } from './AIRestore';
 import './editor.css';
 
-export function Editor() {
-  const state = useBooklet();
+export function Editor({ city, onCity }: { city: City; onCity: (city: City) => void }) {
+  const state = useBooklet(city);
   const { doc, setDoc, defaults, saved, undo, redo, updateKalams, updateKalam, replaceMedia, reset, textEdits, addTextBox } = state;
   const [active, setActive] = useState<{ category: Category; id: string } | null>(null);
   const [uploads, setUploads] = useState<Record<string, number>>({});
@@ -108,7 +108,7 @@ export function Editor() {
   };
 
   return (
-    <div className="editor" data-pane={pane}>
+    <div className={`editor ${city}`} data-pane={pane}>
       <nav className="mobile-tabs">
         <button className={pane === 'inputs' ? 'on' : ''} onClick={() => setPane('inputs')}>
           Kalams
@@ -119,6 +119,14 @@ export function Editor() {
       </nav>
       <aside className="inputs">
         <header className="inputs-head">
+          {/* Each city is its own workspace: its own booklet, defaults and artwork. */}
+          <div className="seg city">
+            {(Object.keys(CITIES) as City[]).map((c) => (
+              <button key={c} className={city === c ? 'on' : ''} onClick={() => onCity(c)}>
+                {CITIES[c].label}
+              </button>
+            ))}
+          </div>
           <div className="row">
             <h1>Matam Majlis Booklet</h1>
             <span className={`saved${saved ? '' : ' saving'}`}>{saved ? 'Saved' : 'Saving…'}</span>
@@ -133,13 +141,17 @@ export function Editor() {
               <div className="dl">{dateLine(d)}</div>
             </div>
           </div>
-          <div className="seg venue">
-            {(Object.keys(VENUES) as Venue[]).map((v) => (
-              <button key={v} className={doc.venue === v ? 'on' : ''} onClick={() => setDoc((x) => ({ ...x, venue: v }))}>
-                {VENUES[v].label}
-              </button>
-            ))}
-          </div>
+          {CITIES[city].venues.length > 1 ? (
+            <div className="seg venue">
+              {CITIES[city].venues.map((v) => (
+                <button key={v} className={doc.venue === v ? 'on' : ''} onClick={() => setDoc((x) => ({ ...x, venue: v }))}>
+                  {VENUES[v].label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="venue-name">{VENUES[doc.venue].label}</div>
+          )}
         </header>
 
         <div className="sections">

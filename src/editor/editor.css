@@ -797,3 +797,32 @@ button.ghost.on {
 .restore-comparison.full-size figure { max-height: 65vh; overflow: auto; }
 .restore-comparison.full-size img { width: auto; max-width: none; max-height: none; }
 .ai-restore select { max-width: 100%; padding: 7px; margin-left: 8px; }
+
+/* ---------- Najaf ---------- */
+/* The editor takes the Najaf green, so it is clear which booklet is open. */
+.editor.najaf {
+  --ui-maroon: #1a5c3a;
+  --ui-maroon-soft: #eef1ec;
+}
+
+.editor.najaf .hijri .t,
+.editor.najaf .section h2 {
+  color: #184f31;
+}
+
+.editor.najaf .kalam.active {
+  box-shadow: 0 0 0 2px rgba(26, 92, 58, 0.15);
+}
+
+.editor.najaf .box.erase {
+  background: rgba(26, 92, 58, 0.35);
+}
+
+.venue-name {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--ui-maroon-soft);
+  color: var(--ui-maroon);
+  font-weight: 600;
+  text-align: center;
+}

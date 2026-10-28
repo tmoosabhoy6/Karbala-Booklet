@@ -1,6 +1,6 @@
 // Durable browser copies survive a free hosting instance's disk being reset.
 // IndexedDB holds blobs, not localStorage's small synchronous string quota.
-import type { Booklet, Defaults, MediaMeta } from '../booklet/model';
+import { cityOf, type Booklet, type City, type Defaults, type MediaMeta } from '../booklet/model';
 import type { Edits } from './api';
 /** The untouched upload, its metadata and, once fetched, the finished files
  * of `meta.rev` (print lettering and fihrist opening words). With those the
@@ -34,6 +34,8 @@ export async function saveBackup(key: string, value: unknown) {
     });
   } catch (error) { console.warn('Browser backup could not be saved:', error); }
 }
-export const saveBookletBackup = (doc: Booklet) => saveBackup('booklet', doc);
-export const loadBookletBackup = () => readBackup<Booklet>('booklet');
-export const loadDefaultsBackup = () => readBackup<Defaults>('defaults');
+/** Karbala keeps the original keys; Najaf's copies are `booklet:najaf` and `defaults:najaf`. */
+export const cityKey = (name: string, city: City) => (city === 'karbala' ? name : `${name}:${city}`);
+export const saveBookletBackup = (doc: Booklet) => saveBackup(cityKey('booklet', cityOf(doc.venue)), doc);
+export const loadBookletBackup = (city: City) => readBackup<Booklet>(cityKey('booklet', city));
+export const loadDefaultsBackup = (city: City) => readBackup<Defaults>(cityKey('defaults', city));

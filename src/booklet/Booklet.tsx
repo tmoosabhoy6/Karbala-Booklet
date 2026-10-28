@@ -1,7 +1,7 @@
 import { arabicNumber, dateLine, raatTitle } from '../lib/hijri';
 import { createContext, useContext, useMemo } from 'react';
 import { EditContext, Editable, TextBoxView, TextEdits } from './Editable';
-import { Booklet as Doc, CATEGORY_LABEL, ImageBlock, TextBox, VENUES } from './model';
+import { Booklet as Doc, CATEGORY_LABEL, City, ImageBlock, TEXT_COLORS, TextBox, VENUES, cityOf } from './model';
 import { FihristItem, Layout, PAGE, Page, PlacedItem, imageWidthPt, ptPerPx } from './paginate';
 import './booklet.css';
 import { mediaSrc, openingSrc } from './media';
@@ -13,6 +13,15 @@ export { mediaSrc } from './media';
 
 const A = '/assets';
 
+/** Each city's artwork: Najaf's pages are Karbala's with the maroon turned
+ * green (tools/build_najaf.py). The back page is the same for both. */
+const THEMES: Record<City, { suffix: string; cityLogo?: string; faiz: string; ornament: string }> = {
+  karbala: { suffix: '', cityLogo: 'logo-karbala.png', faiz: 'logo-faiz-husaini.png', ornament: 'end-ornament.png' },
+  // The Najaf logo goes in as logo-najaf.png once its high-resolution copy is in.
+  najaf: { suffix: '-najaf', faiz: 'logo-faiz-husaini-najaf.png', ornament: 'end-ornament-najaf.png' },
+};
+const Theme = createContext(THEMES.karbala);
+
 const MediaContext = createContext<Record<string, string>>({});
 /** On-screen width of a page in CSS px; unset when printing. */
 const PreviewWidth = createContext<number | undefined>(undefined);
@@ -22,9 +31,11 @@ const PreviewWidth = createContext<number | undefined>(undefined);
  * screen density) can show more detail. The PDF always uses the full image. */
 function Background({ name }: { name: 'cover-bg' | 'back-bg' | 'page-border' }) {
   const width = useContext(PreviewWidth);
-  const full = `${A}/${name}.jpg`;
+  const { suffix } = useContext(Theme);
+  const file = name === 'back-bg' ? name : `${name}${suffix}`;
+  const full = `${A}/${file}.jpg`;
   if (!width) return <img className="bg" src={full} alt="" />;
-  return <img className="bg" src={full} srcSet={`${A}/${name}.preview.jpg 1240w, ${full} 2480w`} sizes={`${Math.ceil(width)}px`} alt="" />;
+  return <img className="bg" src={full} srcSet={`${A}/${file}.preview.jpg 1240w, ${full} 2480w`} sizes={`${Math.ceil(width)}px`} alt="" />;
 }
 
 /** The opening verse words, from a ready navy PNG. A plain image prints the
@@ -39,22 +50,24 @@ function OpeningWords({ block }: { block: ImageBlock }) {
 }
 
 function Logos({ karbalaWidth, faizHeight }: { karbalaWidth: number; faizHeight: number }) {
+  const { cityLogo, faiz } = useContext(Theme);
   return (
     <>
-      <img src={`${A}/logo-karbala.png`} style={{ width: `${karbalaWidth}pt` }} alt="" />
-      <img src={`${A}/logo-faiz-husaini.png`} style={{ height: `${faizHeight}pt` }} alt="" />
+      {cityLogo && <img src={`${A}/${cityLogo}`} style={{ width: `${karbalaWidth}pt` }} alt="" />}
+      <img src={`${A}/${faiz}`} style={{ height: `${faizHeight}pt` }} alt="" />
     </>
   );
 }
 
 function Cover({ doc }: { doc: Doc }) {
   const date = new Date(`${doc.date}T12:00:00`);
+  const { cityLogo, faiz } = useContext(Theme);
   return (
     <>
       <Background name="cover-bg" />
-      {/* Faiz-e-Husaini at the top-left corner; Karbala Mualla centred above the title. */}
-      <img className="cover-faiz" src={`${A}/logo-faiz-husaini.png`} alt="" />
-      <img className="cover-karbala" src={`${A}/logo-karbala.png`} alt="" />
+      {/* Faiz-e-Husaini at the top-left corner; Karbala Mualla (or Najaf) centred above the title. */}
+      <img className="cover-faiz" src={`${A}/${faiz}`} alt="" />
+      {cityLogo && <img className="cover-karbala" src={`${A}/${cityLogo}`} alt="" />}
       <div className="cover-title main">
         <Editable id="cover.title" text={raatTitle(date)} />
       </div>
@@ -73,6 +86,7 @@ function Cover({ doc }: { doc: Doc }) {
 }
 
 function FihristEntry({ item }: { item: FihristItem }) {
+  const { ornament } = useContext(Theme);
   switch (item.kind) {
     case 'head':
       return (
@@ -133,7 +147,7 @@ function FihristEntry({ item }: { item: FihristItem }) {
     case 'end':
       return (
         <div className="end">
-          <img src={`${A}/end-ornament.png`} alt="" />
+          <img src={`${A}/${ornament}`} alt="" />
         </div>
       );
   }
@@ -178,6 +192,7 @@ function CroppedImage({ item }: { item: Extract<PlacedItem, { kind: 'block' }> &
 }
 
 function Item({ item }: { item: PlacedItem }) {
+  const { ornament } = useContext(Theme);
   switch (item.kind) {
     case 'heading':
       return (
@@ -212,7 +227,7 @@ function Item({ item }: { item: PlacedItem }) {
     case 'ornament':
       return (
         <div className="ornament">
-          <img src={`${A}/end-ornament.png`} alt="" />
+          <img src={`${A}/${ornament}`} alt="" />
         </div>
       );
   }
@@ -265,7 +280,8 @@ interface ViewProps {
 }
 
 export function BookletView({ doc, layout, edits, onPlace, assets = {}, pageWidthPx }: ViewProps) {
-  const ctx = useMemo(() => ({ overrides: doc.overrides ?? {}, edits }), [doc.overrides, edits]);
+  const city = cityOf(doc.venue);
+  const ctx = useMemo(() => ({ overrides: doc.overrides ?? {}, edits, colors: TEXT_COLORS[city] }), [doc.overrides, edits, city]);
   const boxes = useMemo(() => {
     const byPage = new Map<number, TextBox[]>();
     for (const b of doc.textBoxes ?? []) byPage.set(b.page, [...(byPage.get(b.page) ?? []), b]);
@@ -283,10 +299,11 @@ export function BookletView({ doc, layout, edits, onPlace, assets = {}, pageWidt
   };
 
   return (
+    <Theme.Provider value={THEMES[city]}>
     <EditContext.Provider value={ctx}>
       <MediaContext.Provider value={assets}>
       <PreviewWidth.Provider value={pageWidthPx}>
-      <div className={`booklet${edits ? ' text-editing' : ''}${onPlace ? ' placing' : ''}`}>
+      <div className={`booklet ${city}${edits ? ' text-editing' : ''}${onPlace ? ' placing' : ''}`}>
         {layout.pages.map((page, i) => (
           <section
             key={i}
@@ -303,5 +320,6 @@ export function BookletView({ doc, layout, edits, onPlace, assets = {}, pageWidt
       </PreviewWidth.Provider>
       </MediaContext.Provider>
     </EditContext.Provider>
+    </Theme.Provider>
   );
 }

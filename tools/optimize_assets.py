@@ -7,7 +7,7 @@
   (*.preview.jpg) for the on-screen preview; the PDF always uses the full ones.
 - The font gets a WOFF2 copy: the same font, compressed.
 
-Run after tools/build_assets.py or tools/build-logos.mjs:
+Run after tools/build_assets.py, tools/build-logos.mjs or tools/build_najaf.py:
     pip install pillow fonttools brotli pyoxipng mozjpeg-lossless-optimization
     python tools/optimize_assets.py
 """
@@ -21,7 +21,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 PUBLIC = ROOT / "public"
-BACKGROUNDS = ["cover-bg", "back-bg", "page-border"]
+BACKGROUNDS = ["cover-bg", "back-bg", "page-border", "cover-bg-najaf", "page-border-najaf"]
 PREVIEW_WIDTH = 1240  # half of print size: 150 dpi across an A4 page
 
 
