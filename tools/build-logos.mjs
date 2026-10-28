@@ -10,8 +10,10 @@ import sharp from 'sharp';
 
 const logos = [
   { src: 'references/Logo 1 HD.jpg', out: 'public/assets/logo-karbala.png' },
-  { src: 'references/Logo 2 HD.jpg', out: 'public/assets/logo-faiz-husaini.png' },
+  // Printed in the Karbala Mualla maroon so both logos match.
+  { src: 'references/Logo 2 HD.jpg', out: 'public/assets/logo-faiz-husaini.png', colourOf: 'references/Logo 1 HD.jpg' },
 ];
+const colours = new Map();
 
 const chroma = (d, i) => Math.max(d[i * 3], d[i * 3 + 1], d[i * 3 + 2]) - Math.min(d[i * 3], d[i * 3 + 1], d[i * 3 + 2]);
 
@@ -31,18 +33,20 @@ for (const logo of logos) {
   const strongest = [...c].sort((a, b) => b - a)[Math.floor(n * 0.02)];
   const solid = [];
   for (let i = 0; i < n; i++) if (c[i] >= strongest) solid.push(i);
-  const colour = [0, 1, 2].map((k) => {
+  const own = [0, 1, 2].map((k) => {
     const v = solid.map((i) => data[i * 3 + k]).sort((a, b) => a - b);
     return v[v.length >> 1];
   });
+  colours.set(logo.src, own);
   // Fully opaque from the weakest part of a solid stroke: JPEG noise makes
   // stroke interiors uneven, and any partial alpha there would let the page
   // background tint the letters. Only the antialiased edge is partial.
-  const full = Math.max(...colour) - Math.min(...colour);
+  const full = Math.max(...own) - Math.min(...own);
   const core = [];
   for (let i = 0; i < n; i++) if (c[i] >= full * 0.75) core.push(c[i]);
   core.sort((a, b) => a - b);
   const opaqueAt = core[Math.floor(core.length * 0.01)];
+  const colour = logo.colourOf ? colours.get(logo.colourOf) : own;
   const rgba = Buffer.alloc(n * 4);
   let opaque = 0;
   for (let i = 0; i < n; i++) {
