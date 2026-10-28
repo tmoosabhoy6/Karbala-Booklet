@@ -801,21 +801,21 @@ button.ghost.on {
 /* ---------- Najaf ---------- */
 /* The editor takes the Najaf green, so it is clear which booklet is open. */
 .editor.najaf {
-  --ui-maroon: #1a5c3a;
-  --ui-maroon-soft: #eef1ec;
+  --ui-maroon: #164d2c;
+  --ui-maroon-soft: #edf0eb;
 }
 
 .editor.najaf .hijri .t,
 .editor.najaf .section h2 {
-  color: #184f31;
+  color: #144225;
 }
 
 .editor.najaf .kalam.active {
-  box-shadow: 0 0 0 2px rgba(26, 92, 58, 0.15);
+  box-shadow: 0 0 0 2px rgba(22, 77, 44, 0.15);
 }
 
 .editor.najaf .box.erase {
-  background: rgba(26, 92, 58, 0.35);
+  background: rgba(22, 77, 44, 0.35);
 }
 
 .venue-name {

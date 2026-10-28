@@ -12,6 +12,9 @@ const logos = [
   { src: 'references/Logo 1 HD.jpg', out: 'public/assets/logo-karbala.png' },
   // Printed in the Karbala Mualla maroon so both logos match.
   { src: 'references/Logo 2 HD.jpg', out: 'public/assets/logo-faiz-husaini.png', colourOf: 'references/Logo 1 HD.jpg' },
+  // Najaf: the An-Najaf al-Ashraf logo, and Faiz-e-Husaini in its green.
+  { src: 'references/Najaf Logo HD.jpg', out: 'public/assets/logo-najaf.png' },
+  { src: 'references/Logo 2 HD.jpg', out: 'public/assets/logo-faiz-husaini-najaf.png', colourOf: 'references/Najaf Logo HD.jpg' },
 ];
 const colours = new Map();
 

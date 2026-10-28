@@ -9,18 +9,18 @@ import {
   City,
   Defaults,
   Kalam,
-  MATAM_MEDIA_ID,
   MediaMeta,
   TEXT_COLORS,
   Venue,
   cityOf,
   cloneBlocks,
   createBooklet,
+  matamMediaId,
   templateOverrides,
   uid,
 } from '../booklet/model';
 import { api } from './api';
-import { loadBookletBackup, loadDefaultsBackup, saveBookletBackup } from './cache';
+import { cityKey, loadBookletBackup, loadDefaultsBackup, readBackup, saveBackup, saveBookletBackup } from './cache';
 
 export const todayIso = () => {
   const d = new Date();
@@ -35,6 +35,27 @@ const mapKalams = (d: Booklet, fn: (k: Kalam) => Kalam): Booklet => ({
   kalams: Object.fromEntries(Object.entries(d.kalams).map(([c, ks]) => [c, ks.map(fn)])) as Booklet['kalams'],
 });
 
+/** Only fixed content: nothing added to the booklet yet. */
+const untouched = (d: Booklet) => !d.textBoxes?.length && Object.values(d.kalams).every((ks) => ks.every((k) => k.fixed === 'all' || !k.blocks.length));
+
+/**
+ * Najaf starts with Karbala's pinned kalams, copied once (its own pins win
+ * over Karbala's). The copy is marked in the browser, so unpinning one in
+ * Najaf later does not bring it back.
+ */
+async function withKarbalaPins(city: City, own: Defaults): Promise<Defaults | null> {
+  const marker = cityKey('pins-copied', city);
+  if (city === 'karbala' || (await readBackup(marker))) return null;
+  const [remote, local] = await Promise.all([api.loadDefaults('karbala'), loadDefaultsBackup('karbala')]);
+  const karbala = Object.keys(remote).length ? remote : local ?? {};
+  // Nothing pinned in Karbala (on this device) yet: try again next time.
+  if (!Object.keys(karbala).length) return null;
+  const merged = { ...karbala, ...own };
+  await api.saveDefaults(merged, city);
+  await saveBackup(marker, true);
+  return merged;
+}
+
 const replaceLine = (text: string, i: number, line: string) => text.split('\n').map((l, j) => (j === i ? line : l)).join('\n');
 
 export function useBooklet(city: City) {
@@ -48,10 +69,13 @@ export function useBooklet(city: City) {
 
   useEffect(() => {
     (async () => {
-      const [remoteDoc, remoteDefs, m, localDoc, localDefs] = await Promise.all([api.loadBooklet(city), api.loadDefaults(city), api.media(MATAM_MEDIA_ID), loadBookletBackup(city), loadDefaultsBackup(city)]);
+      const [remoteDoc, remoteDefs, m, localDoc, localDefs] = await Promise.all([api.loadBooklet(city), api.loadDefaults(city), api.media(matamMediaId(city)), loadBookletBackup(city), loadDefaultsBackup(city)]);
       const kept = remoteDoc ?? localDoc;
-      const stored = kept && cityOf(kept.venue) === city ? kept : null;
-      const defs = Object.keys(remoteDefs).length ? remoteDefs : localDefs ?? remoteDefs;
+      const ownDefs = Object.keys(remoteDefs).length ? remoteDefs : localDefs ?? remoteDefs;
+      const copied = await withKarbalaPins(city, ownDefs);
+      const defs = copied ?? ownDefs;
+      // A booklet with nothing added yet starts over with the copied pins in it.
+      const stored = kept && cityOf(kept.venue) === city && !(copied && untouched(kept)) ? kept : null;
       matam.current = m;
       const ids = new Set(Object.values(stored?.kalams ?? {}).flatMap((ks) => ks.flatMap((k) => k.blocks.filter((b) => b.kind === 'image').map((b) => b.mediaId))));
       Object.values(defs).forEach((v) => v.blocks.forEach((b) => { if (b.kind === 'image') ids.add(b.mediaId); }));
@@ -80,7 +104,8 @@ export function useBooklet(city: City) {
         });
         setDocState({ ...refreshed, date: todayIso(), kalams: { ...refreshed.kalams, matam: fresh.kalams.matam, salamArz: fresh.kalams.salamArz } });
       } else {
-        setDocState(createBooklet(todayIso(), CITIES[city].venues[0], refreshedDefaults, m));
+        const fresh = createBooklet(todayIso(), CITIES[city].venues[0], refreshedDefaults, m);
+        setDocState(copied && kept?.overrides ? { ...fresh, overrides: kept.overrides } : fresh);
       }
     })().catch((error: Error) => setLoadError(error.message));
   }, [city]);

@@ -12,7 +12,10 @@ export const MEDIA = path.join(DATA, 'media');
 mkdirSync(MEDIA, { recursive: true });
 /** The fixed Matam page, already cleaned by `npm run build`. */
 export const FIXED_BUILD = path.resolve('build/fixed');
-const FIXED: [string, string][] = [['fixed-matam', 'public/fixed/matam-husain-panjatan.png']];
+const FIXED: [string, string][] = [
+  ['fixed-matam', 'public/fixed/matam-husain-panjatan.png'],
+  ['fixed-matam-najaf', 'public/fixed/matam-husain-panjatan-najaf.png'],
+];
 
 export interface MediaMeta {
   id: string;
@@ -160,7 +163,7 @@ export async function buildFixedMedia(): Promise<void> {
   }
 }
 
-/** The fixed Matam page (حسين حسين، پنجتن ماتم): copied from the build, or
+/** The fixed Matam pages (حسين حسين، پنجتن ماتم; Najaf's in green): copied from the build, or
  * cleaned on first start when running from source without a build. */
 export async function ensureFixedMedia(): Promise<void> {
   for (const [id, file] of FIXED) {

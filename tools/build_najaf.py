@@ -1,14 +1,15 @@
 """Builds the Najaf artwork: the Karbala artwork with its maroon turned green.
 
-Run after tools/build_assets.py / tools/build-logos.mjs (outputs are committed):
+Run after tools/build_assets.py / tools/build-logos.mjs (outputs are committed;
+build-logos.mjs makes logo-najaf.png and the green Faiz-e-Husaini logo):
     pip install pillow numpy
     python tools/build_najaf.py
 then tools/optimize_assets.py for the preview copies.
 
 Reads the finished maroon files, so every Najaf page lines up with its
 Karbala twin pixel for pixel, and writes *-najaf files beside them. The green
-is the Najaf logo's own colour (public/assets/logo-najaf.png) once that logo
-is in; until then a dark green placeholder. Only maroon pixels move, in Lab:
+is the Najaf logo's own colour (public/assets/logo-najaf.png). Only maroon
+pixels move (on the fixed Matam page, its red headings), in Lab:
 the hue turns, chroma and lightness scale so the base maroon lands exactly on
 the green and every lighter or deeper shade keeps its place. The plaid, the
 gold and cream, the navy and the blue footer lettering are left alone; the
@@ -23,6 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "public" / "assets"
 
 MAROON = (140, 26, 36)  # the base colour, --maroon in booklet.css
+MATAM_RED = (237, 32, 36)  # the headings of the fixed Matam page
 PLACEHOLDER_GREEN = (26, 92, 58)
 # Pale CSS shades that follow the green (see booklet.css :root).
 CSS = {
@@ -59,13 +61,13 @@ def lch(lab):
     return lab[..., 0], np.hypot(lab[..., 1], lab[..., 2]), np.degrees(np.arctan2(lab[..., 2], lab[..., 1]))
 
 
-def recolour(rgb, green, region=None, chroma_from=0.0, chroma_full=6.0, darker_than=None):
-    """Maroon -> green. Pixels fade in by chroma (from `chroma_from` to
+def recolour(rgb, green, region=None, chroma_from=0.0, chroma_full=6.0, darker_than=None, source=MAROON):
+    """`source` (the maroon) -> green. Pixels fade in by chroma (from `chroma_from` to
     `chroma_full`), so near-neutral paper and plaid stay as they are, and by
     hue (full within 22° of the maroon, none beyond 35°), so gold stays gold.
     With `darker_than`, only pixels darker than that lightness move (fading
     over the 15 above it), which tells greyish ink from the pale plaid."""
-    L0, C0, h0 = (float(v) for v in lch(to_lab(MAROON)))
+    L0, C0, h0 = (float(v) for v in lch(to_lab(source)))
     L1, C1, h1 = (float(v) for v in lch(to_lab(green)))
     lab = to_lab(rgb)
     L, C, h = lch(lab)
@@ -140,13 +142,14 @@ def build_ornament(green):
     print("wrote end-ornament-najaf.png")
 
 
-def build_faiz(green):
-    """The Faiz-e-Husaini logo is one ink colour with alpha: print it in the green."""
-    img = Image.open(ASSETS / "logo-faiz-husaini.png").convert("RGBA")
-    a = np.array(img)
-    a[..., :3] = green
-    Image.fromarray(a).save(ASSETS / "logo-faiz-husaini-najaf.png", optimize=True)
-    print("wrote logo-faiz-husaini-najaf.png")
+def build_matam(green):
+    """The fixed Matam page: its red headings (حسين حسين حسين, پنجتن ماتم) in
+    the green; the black verses stay black."""
+    fixed = ROOT / "public" / "fixed"
+    src = np.array(Image.open(fixed / "matam-husain-panjatan.png").convert("RGB")).astype(float)
+    out = recolour(src, green, source=MATAM_RED)
+    Image.fromarray(np.round(out).astype(np.uint8)).save(fixed / "matam-husain-panjatan-najaf.png", optimize=True)
+    print("wrote matam-husain-panjatan-najaf.png")
 
 
 if __name__ == "__main__":
@@ -155,7 +158,7 @@ if __name__ == "__main__":
     build_cover(green)
     build_border(green)
     build_ornament(green)
-    build_faiz(green)
+    build_matam(green)
     print("booklet.css .najaf colours:")
     for name, colour in CSS.items():
         out = recolour(np.array([[colour]], float), green)[0, 0]

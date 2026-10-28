@@ -102,7 +102,7 @@ export interface Booklet {
 /** Text box colours: the booklet's black, heading maroon (Najaf: green), fihrist navy and gold. */
 export const TEXT_COLORS: Record<City, string[]> = {
   karbala: ['#000000', '#8c1a24', '#3a456a', '#c18144'],
-  najaf: ['#000000', '#1a5c3a', '#3a456a', '#c18144'],
+  najaf: ['#000000', '#164d2c', '#3a456a', '#c18144'],
 };
 
 /**
@@ -228,6 +228,8 @@ export const SALAM_ARZ_TEXT = [
 
 export const MATAM_NAME = 'حسين حسين، پنجتن ماتم';
 export const MATAM_MEDIA_ID = 'fixed-matam';
+/** Najaf's Matam page has its headings in green (tools/build_najaf.py). */
+export const matamMediaId = (city: City) => (city === 'najaf' ? 'fixed-matam-najaf' : MATAM_MEDIA_ID);
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 

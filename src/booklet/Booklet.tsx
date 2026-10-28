@@ -15,10 +15,9 @@ const A = '/assets';
 
 /** Each city's artwork: Najaf's pages are Karbala's with the maroon turned
  * green (tools/build_najaf.py). The back page is the same for both. */
-const THEMES: Record<City, { suffix: string; cityLogo?: string; faiz: string; ornament: string }> = {
+const THEMES: Record<City, { suffix: string; cityLogo: string; faiz: string; ornament: string }> = {
   karbala: { suffix: '', cityLogo: 'logo-karbala.png', faiz: 'logo-faiz-husaini.png', ornament: 'end-ornament.png' },
-  // The Najaf logo goes in as logo-najaf.png once its high-resolution copy is in.
-  najaf: { suffix: '-najaf', faiz: 'logo-faiz-husaini-najaf.png', ornament: 'end-ornament-najaf.png' },
+  najaf: { suffix: '-najaf', cityLogo: 'logo-najaf.png', faiz: 'logo-faiz-husaini-najaf.png', ornament: 'end-ornament-najaf.png' },
 };
 const Theme = createContext(THEMES.karbala);
 
@@ -53,7 +52,7 @@ function Logos({ karbalaWidth, faizHeight }: { karbalaWidth: number; faizHeight:
   const { cityLogo, faiz } = useContext(Theme);
   return (
     <>
-      {cityLogo && <img src={`${A}/${cityLogo}`} style={{ width: `${karbalaWidth}pt` }} alt="" />}
+      <img src={`${A}/${cityLogo}`} style={{ width: `${karbalaWidth}pt` }} alt="" />
       <img src={`${A}/${faiz}`} style={{ height: `${faizHeight}pt` }} alt="" />
     </>
   );
@@ -65,9 +64,9 @@ function Cover({ doc }: { doc: Doc }) {
   return (
     <>
       <Background name="cover-bg" />
-      {/* Faiz-e-Husaini at the top-left corner; Karbala Mualla (or Najaf) centred above the title. */}
+      {/* Faiz-e-Husaini at the top-left corner; Karbala Mualla (or An-Najaf al-Ashraf) centred above the title. */}
       <img className="cover-faiz" src={`${A}/${faiz}`} alt="" />
-      {cityLogo && <img className="cover-karbala" src={`${A}/${cityLogo}`} alt="" />}
+      <img className={`cover-${cityOf(doc.venue)}`} src={`${A}/${cityLogo}`} alt="" />
       <div className="cover-title main">
         <Editable id="cover.title" text={raatTitle(date)} />
       </div>

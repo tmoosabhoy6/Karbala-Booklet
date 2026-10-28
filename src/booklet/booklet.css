@@ -70,6 +70,14 @@
   top: calc(77pt - 158.4pt * 1002 / 1927 / 2);
 }
 
+/* The Najaf logo (1967×795) in the same place and width. */
+.cover-najaf {
+  position: absolute;
+  width: 158.4pt;
+  left: calc((509pt - 158.4pt) / 2);
+  top: calc(77pt - 158.4pt * 795 / 1967 / 2);
+}
+
 .cover-title {
   position: absolute;
   left: 0;
@@ -399,10 +407,10 @@
 /* ---------- Najaf ---------- */
 /* The maroon turned the Najaf green; tools/build_najaf.py prints these. */
 .booklet.najaf {
-  --maroon: #1a5c3a;
-  --maroon-deep: #184f31;
-  --maroon-tint: #dde5db;
-  --rose-tint: #eef1ec;
-  --rule: #1a5c3a;
-  --divider: #99b197;
+  --maroon: #164d2c;
+  --maroon-deep: #144225;
+  --maroon-tint: #dbe2d7;
+  --rose-tint: #edf0eb;
+  --rule: #164d2c;
+  --divider: #94a88f;
 }
