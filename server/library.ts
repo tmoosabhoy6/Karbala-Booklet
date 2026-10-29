@@ -18,7 +18,10 @@ const LIBRARY_FILE = path.join(ROOT, 'server/library/library.json');
 
 /** [page, y0, y1, centre of first row, centre of last row] in PDF points. */
 type Part = [number, number, number, number, number];
-interface LibraryKalam { st: Part[][]; lh: number; pitch: number; tr: [number, number, number, number, number] }
+/** `st`: each verse's parts. `g`: each verse's stanza, when verses are rows or
+ * pieces of stanzas (a ghazal, an oversized stanza; tools/build_library.py
+ * verse_plan); without it every verse is a stanza of its own. */
+interface LibraryKalam { st: Part[][]; g?: number[]; lh: number; pitch: number; tr: [number, number, number, number, number] }
 interface Marks { w?: number[][]; z?: number[][]; t?: [number, number, number, number, number[]][] }
 interface Library { v: number; source: string; sha: string; kalams: LibraryKalam[]; marks: Record<string, Marks> }
 
@@ -71,9 +74,34 @@ const MAX_PIXELS = 10_000_000;
 interface Placed { part: Part; dy: number }
 interface Block { placed: Placed[]; height: number; continues: boolean }
 
-/** Chosen verses laid out into blocks of whole verses (a verse taller than a
- * block continues in the next, marked `continues`). Inside a block a verse's
- * pieces from consecutive pages join at its own line pitch; verses are kept a
+/** Chosen verses as stanzas to print, each a list of parts. Chosen verses of
+ * the same stanza print together as one, at line pitch; neighbouring ones on
+ * a page join into one crop, so a whole stanza prints exactly as it stands. */
+function stanzasOf(k: LibraryKalam, verses: number[]): Part[][] {
+  const out: Part[][] = [];
+  let group: number | null = null, last = -2;
+  for (const v of verses) {
+    const parts = k.st[v];
+    if (!parts) continue;
+    const g = k.g?.[v] ?? null;
+    const run = out[out.length - 1];
+    if (g === null || g !== group || !run) out.push(parts.map((p) => [...p] as Part));
+    else {
+      const prev = run[run.length - 1];
+      const [first, ...rest] = parts;
+      if (v === last + 1 && prev[0] === first[0]) run[run.length - 1] = [prev[0], prev[1], first[2], prev[3], first[4]];
+      else run.push([...first] as Part);
+      run.push(...rest.map((p) => [...p] as Part));
+    }
+    group = g;
+    last = v;
+  }
+  return out;
+}
+
+/** Chosen verses laid out into blocks of whole stanzas (a stanza taller than a
+ * block continues in the next, marked `continues`). Inside a block a stanza's
+ * pieces from consecutive pages join at its own line pitch; stanzas are kept a
  * clear stanza gap apart, which the cleaner reads as the stanza break. */
 function layout(k: LibraryKalam, verses: number[]): Block[] {
   const z = zoomOf(k);
@@ -81,9 +109,7 @@ function layout(k: LibraryKalam, verses: number[]): Block[] {
   const blocks: Block[] = [];
   let cur: Block | null = null;
   const start = (continues: boolean) => { cur = { placed: [], height: 0, continues }; blocks.push(cur); };
-  for (const v of verses) {
-    const parts = k.st[v];
-    if (!parts) continue;
+  for (const parts of stanzasOf(k, verses)) {
     const total = parts.reduce((h, p) => h + p[2] - p[1], 0) + (parts.length - 1) * k.pitch;
     if (!cur || (cur as Block).height + k.pitch * 1.2 + total > maxH) start(false);
     parts.forEach((part, i) => {
@@ -94,8 +120,9 @@ function layout(k: LibraryKalam, verses: number[]): Block[] {
       let dy = c.height;
       if (c.placed.length) {
         const prev = c.placed[c.placed.length - 1];
-        // Same verse on the next page: its first row one line pitch below the
-        // last row before it. A new verse: a stanza gap below.
+        // The same stanza going on (on the next page, or at a chosen verse
+        // further down): its first row one line pitch below the last row
+        // before it. A new stanza: a stanza gap below.
         const prevLast = prev.dy + prev.part[4] - prev.part[1];
         dy = i > 0 ? prevLast + k.pitch - (part[3] - part[1]) : Math.max(c.height + k.pitch * 0.9, prevLast + k.pitch * 2 - (part[3] - part[1]));
       }

@@ -502,6 +502,43 @@ def crops_for(pages, stanzas):
     return [[[pages[pi]['p'], y0, y1, c0, c1] for pi, y0, y1, c0, c1 in parts] for parts in flat]
 
 
+def verse_plan(rows):
+    """The verses a kalam is chosen by, when its stanzas are not enough: a
+    kalam in one continuous run (a ghazal, couplet after couplet) and any
+    oversized stanza become one verse per row; a stanza that is a whole
+    multiple of the kalam's usual stanza (a missed break) becomes stanzas of
+    that size. `rows` are the rows per stanza; the result is
+    [(first row, end row, stanza), ...] over the kalam's rows, or None when
+    every stanza stays one verse. Pieces keep their stanza: chosen together
+    they print exactly as the stanza did."""
+    real = sorted(n for n in rows if n >= 2)
+    typical = real[len(real) // 2] if real else 1
+    plan, start, changed = [], 0, False
+    for si, n in enumerate(rows):
+        if len(real) >= 3 and typical >= 2 and n >= 2 * typical and n % typical == 0:
+            plan += [(start + c, start + c + typical, si) for c in range(0, n, typical)]
+            changed = True
+        elif n >= 2 and (len(rows) == 1 or (n >= 10 and (len(real) < 3 or n >= 1.5 * typical))):
+            plan += [(start + r, start + r + 1, si) for r in range(n)]
+            changed = True
+        else:
+            plan.append((start, start + n, si))
+        start += n
+    return plan if changed else None
+
+
+def join_parts(parts):
+    """Row crops of one verse in order → its parts: rows on the same page join
+    into one crop (first row's top to last row's bottom)."""
+    out = []
+    for p in parts:
+        if out and out[-1][0] == p[0]:
+            out[-1] = [p[0], out[-1][1], p[2], out[-1][3], p[4]]
+        else:
+            out.append(list(p))
+    return out
+
+
 _book = None
 
 
@@ -524,6 +561,9 @@ def analyse_one(args):
         return n, None, {}
     stanzas, base, hmed, mode = st
     crops = crops_for(pages, stanzas)
+    plan = verse_plan([len(g) for g in stanzas])
+    # Each row's own crop (cut halfway to its neighbours), for verse_plan.
+    split = plan and {'plan': plan, 'rows': [c[0] for c in crops_for(pages, [[it] for g in stanzas for it in g])]}
     used = {part[0] for s in crops for part in s}
     marks = {}
     for pg in pages:
@@ -535,7 +575,7 @@ def analyse_one(args):
         'p': k['p'], 'y': round(k['y'], 1), 'box': k['box'] and [round(v, 1) for v in k['box']],
         'row': k.get('row') and {'ip': k['row']['ip'], 'rect': [round(v, 1) for v in k['row']['rect']]},
         'kind': k['group'][1], 'group': k['group'][2],
-        'stanzas': crops, 'rows': [len(g) for g in stanzas],
+        'stanzas': crops, 'rows': [len(g) for g in stanzas], **({'split': split} if split else {}),
         'lh': round(hmed, 1), 'pitch': round(base, 1), 'ended': ended, 'dropped': dropped,
         'pages': sorted(used),
     }, marks
@@ -588,11 +628,18 @@ def finalize():
         else:
             s0 = k['stanzas'][0][0]
             tr = [s0[0], 30, s0[1], 582, min(s0[2], s0[1] + k['pitch'] * 1.2)]
-        kalams.append({'st': k['stanzas'], 'lh': k['lh'], 'pitch': k['pitch'], 'tr': [round(v, 1) for v in tr]})
+        entry = {'st': k['stanzas'], 'lh': k['lh'], 'pitch': k['pitch'], 'tr': [round(v, 1) for v in tr]}
+        if k.get('split'):
+            # Verses smaller than stanzas; `g` is each one's stanza, which the
+            # server prints without a stanza gap inside (server/library.ts).
+            rows, plan = k['split']['rows'], k['split']['plan']
+            entry['st'] = [join_parts(rows[a:b]) for a, b, _ in plan]
+            entry['g'] = [g for _, _, g in plan]
+        kalams.append(entry)
         title = titles.get(k['n'], '')
         aliases = [titles[a] for a in k['aliases'] if titles.get(a, '-') not in ('-', '', title)] + spellings.get(k['n'], [])
         index.append({'t': title, **({'a': aliases} if aliases else {}), 'k': k['kind'], 'g': k['group'],
-                      'v': len(k['stanzas']), 'r': sum(k['rows'])})
+                      'v': len(entry['st']), 'r': sum(k['rows'])})
     used = {part[0] for k in kalams for s in k['st'] for part in s} | {k['tr'][0] for k in kalams}
     marks = {p: m for p, m in A['whiteouts'].items() if int(p) in used}
     with open(SRC, 'rb') as f:

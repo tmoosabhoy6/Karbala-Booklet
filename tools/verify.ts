@@ -100,6 +100,14 @@ try {
   assert(remade.equals(versesPng), 'A lost library image is made again, byte for byte, under the same name.');
   const whole = await fetch(`${origin}/api/library/0/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: null }) }).then((r) => r.json());
   assert(whole.ids.length > 3 && whole.ids.every((id: string, i: number) => id === `lib1-0-all-${i}`), 'A long kalam comes in several images.');
+  // A ghazal (couplets with no stanza gaps): every couplet is a verse to
+  // choose, and chosen couplets print as one run, with no stanza gaps.
+  const ghazal = libIndex.kalams.findIndex((k: { t: string }) => k.t === 'Le ja baad-e-saba bandagi kamtar ki');
+  assert(ghazal >= 0 && libIndex.kalams[ghazal].v === libIndex.kalams[ghazal].r && libIndex.kalams[ghazal].v > 20, 'Each couplet of a ghazal is its own verse.');
+  const couplets = await fetch(`${origin}/api/library/${ghazal}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: [0, 1, 4] }) }).then((r) => r.json());
+  const coupletMeta = await fetch(`${origin}/api/media/${couplets.ids[0]}`).then((r) => r.json());
+  assert(couplets.ids.length === 1 && coupletMeta.regions.length === 3, 'Three chosen couplets make three rows.');
+  assert.deepEqual([...new Set(coupletMeta.regions.map((r: { group: number }) => r.group))], [0], 'Chosen couplets print as one run.');
   const title = await fetch(`${origin}/api/library/0/title.png`);
   assert(title.ok && (await sharp(Buffer.from(await title.arrayBuffer())).metadata()).width! > 50, 'The search list shows each original title.');
   // Section order: Dua after the Matam (Karbala only), Qasida, Naat and Manqabat after the Quran.
