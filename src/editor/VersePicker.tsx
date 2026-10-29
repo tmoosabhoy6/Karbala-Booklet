@@ -5,14 +5,16 @@ const TOUCH = matchMedia('(pointer: coarse)').matches;
 
 interface Props {
   hit: LibraryHit;
+  /** The card already has content, which this replaces. */
+  replacing?: boolean;
   onClose: () => void;
   /** Chosen verses in order; null = the whole kalam. */
   onAdd: (verses: number[] | null) => void;
 }
 
-/** A long kalam (Ya Sayyid al-Shuhada and the like): choose which verses print.
+/** Any library kalam: see its verses and choose which print.
  * Click a verse to choose it; Shift-click chooses everything in between. */
-export function VersePicker({ hit, onClose, onAdd }: Props) {
+export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
   const count = hit.entry.v;
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   const [anchor, setAnchor] = useState<number | null>(null);
@@ -45,7 +47,10 @@ export function VersePicker({ hit, onClose, onAdd }: Props) {
         <header className="verse-head">
           <div>
             <h2>{hit.name}</h2>
-            <small>{count} verses · {TOUCH ? 'tap the verses to print' : 'click to choose, Shift-click for a range'}</small>
+            <small>
+              {count} verse{count === 1 ? '' : 's'} · {TOUCH ? 'tap the verses to print' : 'click to choose, Shift-click for a range'}
+              {replacing && ' · replaces what this kalam has now'}
+            </small>
           </div>
           <img className="verse-title" src={titleSrc(hit.n)} alt="" />
           <button className="ghost" onClick={onClose} aria-label="Close">✕</button>
@@ -64,9 +69,9 @@ export function VersePicker({ hit, onClose, onAdd }: Props) {
           ))}
         </ol>
         <footer className="verse-foot">
-          <button className="ghost" onClick={() => onAdd(null)}>Add whole kalam</button>
+          <button className="ghost" onClick={() => onAdd(null)}>{replacing ? 'Replace with' : 'Add'} whole kalam</button>
           <button className="primary" disabled={!chosen.size} onClick={() => onAdd(list)}>
-            Add {chosen.size || ''} verse{chosen.size === 1 ? '' : 's'}
+            {replacing ? 'Replace with' : 'Add'} {chosen.size || ''} verse{chosen.size === 1 ? '' : 's'}
           </button>
         </footer>
       </aside>

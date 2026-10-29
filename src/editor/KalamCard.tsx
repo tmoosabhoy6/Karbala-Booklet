@@ -205,7 +205,14 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
         )}
       </div>
 
-      {!kalam.blocks.length && !fetching && <LibrarySearch category={category} placeholder="Fill this kalam from Zikre Husain: type its first words" onPick={onLibrary} />}
+      {/* Defaults and filled cards too: a pick replaces what the card has (see the verse picker). */}
+      {!fetching && (
+        <LibrarySearch
+          category={category}
+          placeholder={kalam.blocks.length ? 'Replace from Zikre Husain: type its first words' : 'Fill this kalam from Zikre Husain: type its first words'}
+          onPick={onLibrary}
+        />
+      )}
 
       <div
         className={`dropzone${dragOver ? ' over' : ''}${active ? ' armed' : ''}`}

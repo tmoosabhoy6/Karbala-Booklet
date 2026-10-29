@@ -19,9 +19,6 @@ export interface LibraryEntry {
 
 export interface LibraryHit { n: number; entry: LibraryEntry; score: number; name: string }
 
-/** A kalam with this many verses opens the verse picker; shorter ones go in whole. */
-export const PICK_VERSES = 20;
-
 /** Booklet sections each library kind belongs to (a match there ranks first). */
 const KIND_CATEGORIES: Record<string, Category[]> = {
   marathi: ['marathi', 'ratha'],

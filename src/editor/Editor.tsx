@@ -11,7 +11,7 @@ import { api } from './api';
 import { AIRestore } from './AIRestore';
 import { LibrarySearch } from './LibrarySearch';
 import { VersePicker } from './VersePicker';
-import { LibraryHit, PICK_VERSES } from './library';
+import type { LibraryHit } from './library';
 import './editor.css';
 
 export function Editor({ city, onCity }: { city: City; onCity: (city: City) => void }) {
@@ -21,8 +21,8 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
   const [uploads, setUploads] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<ImageBlock | null>(null);
   const [restoring, setRestoring] = useState<ImageBlock | null>(null);
-  // A long library kalam waiting for its verses to be chosen.
-  const [picking, setPicking] = useState<{ category: Category; kalamId?: string; hit: LibraryHit } | null>(null);
+  // A library kalam waiting for its verses to be chosen; `replace` when it goes into a filled card.
+  const [picking, setPicking] = useState<{ category: Category; kalamId?: string; replace: boolean; hit: LibraryHit } | null>(null);
   const [fetching, setFetching] = useState<Record<string, number>>({});
   // A4 is 794 CSS px wide: start narrow screens zoomed to fit.
   const [zoom, setZoom] = useState(() => Math.max(0.3, Math.min(0.8, +((innerWidth - 32) / 794).toFixed(2))));
@@ -48,10 +48,12 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
   );
 
   /** A kalam (or chosen verses) from Zikre Husain into a kalam card: a new one
-   * unless `kalamId` names the card to fill. Each image is rendered from the
-   * PDF and cleaned on the server, then printed like any screenshot. */
+   * unless `kalamId` names the card to fill. With `replace` the card's old
+   * content goes once the first new image is ready (and stays if none comes).
+   * Each image is rendered from the PDF and cleaned on the server, then
+   * printed like any screenshot. */
   const addFromLibrary = useCallback(
-    async (category: Category, hit: LibraryHit, verses: number[] | null, kalamId?: string) => {
+    async (category: Category, hit: LibraryHit, verses: number[] | null, kalamId?: string, replace = false) => {
       const id = kalamId ?? uid();
       if (!kalamId) updateKalams(category, (ks) => [...ks, { id, name: '', blocks: [] }]);
       setActive({ category, id });
@@ -62,7 +64,8 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
           setFetching((f) => ({ ...f, [id]: ids.length - i }));
           const meta = await api.media(ids[i]);
           if (!meta) throw new Error('The verses could not be made.');
-          updateKalam(category, id, (k) => ({ ...k, blocks: [...k.blocks, imageBlockFrom(meta)] }));
+          const block = imageBlockFrom(meta);
+          updateKalam(category, id, (k) => ({ ...k, blocks: replace && i === 0 ? [block] : [...k.blocks, block] }));
         }
       } catch (e) {
         alert(`Could not add “${hit.name}”: ${(e as Error).message}`);
@@ -72,9 +75,10 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
     },
     [updateKalam, updateKalams],
   );
+  // Every kalam opens the verse picker, so the verses can be seen and chosen first.
   const pickFromLibrary = (category: Category, hit: LibraryHit, kalamId?: string) => {
-    if (hit.entry.v >= PICK_VERSES) setPicking({ category, kalamId, hit });
-    else void addFromLibrary(category, hit, null, kalamId);
+    const replace = !!kalamId && !!doc?.kalams[category].find((k) => k.id === kalamId)?.blocks.length;
+    setPicking({ category, kalamId, replace, hit });
   };
 
   // ⌘V pastes screenshots into the selected kalam; ⌘Z / ⇧⌘Z undo and redo.
@@ -336,9 +340,10 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
       {picking && (
         <VersePicker
           hit={picking.hit}
+          replacing={picking.replace}
           onClose={() => setPicking(null)}
           onAdd={(verses) => {
-            void addFromLibrary(picking.category, picking.hit, verses, picking.kalamId);
+            void addFromLibrary(picking.category, picking.hit, verses, picking.kalamId, picking.replace);
             setPicking(null);
           }}
         />

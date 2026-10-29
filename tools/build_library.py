@@ -572,12 +572,13 @@ def finalize():
     """analysis.json + the transliterated titles → the files the app reads."""
     with open(os.path.join(OUT_SERVER, 'analysis.json')) as f:
         A = json.load(f)
-    titles = {}
+    titles, spellings = {}, {}
     with open(os.path.join(ROOT, 'tools', 'library_titles.txt')) as f:
         for line in f:
             if re.match(r'^\d+\|', line):
-                n, t = line.rstrip('\n').split('|', 1)
-                titles[int(n)] = t.strip()
+                n, t, *other = [part.strip() for part in line.rstrip('\n').split('|')]
+                titles[int(n)] = t
+                spellings[int(n)] = [o for o in other if o]
     kalams, index = [], []
     for k in A['kalams']:
         if k.get('row'):
@@ -589,7 +590,7 @@ def finalize():
             tr = [s0[0], 30, s0[1], 582, min(s0[2], s0[1] + k['pitch'] * 1.2)]
         kalams.append({'st': k['stanzas'], 'lh': k['lh'], 'pitch': k['pitch'], 'tr': [round(v, 1) for v in tr]})
         title = titles.get(k['n'], '')
-        aliases = [titles[a] for a in k['aliases'] if titles.get(a, '-') not in ('-', '', title)]
+        aliases = [titles[a] for a in k['aliases'] if titles.get(a, '-') not in ('-', '', title)] + spellings.get(k['n'], [])
         index.append({'t': title, **({'a': aliases} if aliases else {}), 'k': k['kind'], 'g': k['group'],
                       'v': len(k['stanzas']), 'r': sum(k['rows'])})
     used = {part[0] for k in kalams for s in k['st'] for part in s} | {k['tr'][0] for k in kalams}

@@ -1,8 +1,9 @@
-# Transliterated kalam titles for the search (id|title). Ids follow the
-# kalam order of tools/build_library.py (page order through the PDF).
-0|Ya Sayyid al-Shuhada
-1|Falak al-Husain bi Karbala
-2|Zikr al-Husain khair zaad al-zaakireen
+# Transliterated kalam titles for the search (id|title, then |other spellings
+# people type, if any). Ids follow the kalam order of tools/build_library.py
+# (page order through the PDF).
+0|Ya Sayyid al-Shuhada|Ya Sayyidush Shuhada
+1|Fulk al-Husain bi Karbala|Fulkul Husain bi Karbala|Falak al-Husain bi Karbala
+2|Zikr al-Husain khair zaad al-zaakireen|Zikrul Husain khair zaad iz-zaakireen|Dhikr al-Husain khair zaad al-dhaakireen
 3|Husaini dino gham si aaya
 4|Salli ala Muhammadin Rabbuhu
 5|Utar ke arsh-e-ula se dekho, zameen pe khair-ul-anaam aaya
@@ -434,7 +435,7 @@
 431|Ae Allah na Dai Nabi na pyaara
 432|Chalo ae pyaara azeezo chalo
 433|Rojo biraadar Husain ne rojo
-434|Ya Husaina par hain qurbaan che
+434|Ya Husaina par hame qurbaan che qurbaan che|Ya Husain aap par hame qurbaan che
 435|Karbala mere Aqa sidhaare
 436|"Allamal insaana ma lam ya'lam" ek e'zaaz hai
 437|Jeh haadsa namood thaya che jahan thi
