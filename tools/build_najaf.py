@@ -119,9 +119,10 @@ def build_cover(green):
             region[int(y0 * sy):int(np.ceil(y1 * sy)), int(x0 * sx):int(np.ceil(x1 * sx))] = 1
         return region
 
-    # The plaid's own threads stay below chroma 9; the maroon accents sit above 15.
+    # The plaid's own threads (deepened by build_assets.deepen_plaid) stay below
+    # chroma 12; the maroon accents sit above 21.
     accents = area((848, 0, 991, 1402), (10, 350, 105, 870), (750, 350, 840, 870), (0, 1052, 848, 1210))
-    out = recolour(src, green, accents, chroma_from=9, chroma_full=16)
+    out = recolour(src, green, accents, chroma_from=12, chroma_full=21)
     # The rule and little ornament under the bar are a greyish maroon, as weak in colour
     # as the plaid but much darker (lightness under 60 against the plaid's 80+).
     ornament = area((0, 1152, 848, 1212))

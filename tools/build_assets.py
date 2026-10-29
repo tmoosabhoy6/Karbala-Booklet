@@ -6,7 +6,8 @@ Run once (outputs are committed):
 
 Everything here is derived from references/HA_5mi Raat Majlis 1448h.pdf:
 the purple accents (and the cover bar) become a lively blood-red maroon
-(#8C1A24); gold and the grid background are left untouched.
+(#8C1A24); gold is left untouched and the grid background only given a
+touch more colour (deepen_plaid).
 """
 from pathlib import Path
 
@@ -85,6 +86,18 @@ def purple_to_maroon(rgb, region=None, min_sat=0.08, s_mul=1.29, v_mul=1.69, v_c
     return out
 
 
+def deepen_plaid(rgb, region=None, ink=1.3):
+    """A touch more colour in the pale plaid threads: each pixel's distance
+    from white grows by `ink`, so threads keep their width and hue and the
+    paper stays near white. Dark accents (bar, rules, ornaments) fade out of
+    it by brightness and are left as they are."""
+    w = np.clip((rgb.mean(-1) - 150) / 30, 0, 1)
+    if region is not None:
+        w = w * region
+    deeper = 255 - (255 - rgb) * ink
+    return rgb + (deeper - rgb) * w[..., None]
+
+
 def box(shape, x0, y0, x1, y1):
     m = np.zeros(shape[:2], bool)
     m[y0:y1, x0:x1] = True
@@ -143,6 +156,8 @@ def build_cover(doc):
     # The bar itself was a greyish maroon rgb(127,52,59); bring it to the base.
     bar_region = box(src.shape, 0, 1066, 848, 1154)
     cover = purple_to_maroon(cover, bar_region, min_sat=0.2, s_mul=1.37, v_mul=1.1, v_cap=0.7, hues=(330, 20))
+    # The plaid a little more visible; the right strip keeps its gold and cream.
+    cover = deepen_plaid(cover, box(src.shape, 0, 0, 848, H))
 
     img = Image.fromarray(cover.astype(np.uint8)).resize(A4_PX, Image.LANCZOS)
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=2))
@@ -156,6 +171,7 @@ def build_cover(doc):
     back = weave_patch(back, src, 0, 220, 230, 620)
     back[1052:1215, 0:848] = back[860:1023, 0:848]  # bar band -> plain grid
     back[:, 848:W] = back[:, 848 - (W - 848):848][:, ::-1]
+    back = deepen_plaid(back)
     img = Image.fromarray(back.astype(np.uint8)).resize(A4_PX, Image.LANCZOS)
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=2))
     img.save(OUT / "back-bg.jpg", quality=92, subsampling=0)
