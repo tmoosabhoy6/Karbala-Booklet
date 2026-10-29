@@ -12,6 +12,8 @@ import sharp from 'sharp';
 import { addMedia, editMedia, ensureFixedMedia, getMedia, MEDIA, pngName, pngSize, readJson, reinstateMedia, writeJson, type MediaMeta } from './store';
 import type { ExportRequest, PrintPayload } from '../src/booklet/print';
 import { mediaSrc, openingSrc } from '../src/booklet/media';
+import { paginate } from '../src/booklet/paginate';
+import { mergeDuplicateStreams } from './pdf';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { PROCESSOR_VERSION, svgWrapper } from './ink';
 import { closeRecognition } from './recognize';
@@ -194,6 +196,8 @@ const getBrowser = () => (browser ??= import('playwright').then(({ chromium }) =
 // Finished PDFs are fetched by a plain link, which phones download more
 // reliably than a script-made file. Each is kept for 15 minutes.
 const pdfs = new Map<string, Buffer>();
+/** Pages per Chromium print (see the export below). */
+const PRINT_CHUNK = Number(process.env.PRINT_CHUNK ?? 6);
 const PDF_TTL = 15 * 60_000;
 const completed = new Map<string, { id: string; expires: number }>();
 const exporting = new Map<string, Promise<string>>();
@@ -246,9 +250,11 @@ app.post(
         }
         if (!/^\/media\/[\w-]+\.\d+\.(png|svg|opening\.png)$/.test(src)) return res.status(400).send('Invalid screenshot revision.');
         if (isLibraryMedia(block.mediaId) && !existsSync(path.join(MEDIA, src.slice('/media/'.length)))) await getMedia(block.mediaId).catch(() => null);
-        const bytes = await readFile(path.join(MEDIA, src.slice('/media/'.length))).catch(() => null);
-        if (bytes) assets[src] = `data:image/${block.format === 'png' ? 'png' : 'svg+xml'};base64,${bytes.toString('base64')}`;
-        else missing.push(src);
+        // Files the server has are loaded by the print page from /media, by
+        // their revisioned name: inlined as data URLs they were copied into
+        // the snapshot, its JSON and every page that shows a slice of them,
+        // which ran a long booklet out of the free host's memory.
+        if (!existsSync(path.join(MEDIA, src.slice('/media/'.length)))) missing.push(src);
       }
     }
     if (missing.length) return res.status(422).json({ missing, error: 'A verse image is missing. Re-add its original screenshot before downloading.' });
@@ -262,14 +268,25 @@ app.post(
       const context = await (await getBrowser()).newContext(PASSWORD ? { httpCredentials: { username: 'print', password: PASSWORD } } : {});
       pending.set(id, { doc, assets });
       try {
-      const page = await context.newPage();
-      await page.goto(`${APP_URL}/?print=${id}`);
-      await page.waitForFunction(() => window.__BOOKLET_READY__ === true || !!window.__BOOKLET_ERROR__, null, { timeout: 30_000 });
-      const error = await page.evaluate(() => window.__BOOKLET_ERROR__);
-      if (error) throw new Error(error);
-      const raw = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+      // A few pages at a time, each from a fresh page that holds only those
+      // pages: Chromium keeps every image a page loads, and a long booklet
+      // of library verses decodes to more than the free host's memory. The
+      // pieces are joined after.
       const { PDFDocument } = await import('pdf-lib');
-      const pdf = await PDFDocument.load(raw);
+      const pdf = await PDFDocument.create();
+      const count = paginate(doc).pages.length;
+      for (let from = 0; from < count; from += PRINT_CHUNK) {
+        const page = await context.newPage();
+        await page.goto(`${APP_URL}/?print=${id}&from=${from}&to=${Math.min(count, from + PRINT_CHUNK)}`);
+        await page.waitForFunction(() => window.__BOOKLET_READY__ === true || !!window.__BOOKLET_ERROR__, null, { timeout: 90_000 });
+        const error = await page.evaluate(() => window.__BOOKLET_ERROR__);
+        if (error) throw new Error(error);
+        const part = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true, printBackground: true }));
+        await page.close();
+        for (const p of await pdf.copyPages(part, part.getPageIndices())) pdf.addPage(p);
+      }
+      if (pdf.getPageCount() !== count) throw new Error(`The PDF came out with ${pdf.getPageCount()} pages instead of ${count}.`);
+      mergeDuplicateStreams(pdf);
       pdf.setTitle(title, { showInWindowTitleBar: true });
       pdf.setAuthor('Faiz-e-Husaini Society (Iraq)');
       pdf.setCreator('Karbala Booklet');

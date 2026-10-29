@@ -64,10 +64,18 @@ export function pngSize(png: Buffer): { width: number; height: number } | null {
   return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
 }
 
-// Write-then-rename keeps a file whole if the app is closed mid-save.
+// Write-then-rename keeps a file whole if the app is closed mid-save. Writes
+// to one file take turns, in the order they came: two saves at once shared
+// the .tmp file, and the second rename found it already gone (ENOENT).
+const writing = new Map<string, Promise<void>>();
 async function writeWhole(file: string, data: string | Buffer) {
-  await writeFile(`${file}.tmp`, data);
-  await rename(`${file}.tmp`, file);
+  const turn = (writing.get(file) ?? Promise.resolve()).catch(() => undefined).then(async () => {
+    const tmp = `${file}.${randomUUID()}.tmp`;
+    await writeFile(tmp, data);
+    await rename(tmp, file);
+  });
+  writing.set(file, turn);
+  try { await turn; } finally { if (writing.get(file) === turn) writing.delete(file); }
 }
 
 function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration']): Promise<MediaMeta> {

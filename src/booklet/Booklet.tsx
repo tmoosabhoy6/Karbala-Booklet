@@ -267,9 +267,11 @@ interface ViewProps {
   assets?: Record<string, string>;
   /** Given in the editor: how wide a page shows on screen, in CSS px. */
   pageWidthPx?: number;
+  /** Only pages [from, to) of the layout (printing a few pages at a time). */
+  range?: [number, number];
 }
 
-export function BookletView({ doc, layout, edits, onPlace, assets = {}, pageWidthPx }: ViewProps) {
+export function BookletView({ doc, layout, edits, onPlace, assets = {}, pageWidthPx, range }: ViewProps) {
   const city = cityOf(doc.venue);
   const ctx = useMemo(() => ({ overrides: doc.overrides ?? {}, edits, colors: TEXT_COLORS[city] }), [doc.overrides, edits, city]);
   const boxes = useMemo(() => {
@@ -294,7 +296,7 @@ export function BookletView({ doc, layout, edits, onPlace, assets = {}, pageWidt
       <MediaContext.Provider value={assets}>
       <PreviewWidth.Provider value={pageWidthPx}>
       <div className={`booklet ${city}${edits ? ' text-editing' : ''}${onPlace ? ' placing' : ''}`}>
-        {layout.pages.map((page, i) => (
+        {layout.pages.map((page, i) => (range && (i < range[0] || i >= range[1]) ? null :
           <section
             key={i}
             className={`page${page.kind === 'cover' ? ' cover' : ''}`}

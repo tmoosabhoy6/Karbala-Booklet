@@ -110,6 +110,11 @@ try {
   assert.deepEqual([...new Set(coupletMeta.regions.map((r: { group: number }) => r.group))], [0], 'Chosen couplets print as one run.');
   const title = await fetch(`${origin}/api/library/0/title.png`);
   assert(title.ok && (await sharp(Buffer.from(await title.arrayBuffer())).metadata()).width! > 50, 'The search list shows each original title.');
+  // Saves that arrive together (typing while the page saves) both land.
+  const saves = await Promise.all(Array.from({ length: 6 }, (_, i) => fetch(`${origin}/api/defaults?city=najaf`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ n: i }) })));
+  assert(saves.every((r) => r.ok), 'Saves at the same moment must all succeed.');
+  assert.deepEqual(await fetch(`${origin}/api/defaults?city=najaf`).then((r) => r.json()), { n: 5 }, 'The last save wins.');
+  await fetch(`${origin}/api/defaults?city=najaf`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   // Section order: Dua after the Matam (Karbala only), Qasida, Naat and Manqabat after the Quran.
   const order = (venue: Booklet['venue'], o?: Booklet['order']) => sectionsOf({ venue, order: o }).map((s) => s.categories.join(' '));
   assert.deepEqual(order('haram'), ['quran qasida naat manqabat marathi nasihat salam noha matam dua', 'salamArz ratha madh']);

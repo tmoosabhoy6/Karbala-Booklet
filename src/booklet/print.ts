@@ -1,7 +1,9 @@
 import { Booklet } from './model';
 
-/** What the print browser loads: the booklet and the server's own copy of
- * every image it shows, so a fresh print never depends on an HTTP cache. */
+/** What the print browser loads: the booklet, and data URLs for the few
+ * images not kept as files (very old SVG entries, images a page sent along).
+ * Every other image it loads from the server's /media files, whose names
+ * carry their revision. */
 export interface PrintPayload { doc: Booklet; assets: Record<string, string> }
 
 /** A PDF request. The server prints from its own files; `assets` (data URLs)

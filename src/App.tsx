@@ -12,8 +12,10 @@ declare global {
   }
 }
 
-/** Chromium loads `/?print=<id>` to render the booklet alone for PDF export. */
-function PrintView({ id }: { id: string }) {
+/** Chromium loads `/?print=<id>&from=<page>&to=<page>` to render the booklet
+ * alone for PDF export, a few pages at a time (laid out whole, so page
+ * numbers and the fihrist stay right). */
+function PrintView({ id, range }: { id: string; range?: [number, number] }) {
   const [payload, setPayload] = useState<PrintPayload | null>(null);
   const doc = payload?.doc;
   useEffect(() => {
@@ -29,17 +31,23 @@ function PrintView({ id }: { id: string }) {
     if (!layout) return;
     const imgs = Array.from(document.images);
     let cancelled = false;
-    Promise.all([document.fonts.load('22pt "Kanz al-Marjaan"'), ...imgs.map(async (i) => {
-      await i.decode();
+    // Loaded, not decoded: decoding every image up front held them all in
+    // memory at once (a long booklet's verses decode to over a gigabyte);
+    // printing decodes each as its page is drawn.
+    const loaded = (i: HTMLImageElement) => (i.complete ? Promise.resolve() : new Promise<void>((done, fail) => {
+      i.addEventListener('load', () => done(), { once: true });
+      i.addEventListener('error', () => fail(new Error('A page image did not load.')), { once: true });
+    })).then(() => {
       if (!i.naturalWidth) throw new Error('A page image did not load.');
-    })]).then(() => document.fonts.ready).then(() => {
+    });
+    Promise.all([document.fonts.load('22pt "Kanz al-Marjaan"'), ...imgs.map(loaded)]).then(() => document.fonts.ready).then(() => {
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (!cancelled) window.__BOOKLET_READY__ = true;
       }));
     }).catch(() => { if (!cancelled) window.__BOOKLET_ERROR__ = 'A verse image or font failed to load. Re-add the missing screenshot and retry.'; });
     return () => { cancelled = true; };
   }, [layout]);
-  return doc && layout ? <BookletView doc={doc} layout={layout} assets={payload?.assets} /> : null;
+  return doc && layout ? <BookletView doc={doc} layout={layout} assets={payload?.assets} range={range} /> : null;
 }
 
 // The city tab: `?city=najaf` opens Najaf directly; otherwise the browser
@@ -70,6 +78,8 @@ function Workspace() {
 }
 
 export default function App() {
-  const printId = new URLSearchParams(location.search).get('print');
-  return printId ? <PrintView id={printId} /> : <Workspace />;
+  const query = new URLSearchParams(location.search);
+  const printId = query.get('print');
+  const range: [number, number] | undefined = query.has('from') ? [Number(query.get('from')), Number(query.get('to') ?? Infinity)] : undefined;
+  return printId ? <PrintView id={printId} range={range} /> : <Workspace />;
 }
