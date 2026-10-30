@@ -21,9 +21,15 @@ type Part = [number, number, number, number, number];
 /** `st`: each verse's parts. `g`: each verse's stanza, when verses are rows or
  * pieces of stanzas (a ghazal, an oversized stanza; tools/build_library.py
  * verse_plan); without it every verse is a stanza of its own. */
-interface LibraryKalam { st: Part[][]; g?: number[]; lh: number; pitch: number; tr: [number, number, number, number, number] }
-interface Marks { w?: number[][]; z?: number[][]; t?: [number, number, number, number, number[]][] }
-interface Library { v: number; source: string; sha: string; kalams: LibraryKalam[]; marks: Record<string, Marks> }
+/** `o`: verses found above where the kalam used to start, which version 1
+ * ids do not count. */
+interface LibraryKalam { st: Part[][]; g?: number[]; o?: number; lh: number; pitch: number; tr: [number, number, number, number, number] }
+/** Per page: whiteouts, full-width zones, tints, and `d`: text objects to
+ * leave out (the shadow layers under lettering: [x0, y0, x1, y1, r, g, b,
+ * glyphs, first glyph's x, y]). */
+interface Marks { w?: number[][]; z?: number[][]; t?: [number, number, number, number, number[]][]; d?: number[][] }
+/** `build`: this geometry's own digest (tools/build_library.py finalize). */
+interface Library { v: number; source: string; sha: string; build?: string; kalams: LibraryKalam[]; marks: Record<string, Marks> }
 
 let library: Library | null | undefined;
 const load = (): Library | null => {
@@ -38,6 +44,10 @@ const load = (): Library | null => {
   return library;
 };
 export const libraryAvailable = () => !!load();
+/** What a library image is made from: the geometry and this renderer. An
+ * image made by an older build is made again, under a new revision. */
+const RENDERER = 2;
+export const libraryBuild = () => `${load()?.build ?? load()?.sha ?? 'none'}-r${RENDERER}`;
 
 /** Library media ids: lib<version>-<kalam>-<verses>-<block>, e.g. lib1-0-0t9_12-0.
  * Everything about the image follows from the id, so a server that lost the
@@ -149,6 +159,28 @@ export function libraryPlan(n: number, verses: number[] | null) {
 const WORKER = `
 const { parentPort, workerData } = require('node:worker_threads');
 let doc;
+// A device that draws everything into \`draw\` except the listed text objects:
+// same colour, same number of glyphs, first glyph at the same origin.
+const leaveOut = (mupdf, draw, drops) => {
+  const rgb = (c) => c.length === 1 ? [c[0], c[0], c[0]] : c.length === 4 ? [0, 1, 2].map((i) => (1 - c[i]) * (1 - c[3])) : c;
+  const dropped = (text, ctm, color) => {
+    const [r, g, b] = rgb(color);
+    const near = drops.filter((d) => Math.abs(d[4] - r) < 0.03 && Math.abs(d[5] - g) < 0.03 && Math.abs(d[6] - b) < 0.03);
+    if (!near.length) return false;
+    let n = 0, first = null;
+    text.walk({ showGlyph: (font, trm) => { if (!first) first = trm; n++; } });
+    if (!first) return false;
+    const x = first[4] * ctm[0] + first[5] * ctm[2] + ctm[4], y = first[4] * ctm[1] + first[5] * ctm[3] + ctm[5];
+    return near.some((d) => d[7] === n && Math.abs(d[8] - x) < 0.6 && Math.abs(d[9] - y) < 0.6);
+  };
+  const pass = (name) => (...args) => draw[name](...args);
+  const names = ['fillPath', 'strokePath', 'clipPath', 'clipStrokePath', 'strokeText', 'clipText', 'clipStrokeText', 'ignoreText',
+    'fillShade', 'fillImage', 'fillImageMask', 'clipImageMask', 'popClip', 'beginMask', 'endMask', 'beginGroup', 'endGroup',
+    'beginTile', 'endTile', 'beginLayer', 'endLayer'];
+  const callbacks = Object.fromEntries(names.map((n) => [n, pass(n)]));
+  callbacks.fillText = (text, ctm, cs, color, alpha) => { if (!dropped(text, ctm, color)) draw.fillText(text, ctm, cs, color, alpha); };
+  return new mupdf.Device(callbacks);
+};
 const ready = import(workerData.mupdf).then((mupdf) => {
   doc = mupdf.Document.openDocument(require('node:fs').readFileSync(workerData.file), 'application/pdf');
   return mupdf;
@@ -162,9 +194,11 @@ parentPort.on('message', async ({ id, jobs, width, height, zoom, white }) => {
       const bx = Math.floor(x0 * zoom), by = Math.floor(y0 * zoom);
       const pix = new mupdf.Pixmap(mupdf.ColorSpace.DeviceRGB, [bx, by, Math.ceil(x1 * zoom), Math.ceil(y1 * zoom)], false);
       pix.clear(255);
-      const dev = new mupdf.DrawDevice(mupdf.Matrix.scale(zoom, zoom), pix);
+      const draw = new mupdf.DrawDevice(mupdf.Matrix.scale(zoom, zoom), pix);
+      const dev = marks.d && marks.d.length ? leaveOut(mupdf, draw, marks.d) : draw;
       p.run(dev, mupdf.Matrix.identity);
-      dev.close(); dev.destroy();
+      if (dev !== draw) { dev.close(); dev.destroy(); }
+      draw.close(); draw.destroy();
       const w = pix.getWidth(), h = pix.getHeight(), stride = pix.getStride();
       const px = pix.getPixels();
       const fill = (rx0, ry0, rx1, ry1, fn) => {
@@ -253,10 +287,13 @@ async function render(jobs: { page: number; x0: number; y0: number; x1: number; 
 function blockOf(id: string) {
   const m = ID.exec(id);
   const lib = load();
-  if (!m || !lib || Number(m[1]) !== lib.v) throw new Error('This library verse is from an older library version. Add it again.');
+  // Version 1 ids name the same kalams and verses, counted without `o`.
+  const legacy = !!m && Number(m[1]) === 1 && lib?.v === 2;
+  if (!m || !lib || (Number(m[1]) !== lib.v && !legacy)) throw new Error('This library verse is from an older library version. Add it again.');
   const k = lib.kalams[Number(m[2])];
   if (!k) throw new Error('No such kalam in the library.');
-  const block = layout(k, decode(m[3], k.st.length))[Number(m[4])];
+  const verses = legacy && m[3] !== 'all' ? decode(m[3], k.st.length).map((v) => v + (k.o ?? 0)) : decode(m[3], k.st.length);
+  const block = layout(k, verses)[Number(m[4])];
   if (!block) throw new Error('No such part of the kalam.');
   return { k, block };
 }
@@ -278,8 +315,9 @@ export async function libraryImage(id: string): Promise<Buffer> {
   return png;
 }
 
-/** Small previews for the search list (the original title) and the verse picker. */
-export async function libraryPreview(n: number, what: 'title' | number): Promise<Buffer> {
+/** Small previews for the search list (the original title) and the verse
+ * picker: one verse, or a couplet's verses [first, last] together. */
+export async function libraryPreview(n: number, what: 'title' | [number, number]): Promise<Buffer> {
   const lib = load();
   const k = lib?.kalams[n];
   if (!k) throw new Error('No such kalam in the library.');
@@ -290,10 +328,10 @@ export async function libraryPreview(n: number, what: 'title' | number): Promise
     const image = await render([{ page, x0, y0, x1, y1, dy: 0 }], width, height, zoom);
     return image.trim({ background: '#ffffff', threshold: 40 }).png().toBuffer();
   }
-  const parts = k.st[what];
-  if (!parts) throw new Error('No such verse.');
+  const [first, last] = what;
+  if (!k.st[first] || !k.st[last] || last < first || last - first > 3) throw new Error('No such verse.');
   const zoom = Math.min(2, Math.max(1.2, 40 / Math.max(10, k.lh)));
-  const block = layout(k, [what])[0];
+  const block = layout(k, Array.from({ length: last - first + 1 }, (_, i) => first + i))[0];
   const width = Math.ceil((X1 - X0) * zoom), height = Math.ceil(block.height * zoom) + 2;
   const image = await render(block.placed.map(({ part, dy }) => ({ page: part[0], x0: X0, y0: part[1], x1: X1, y1: part[2], dy })), width, height, zoom);
   return image.trim({ background: '#ffffff', threshold: 30 }).png({ palette: true, quality: 90 }).toBuffer();

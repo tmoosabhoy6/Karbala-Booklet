@@ -16,6 +16,10 @@ interface Props {
  * Click a verse to choose it; Shift-click chooses everything in between. */
 export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
   const count = hit.entry.v;
+  // Each item is one verse, or a couplet of `per` verses chosen together.
+  const per = Math.max(1, hit.entry.c ?? 1);
+  const items = Math.ceil(count / per);
+  const versesOf = (i: number) => Array.from({ length: Math.min(per, count - i * per) }, (_, j) => i * per + j);
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   const [anchor, setAnchor] = useState<number | null>(null);
   const [shown, setShown] = useState(false);
@@ -30,11 +34,11 @@ export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
   const toggle = (i: number, range: boolean) => {
     setChosen((prev) => {
       const next = new Set(prev);
+      const set = (item: number, on: boolean) => versesOf(item).forEach((v) => (on ? next.add(v) : next.delete(v)));
       if (range && anchor !== null) {
-        const on = !prev.has(i) || prev.has(anchor);
-        for (let v = Math.min(anchor, i); v <= Math.max(anchor, i); v++) on ? next.add(v) : next.delete(v);
-      } else if (next.has(i)) next.delete(i);
-      else next.add(i);
+        const on = !prev.has(i * per) || prev.has(anchor * per);
+        for (let item = Math.min(anchor, i); item <= Math.max(anchor, i); item++) set(item, on);
+      } else set(i, !next.has(i * per));
       return next;
     });
     setAnchor(i);
@@ -48,7 +52,7 @@ export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
           <div>
             <h2>{hit.name}</h2>
             <small>
-              {count} verse{count === 1 ? '' : 's'} · {TOUCH ? 'tap the verses to print' : 'click to choose, Shift-click for a range'}
+              {items} {per > 1 ? 'couplet' : 'verse'}{items === 1 ? '' : 's'} · {TOUCH ? 'tap the verses to print' : 'click to choose, Shift-click for a range'}
               {replacing && ' · replaces what this kalam has now'}
             </small>
           </div>
@@ -58,20 +62,23 @@ export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
         <div className="verse-tools">
           <button className="ghost" onClick={() => setChosen(new Set(Array.from({ length: count }, (_, i) => i)))}>Select all</button>
           <button className="ghost" onClick={() => setChosen(new Set())} disabled={!chosen.size}>Clear</button>
-          <span>{chosen.size ? `${chosen.size} chosen` : 'None chosen yet'}</span>
+          <span>{chosen.size ? `${Math.ceil(chosen.size / per)} chosen` : 'None chosen yet'}</span>
         </div>
         <ol className="verse-list">
-          {Array.from({ length: count }, (_, i) => (
-            <li key={i} className={chosen.has(i) ? 'on' : ''} onClick={(e) => toggle(i, e.shiftKey)}>
-              <span className="verse-no">{chosen.has(i) ? '✓' : i + 1}</span>
-              <img src={verseSrc(hit.n, i)} alt={`Verse ${i + 1}`} loading="lazy" draggable={false} />
-            </li>
-          ))}
+          {Array.from({ length: items }, (_, i) => {
+            const vs = versesOf(i), on = chosen.has(vs[0]);
+            return (
+              <li key={i} className={on ? 'on' : ''} onClick={(e) => toggle(i, e.shiftKey)}>
+                <span className="verse-no">{on ? '✓' : i + 1}</span>
+                <img src={verseSrc(hit.n, vs[0], vs[vs.length - 1])} alt={`${per > 1 ? 'Couplet' : 'Verse'} ${i + 1}`} loading="lazy" draggable={false} />
+              </li>
+            );
+          })}
         </ol>
         <footer className="verse-foot">
           <button className="ghost" onClick={() => onAdd(null)}>{replacing ? 'Replace with' : 'Add'} whole kalam</button>
           <button className="primary" disabled={!chosen.size} onClick={() => onAdd(list)}>
-            {replacing ? 'Replace with' : 'Add'} {chosen.size || ''} verse{chosen.size === 1 ? '' : 's'}
+            {replacing ? 'Replace with' : 'Add'} {Math.ceil(chosen.size / per) || ''} {per > 1 ? 'couplet' : 'verse'}{Math.ceil(chosen.size / per) === 1 ? '' : 's'}
           </button>
         </footer>
       </aside>

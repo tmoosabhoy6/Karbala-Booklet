@@ -15,6 +15,8 @@ export interface LibraryEntry {
   /** Verses (stanzas) and rows. */
   v: number;
   r: number;
+  /** Verses chosen this many at a time: 2 when each verse is one misra of a couplet. */
+  c?: number;
 }
 
 export interface LibraryHit { n: number; entry: LibraryEntry; score: number; name: string }
@@ -150,9 +152,9 @@ export function loadLibrary() {
   return (loaded ??= fetch('/library/index.json')
     .then((r) => {
       if (!r.ok) throw new Error('The kalam library is not available.');
-      return r.json() as Promise<{ sha: string; kalams: LibraryEntry[] }>;
+      return r.json() as Promise<{ sha: string; build?: string; kalams: LibraryEntry[] }>;
     })
-    .then(({ sha, kalams }) => (version = sha, { entries: kalams, names: kalams.map((e) => [e.t, ...(e.a ?? [])].filter(Boolean).map(prepare)) }))
+    .then(({ sha, build, kalams }) => (version = build ?? sha, { entries: kalams, names: kalams.map((e) => [e.t, ...(e.a ?? [])].filter(Boolean).map(prepare)) }))
     .catch((error) => { loaded = null; throw error; }));
 }
 
@@ -175,4 +177,4 @@ export async function searchLibrary(text: string, category: Category | undefined
 }
 
 export const titleSrc = (n: number) => `/api/library/${n}/title.png?v=${version}`;
-export const verseSrc = (n: number, verse: number) => `/api/library/${n}/verse-${verse}.png?v=${version}`;
+export const verseSrc = (n: number, first: number, last = first) => `/api/library/${n}/verse-${first}${last > first ? `-${last}` : ''}.png?v=${version}`;

@@ -90,7 +90,7 @@ try {
   const libIndex = await fetch(`${origin}/library/index.json`).then((r) => r.json());
   assert(libIndex.kalams.length > 1800 && libIndex.kalams[0].v === 51, 'The library lists every kalam; Ya Sayyid al-Shuhada has 51 verses.');
   const plan = await fetch(`${origin}/api/library/0/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: [0, 1, 3] }) }).then((r) => r.json());
-  assert.deepEqual(plan.ids, ['lib1-0-0t1_3-0'], 'Chosen verses make one image.');
+  assert.deepEqual(plan.ids, ['lib2-0-0t1_3-0'], 'Chosen verses make one image.');
   const verses = await fetch(`${origin}/api/media/${plan.ids[0]}`).then((r) => r.json());
   assert.equal(verses.regions.length, 12, 'Three verses of four rows each.');
   assert.deepEqual([...new Set(verses.regions.map((r: { group: number }) => r.group))], [0, 1, 2], 'Each verse is its own stanza.');
@@ -99,7 +99,28 @@ try {
   const remade = Buffer.from(await fetch(`${origin}/media/${verses.id}.${verses.rev}.png`).then((r) => r.arrayBuffer()));
   assert(remade.equals(versesPng), 'A lost library image is made again, byte for byte, under the same name.');
   const whole = await fetch(`${origin}/api/library/0/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: null }) }).then((r) => r.json());
-  assert(whole.ids.length > 3 && whole.ids.every((id: string, i: number) => id === `lib1-0-all-${i}`), 'A long kalam comes in several images.');
+  assert(whole.ids.length > 3 && whole.ids.every((id: string, i: number) => id === `lib2-0-all-${i}`), 'A long kalam comes in several images.');
+  // Lettering printed with a drop shadow keeps every line: Ae Allah na Dai's
+  // opening line and its اے مولى محمد ! refrain line were whited out with
+  // their shadows, leaving six of a verse's seven rows.
+  const dai = libIndex.kalams.findIndex((k: { t: string }) => k.t === 'Ae Allah na Dai Nabi na pyaara');
+  const daiPlan = await fetch(`${origin}/api/library/${dai}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: [0, 1] }) }).then((r) => r.json());
+  const daiMeta = await fetch(`${origin}/api/media/${daiPlan.ids[0]}`).then((r) => r.json());
+  assert.equal(daiMeta.regions.length, 14, 'Both verses keep all seven rows, shadowed lines included.');
+  // Verses the index link skipped (it points a page late): Ya Sayyid
+  // al-Shuhada in Mithi Shitabi opens a page earlier, with eight verses; a
+  // booklet's version 1 id still names the verse it named before.
+  const mithi = libIndex.kalams.findIndex((k: { t: string }) => k.t === 'Ya Sayyid al-Shuhada (Mithi Shitabi)');
+  assert.equal(libIndex.kalams[mithi].v, 8, 'Mithi Shitabi Ya Sayyid al-Shuhada has all eight verses.');
+  const legacyMeta = await fetch(`${origin}/api/media/lib1-${mithi}-0-0`).then((r) => r.json());
+  const current = await fetch(`${origin}/api/media/lib2-${mithi}-4-0`).then((r) => r.json());
+  const [legacyPng, currentPng] = await Promise.all([legacyMeta, current].map((m) => readFile(`${data}/media/${m.id}.${m.rev}.png`)));
+  assert(legacyPng.equals(currentPng), 'An older id keeps naming the same verse.');
+  // Single misras set in staggered pairs are chosen a couplet at a time.
+  const staggered = libIndex.kalams.find((k: { t: string }) => k.t === 'Main Saif-ul-Huda par chhoon sadqe ne waari');
+  assert(staggered.c === 2 && staggered.v === 22, 'Staggered misras are chosen as couplets of two rows.');
+  const pair = await fetch(`${origin}/api/library/${libIndex.kalams.indexOf(staggered)}/verse-0-1.png`);
+  assert(pair.ok, 'The verse picker previews a whole couplet.');
   // A ghazal (couplets with no stanza gaps): every couplet is a verse to
   // choose, and chosen couplets print as one run, with no stanza gaps.
   const ghazal = libIndex.kalams.findIndex((k: { t: string }) => k.t === 'Le ja baad-e-saba bandagi kamtar ki');
@@ -238,7 +259,7 @@ try {
   await page.locator('.page').nth(1).screenshot({ path: `${data}/fihrist.png` });
   await page.locator('.page').nth(2).screenshot({ path: `${data}/verses.png` });
   await sharp(lettering).flatten({ background: '#fff' }).png().toFile(`${data}/cleaned.png`);
-  const result = { pages: pdf.getPageCount(), firstExportMs: Math.round(firstMs), repeatExportMs: Math.round(repeatMs), data, assertions: 'built-in default pages, Zikre Husain library (index, chosen verses, stanzas, identical remake, titles), section order and moves, version 2 upgrade, upload cleanup, 18 complete lines, intact stanzas, shared kalam pitch, identical stanza gaps, whole marathi kalams, unmasked fihrist openings, automatic fihrist, cover typography, A4 geometry, actual download, self-contained export, missing/corrupt image rejection, booklet-only PDF request with lost-file upload, byte-identical same-name restore after server file loss, versioned-PNG-only storage, legacy SVG fallback' };
+  const result = { pages: pdf.getPageCount(), firstExportMs: Math.round(firstMs), repeatExportMs: Math.round(repeatMs), data, assertions: 'built-in default pages, Zikre Husain library (index, chosen verses, stanzas, identical remake, titles, shadowed lettering, skipped opening verses, legacy ids, staggered couplets), section order and moves, version 2 upgrade, upload cleanup, 18 complete lines, intact stanzas, shared kalam pitch, identical stanza gaps, whole marathi kalams, unmasked fihrist openings, automatic fihrist, cover typography, A4 geometry, actual download, self-contained export, missing/corrupt image rejection, booklet-only PDF request with lost-file upload, byte-identical same-name restore after server file loss, versioned-PNG-only storage, legacy SVG fallback' };
   await writeFile(`${data}/result.json`, JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
 } catch (error) { console.error(log); throw error; }
 finally {

@@ -210,12 +210,72 @@ def render(book, i, whiteouts, zones, tints=()):
     return img
 
 
+def grey(c):
+    return c is not None and len(c) == 3 and max(c) - min(c) < 0.02 and 0.45 < c[0] < 0.8
+
+
+def shadow_layers(page):
+    """Lettering printed with a drop shadow: a grey copy, often a black copy,
+    then the coloured lettering on top, each a point or two apart. Whiting
+    out the shadow's box took the lettering above it with it (whole refrain
+    lines of Ae Allah na Dai), so the layers under the top one are listed
+    instead, and the renderer leaves those text objects out.
+
+    Returns (drops, grey boxes kept as lettering): drops are
+    [x0, y0, x1, y1, r, g, b, glyphs, first glyph's x, y] per text object
+    to leave out."""
+    # One entry per text object (what the renderer draws in one call).
+    objs = {}
+    for t in page.get_texttrace():
+        o = objs.setdefault(t['seqno'], {'seq': t['seqno'], 'color': t['color'], 'bbox': list(t['bbox']), 'text': '', 'origin': t['chars'][0][2] if t['chars'] else (0, 0)})
+        if tuple(o['color']) != tuple(t['color']):
+            o['mixed'] = True
+        o['bbox'] = [min(o['bbox'][0], t['bbox'][0]), min(o['bbox'][1], t['bbox'][1]), max(o['bbox'][2], t['bbox'][2]), max(o['bbox'][3], t['bbox'][3])]
+        o['text'] += ''.join(chr(c[0]) for c in t['chars'])
+    tr = [objs[k] for k in sorted(objs) if not objs[k].get('mixed')]
+    groups = []
+    for j, t in enumerate(tr):
+        if not grey(t['color']):
+            continue
+        grp = [t]
+        for u in tr[j + 1:j + 8]:
+            if len(u['text']) == len(t['text']) and not grey(u['color']) and all(abs(a - b) <= 3.5 for a, b in zip(u['bbox'], t['bbox'])):
+                grp.append(u)
+        if len(grp) >= 2:
+            groups.append(grp)
+    letter = lambda g: any(ch.isalpha() for ch in g[0]['text'])
+    digit = lambda g: any(ch.isdigit() for ch in g[0]['text'])
+    def beside(a, b):
+        (ax0, ay0, ax1, ay1), (bx0, by0, bx1, by1) = a[0]['bbox'], b[0]['bbox']
+        return min(ay1, by1) - max(ay0, by0) > 0.5 * min(ay1 - ay0, by1 - by0) and max(bx0 - ax1, ax0 - bx1) < 24
+    # Verse numbers keep their whiteouts; lettering, and punctuation inside a
+    # line of it (the ! of اے مولى محمد !), loses only its lower layers.
+    words = [g for g in groups if letter(g) and not digit(g)]
+    words += [g for g in groups if not letter(g) and not digit(g) and any(beside(g, w) for w in words)
+              and not any(beside(g, n) for n in groups if digit(n))]
+    drops, kept = [], []
+    # Every layer of a shadowed verse number goes: its whiteout leaves the
+    # offset copies' edges behind.
+    numbers = [g for g in groups if digit(g)]
+    numbers += [g for g in groups if not letter(g) and not digit(g) and any(beside(g, n) for n in numbers)]
+    for g in numbers:
+        for u in g:
+            drops.append([round(v, 1) for v in u['bbox']] + [round(v, 3) for v in u['color']] + [len(u['text'])] + [round(v, 2) for v in u['origin']])
+    for g in words:
+        for u in g[:-1]:
+            drops.append([round(v, 1) for v in u['bbox']] + [round(v, 3) for v in u['color']] + [len(u['text'])] + [round(v, 2) for v in u['origin']])
+        kept.append(g[0]['bbox'])
+    return drops, kept
+
+
 def page_marks(book, i):
     """What never prints on page i: zones (full-width y ranges), whiteouts
-    (rects) and, among them, the verse numbers (which also mark stanzas)."""
+    (rects), text layers to leave out (shadows under lettering) and, among
+    the whiteouts, the verse numbers (which also mark stanzas)."""
     page = book.doc[i]
     zones = [(0, PAGE_TOP)]
     whiteouts, numbers, tints = [], [], []
+    drops, lettering_shadows = shadow_layers(page)
     for x in page.get_drawings():
         r, f = x['rect'], x.get('fill')
         if f is None:
@@ -229,8 +289,8 @@ def page_marks(book, i):
                             whiteouts.append((min(a.x, b.x) - w, min(a.y, b.y) - w, max(a.x, b.x) + w, max(a.y, b.y) + w))
             continue
         dark = max(f) < 0.5
-        if dark and min(r.width, r.height) <= 2.5 and max(r.width, r.height) >= 8:
-            # Table borders and rules.
+        if dark and min(r.width, r.height) <= 2.5 and (max(r.width, r.height) >= 8 or all(it[0] == 're' for it in x['items'])):
+            # Table borders and rules, also when drawn as short pieces and dots.
             whiteouts.append((r.x0 - 1, r.y0 - 1, r.x1 + 1, r.y1 + 1))
         elif min(f) > 0.6 and max(f) < 0.99 and not near(f, PINK) and r.width > 30 and r.height > 8:
             # A light highlight behind text: printed as plain paper.
@@ -266,7 +326,7 @@ def page_marks(book, i):
             header = t in ('786', '444', '٧٨٦', '۷۸۶', '٤٤٤', '۴۴۴')  # above a kalam, not a verse number
             if not header and not any(abs(n[0] - x0) < 6 and abs(n[1] - y0) < 6 for n in numbers):
                 numbers.append((x0, y0, x1, y1))
-        elif shadow:
+        elif shadow and not any(min(b[2], x1) - max(b[0], x0) > 0.8 * max(1, x1 - x0) and b[1] < y1 and b[3] > y0 for b in lettering_shadows):
             whiteouts.append((x0 - 1.5, y0 - 1, x1 + 1.5, y1 + 1))
     # The coloured copy over each shadow, same place.
     sh = list(whiteouts)
@@ -276,7 +336,7 @@ def page_marks(book, i):
             whiteouts.append((x0 - 1.5, y0 - 1, x1 + 1.5, y1 + 1))
     whiteouts = sorted(set(tuple(round(v, 1) for v in w) for w in whiteouts))
     zones = sorted(set(tuple(round(v, 1) for v in z) for z in zones))
-    return zones, whiteouts, numbers, tints
+    return zones, whiteouts, numbers, tints, drops
 
 
 def untint(img, tints):
@@ -338,18 +398,20 @@ def band_info(img, a, t, b):
             'x0': (cols[0] / SCALE) if len(cols) else 0, 'x1': (cols[-1] / SCALE) if len(cols) else 0}
 
 
-def analyse_kalam(book, k, end_page, end_y):
-    """Rows of the kalam from (k.p, k.y) to (end_page, end_y), page by page."""
+def analyse_kalam(book, k, end_page, end_y, through=False):
+    """Rows of the kalam from (k.p, k.y) to (end_page, end_y), page by page.
+    Its ٭٭٭٭٭ ornament ends it, unless `through`: a kalam in parts with an
+    ornament after each part (orphans below)."""
     pages = []
     ended = False
     for i in range(k['p'], end_page + 1):
         if i in book.index:
             break
-        zones, whiteouts, numbers, tints = page_marks(book, i)
+        zones, whiteouts, numbers, tints, drops = page_marks(book, i)
         top = k['y'] if i == k['p'] else 0
         bottom = end_y if i == end_page else book.doc[i].rect.height
         orn = [o for o in book.ornaments(i) if o[1] >= top - 2 and o[3] <= bottom + 2]
-        if orn:
+        if orn and not through:
             bottom = min(bottom, min(o[1] for o in orn) - 1)
             ended = True
         img = render(book, i, whiteouts, zones + [(0, top), (bottom, 1e9)], tints)
@@ -358,14 +420,14 @@ def analyse_kalam(book, k, end_page, end_y):
         rows = [band_info(img, a, t, b) for t, b in bands]
         rows = [r for r in rows if r['b'] - r['t'] >= 3]
         numbers = [n for n in numbers if top <= (n[1] + n[3]) / 2 <= bottom]
-        pages.append({'p': i, 'rows': rows, 'numbers': numbers, 'tints': tints, 'zones': [list(z) for z in zones], 'whiteouts': [list(map(lambda v: round(v, 1), w)) for w in whiteouts], 'top': top, 'bottom': bottom})
+        pages.append({'p': i, 'rows': rows, 'numbers': numbers, 'tints': tints, 'drops': drops, 'zones': [list(z) for z in zones], 'whiteouts': [list(map(lambda v: round(v, 1), w)) for w in whiteouts], 'top': top, 'bottom': bottom})
         if ended:
             break
     # Leading header rows (786, the kalam's title and its author, in red) are not
     # verses. Only a kalam without a title box that opens a page has them; red
     # rows under a title box, or opening a kalam mid-page, are its refrain.
     dropped = 0
-    for pg in (pages if not k['box'] and k['y'] < 60 else []):
+    for pg in (pages if not k['box'] and k['y'] < 60 and not k.get('part') else []):
         while pg['rows'] and pg['rows'][0]['col'] > 0.8 and sum(len(p['rows']) for p in pages) > 1 and dropped < 8:
             pg['rows'].pop(0)
             dropped += 1
@@ -527,6 +589,17 @@ def verse_plan(rows):
     return plan if changed else None
 
 
+def staggered(rows):
+    """A run of single misras printed in pairs: each couplet's first row set
+    to the right, its second further left (Main Saif-ul-Huda par chhoon).
+    Such a kalam is chosen couplet by couplet, two rows at a time."""
+    pairs = [(rows[i], rows[i + 1]) for i in range(0, len(rows) - 1, 2)]
+    if len(pairs) < 2:
+        return False
+    shifted = sum(1 for a, b in pairs if a['x1'] - b['x1'] > 12 and a['x0'] - b['x0'] > 12)
+    return shifted >= 0.8 * len(pairs)
+
+
 def join_parts(parts):
     """Row crops of one verse in order → its parts: rows on the same page join
     into one crop (first row's top to last row's bottom)."""
@@ -542,19 +615,64 @@ def join_parts(parts):
 _book = None
 
 
-def analyse_one(args):
-    """One kalam, from its start up to where the next one starts."""
+def end_of(book, nxt):
+    """Where a kalam's range stops: where the next one starts."""
+    if nxt is None:
+        return book.n - 1, 1e9
+    if nxt['y'] > 60:
+        return nxt['p'], nxt['y']
+    return nxt['p'] - 1, 1e9
+
+
+def orphans(args):
+    """Verse rows after a kalam's ornament and before the next kalam starts,
+    which no kalam had: the rest of a kalam printed in parts, or the opening
+    of the next one when its index link points a page too late (Ya Sayyid
+    al-Shuhada in Mithi Shitabi). Poets' names, dates and link bars under the
+    ornament are short lines, not verses; rows on the next kalam's own page
+    above its start are its heading; a run under a title box of its own is
+    another kalam. Returns ([(page, top)] of the verse rows, whether an
+    ornament closes them), or None."""
     global _book
-    n, k, nxt = args
+    n, res, nxt = args
     if _book is None:
         _book = Book(SRC)
     book = _book
-    if nxt is None:
-        end_page, end_y = book.n - 1, 1e9
-    elif nxt['y'] > 60:
-        end_page, end_y = nxt['p'], nxt['y']
-    else:
+    last = max(res['pages'])
+    end = max(part[2] for parts in res['stanzas'] for part in parts if part[0] == last)
+    end_page, end_y = end_of(book, nxt)
+    if nxt and nxt['y'] > 60:
         end_page, end_y = nxt['p'] - 1, 1e9
+    found, closed = [], False
+    for p in range(last, end_page + 1):
+        if p in book.index:
+            break
+        zones, whiteouts, numbers, tints, drops = page_marks(book, p)
+        top = end if p == last else 0
+        bottom = end_y if p == end_page else 1e9
+        img = render(book, p, whiteouts, zones + [(0, top), (bottom, 1e9)], tints)
+        bands, a = bands_of(img)
+        rows = [band_info(img, a, t, b) for t, b in bands]
+        verses = [r for r in rows if res['lh'] * 0.7 <= r['b'] - r['t'] <= res['lh'] * 1.6 and r['x1'] - r['x0'] >= 200]
+        if not found and verses and any(near(x.get('fill'), PINK) and x['rect'].width > 60 and x['rect'].height > 15
+                                        and top - 2 <= x['rect'].y0 <= verses[0]['t'] for x in book.doc[p].get_drawings()):
+            return n, None
+        found += [(p, r['t']) for r in verses]
+        if found and any(o[1] > (found[0][1] if p == found[0][0] else 0) for o in book.ornaments(p) if o[3] <= bottom):
+            closed = True
+    return n, (found, closed) if len(found) >= 2 else None
+
+
+def analyse_one(args):
+    """One kalam, from its start up to where the next one starts; `extra`, a
+    (page, y) after its ornament where further parts of it begin."""
+    global _book
+    n, k, nxt, *more = args
+    extra = more[0] if more else None
+    if _book is None:
+        _book = Book(SRC)
+    book = _book
+    end_page, end_y = end_of(book, nxt)
     pages, ended, dropped = analyse_kalam(book, k, end_page, end_y)
     st = stanzas_of(pages)
     if not st:
@@ -563,21 +681,42 @@ def analyse_one(args):
     crops = crops_for(pages, stanzas)
     plan = verse_plan([len(g) for g in stanzas])
     # Each row's own crop (cut halfway to its neighbours), for verse_plan.
-    split = plan and {'plan': plan, 'rows': [c[0] for c in crops_for(pages, [[it] for g in stanzas for it in g])]}
+    row_crops = lambda pages, stanzas: [c[0] for c in crops_for(pages, [[it] for g in stanzas for it in g])]
+    split = plan and {'plan': plan, 'rows': row_crops(pages, stanzas)}
+    couplets = len(stanzas) == 1 and split and staggered([r for _, r in stanzas[0]])
+    rows = [len(g) for g in stanzas]
+    every = list(pages)
+    xpages = extra and analyse_kalam(book, {'p': extra[0], 'y': extra[1], 'box': None, 'part': True}, end_page, end_y, through=True)[0]
+    xst = xpages and stanzas_of(xpages)
+    if xst:
+        # The later parts become further verses after the kalam's own, which
+        # keep their numbers: each part's stanzas (or rows) as it stands.
+        xstanzas = xst[0]
+        xrows = [len(g) for g in xstanzas]
+        own = plan or [(sum(rows[:i]), sum(rows[:i + 1]), i) for i in range(len(rows))]
+        xplan = verse_plan(xrows) or [(sum(xrows[:i]), sum(xrows[:i + 1]), i) for i in range(len(xrows))]
+        r0, s0 = sum(rows), len(rows)
+        split = {'plan': own + [(a + r0, b + r0, g + s0) for a, b, g in xplan],
+                 'rows': row_crops(pages, stanzas) + row_crops(xpages, xstanzas)}
+        crops = crops + crops_for(xpages, xstanzas)
+        rows = rows + xrows
+        every += xpages
+        couplets = False
     used = {part[0] for s in crops for part in s}
     marks = {}
-    for pg in pages:
+    for pg in every:
         if pg['p'] in used:
-            m = {'w': pg['whiteouts'], 'z': pg['zones'], 't': pg['tints']}
+            m = {'w': pg['whiteouts'], 'z': pg['zones'], 't': pg['tints'], 'd': pg['drops']}
             marks[pg['p']] = {k2: v for k2, v in m.items() if v}
     return n, {
         'n': n,
         'p': k['p'], 'y': round(k['y'], 1), 'box': k['box'] and [round(v, 1) for v in k['box']],
         'row': k.get('row') and {'ip': k['row']['ip'], 'rect': [round(v, 1) for v in k['row']['rect']]},
         'kind': k['group'][1], 'group': k['group'][2],
-        'stanzas': crops, 'rows': [len(g) for g in stanzas], **({'split': split} if split else {}),
+        'stanzas': crops, 'rows': rows, **({'split': split} if split else {}),
         'lh': round(hmed, 1), 'pitch': round(base, 1), 'ended': ended, 'dropped': dropped,
-        'pages': sorted(used),
+        'pages': sorted(used), **({'couplets': 2} if couplets else {}), **({'parts': extra} if xst else {}),
+        **({'was': k['was']} if k.get('was') else {}),
     }, marks
 
 
@@ -587,20 +726,44 @@ def main():
     kalams = find_kalams(book)
     only = [int(a) for a in sys.argv[1:]]
     print(f'{len(kalams)} kalam starts', file=sys.stderr)
-    jobs = [(n, k, kalams[n + 1] if n + 1 < len(kalams) else None) for n, k in enumerate(kalams) if not only or n in only]
-    results, whiteouts, pending_alias = [], {}, []
+    nxt = lambda n: kalams[n + 1] if n + 1 < len(kalams) else None
+    jobs = [(n, k, nxt(n)) for n, k in enumerate(kalams) if not only or n in only]
+    done = {}
     with Pool(os.cpu_count() or 2) as pool:
         for i, (n, result, marks) in enumerate(pool.imap(analyse_one, jobs, chunksize=8)):
-            if result is None:
-                # An index entry that points just above its kalam (the end of the
-                # page before, or a second name over the same title): an alias.
-                pending_alias.append(n)
-                continue
-            results.append({**result, 'aliases': pending_alias})
-            pending_alias = []
-            whiteouts.update(marks)
+            done[n] = (result, marks)
             if i % 100 == 0:
                 print(f'  {i}/{len(jobs)}', file=sys.stderr)
+        # Verses after an ornament that no kalam took: they open the next kalam
+        # when its link lands at the top of a later page with no title box;
+        # otherwise they are further parts of this one.
+        ended = [(n, r, nxt(n)) for n, (r, _) in sorted(done.items()) if r and r['ended']]
+        again = []
+        for n, orphaned in pool.imap(orphans, ended, chunksize=8):
+            if not orphaned:
+                continue
+            (found, closed), following = orphaned, nxt(n)
+            p, top = found[0]
+            start = max(PAGE_TOP, top - 6)
+            if not closed and following and not following['box'] and (not only or n + 1 in only):
+                kalams[n + 1] = {**following, 'p': p, 'y': start, 'was': [following['p'], following['y']]}
+                again.append((n + 1, kalams[n + 1], nxt(n + 1)))
+                print(f'  kalam {n + 1} starts earlier, on page {p + 1}', file=sys.stderr)
+            else:
+                again.append((n, kalams[n], following, (p, start)))
+                print(f'  kalam {n} has {len(found)} more rows after its ornament, from page {p + 1}', file=sys.stderr)
+        for n, result, marks in pool.imap(analyse_one, again):
+            done[n] = (result, marks)
+    results, whiteouts, pending_alias = [], {}, []
+    for n, (result, marks) in sorted(done.items()):
+        if result is None:
+            # An index entry that points just above its kalam (the end of the
+            # page before, or a second name over the same title): an alias.
+            pending_alias.append(n)
+            continue
+        results.append({**result, 'aliases': pending_alias})
+        pending_alias = []
+        whiteouts.update(marks)
     os.makedirs(OUT_SERVER, exist_ok=True)
     tmp = os.path.join(OUT_SERVER, 'analysis.json')
     with open(tmp, 'w') as f:
@@ -629,27 +792,37 @@ def finalize():
             s0 = k['stanzas'][0][0]
             tr = [s0[0], 30, s0[1], 582, min(s0[2], s0[1] + k['pitch'] * 1.2)]
         entry = {'st': k['stanzas'], 'lh': k['lh'], 'pitch': k['pitch'], 'tr': [round(v, 1) for v in tr]}
+        if k.get('was'):
+            # Verses found above where the kalam used to start: version 1 ids
+            # count its verses from there (server/library.ts).
+            entry['o'] = sum(1 for s in k['stanzas'] if (s[0][0], s[0][2]) <= (k['was'][0], k['was'][1]))
         if k.get('split'):
             # Verses smaller than stanzas; `g` is each one's stanza, which the
             # server prints without a stanza gap inside (server/library.ts).
             rows, plan = k['split']['rows'], k['split']['plan']
             entry['st'] = [join_parts(rows[a:b]) for a, b, _ in plan]
             entry['g'] = [g for _, _, g in plan]
+            if 'o' in entry:
+                entry['o'] = sum(1 for s in entry['st'] if (s[0][0], s[0][2]) <= (k['was'][0], k['was'][1]))
         kalams.append(entry)
         title = titles.get(k['n'], '')
         aliases = [titles[a] for a in k['aliases'] if titles.get(a, '-') not in ('-', '', title)] + spellings.get(k['n'], [])
+        # `c`: verses are chosen this many at a time (a couplet of two rows).
         index.append({'t': title, **({'a': aliases} if aliases else {}), 'k': k['kind'], 'g': k['group'],
-                      'v': len(entry['st']), 'r': sum(k['rows'])})
+                      'v': len(entry['st']), 'r': sum(k['rows']), **({'c': k['couplets']} if k.get('couplets') else {})})
     used = {part[0] for k in kalams for s in k['st'] for part in s} | {k['tr'][0] for k in kalams}
     marks = {p: m for p, m in A['whiteouts'].items() if int(p) in used}
     with open(SRC, 'rb') as f:
         digest = hashlib.sha256(f.read()).hexdigest()[:16]
-    lib = {'v': 1, 'source': 'references/Zikre Husain AS 1446.pdf', 'sha': digest, 'kalams': kalams, 'marks': marks}
+    # `build` changes with the geometry, so made images and cached previews of
+    # an older build are never reused (server/library.ts libraryBuild).
+    build = hashlib.sha256(json.dumps([digest, kalams, marks], separators=(',', ':')).encode()).hexdigest()[:16]
+    lib = {'v': 2, 'source': 'references/Zikre Husain AS 1446.pdf', 'sha': digest, 'build': build, 'kalams': kalams, 'marks': marks}
     os.makedirs(OUT_PUBLIC, exist_ok=True)
     with open(os.path.join(OUT_SERVER, 'library.json'), 'w') as f:
         json.dump(lib, f, separators=(',', ':'), ensure_ascii=False)
     with open(os.path.join(OUT_PUBLIC, 'index.json'), 'w') as f:
-        json.dump({'v': 1, 'sha': digest, 'kalams': index}, f, separators=(',', ':'), ensure_ascii=False)
+        json.dump({'v': 2, 'sha': digest, 'build': build, 'kalams': index}, f, separators=(',', ':'), ensure_ascii=False)
     print(len(kalams), 'kalams;', sum(1 for i in index if not i['t']), 'without a title', file=sys.stderr)
 
 

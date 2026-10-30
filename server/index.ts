@@ -137,8 +137,9 @@ app.post('/api/library/:n/plan', route(async (req, res) => {
   res.json(libraryPlan(Number(req.params.n), Array.isArray(verses) ? verses.map(Number) : null));
 }));
 // Previews never change for a given library build (the URL carries its version).
-app.get(/^\/api\/library\/(\d+)\/(title|verse-(\d+))\.png$/, route(async (req, res) => {
-  const png = await heavyWork(() => libraryPreview(Number(req.params[0]), req.params[2] !== undefined ? Number(req.params[2]) : 'title'));
+app.get(/^\/api\/library\/(\d+)\/(title|verse-(\d+)(?:-(\d+))?)\.png$/, route(async (req, res) => {
+  const first = Number(req.params[2]), last = req.params[3] === undefined ? first : Number(req.params[3]);
+  const png = await heavyWork(() => libraryPreview(Number(req.params[0]), req.params[2] !== undefined ? [first, last] : 'title'));
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   res.type('png').send(png);
 }));
@@ -236,6 +237,7 @@ app.post(
     if (!doc || (doc.version !== 2 && doc.version !== 3) || !doc.kalams) return res.status(400).send('No booklet received.');
     const assets: Record<string, string> = {};
     const missing: string[] = [];
+    let outdated = false;
     const blocks = Object.values(doc.kalams).flatMap((ks) => ks.flatMap((k) => k.blocks)).filter((b) => b.kind === 'image');
     for (const block of blocks) {
       if (!/^[\w-]+$/.test(block.mediaId)) return res.status(400).send('Invalid screenshot ID.');
@@ -249,7 +251,10 @@ app.post(
           continue;
         }
         if (!/^\/media\/[\w-]+\.\d+\.(png|svg|opening\.png)$/.test(src)) return res.status(400).send('Invalid screenshot revision.');
-        if (isLibraryMedia(block.mediaId) && !existsSync(path.join(MEDIA, src.slice('/media/'.length)))) await getMedia(block.mediaId).catch(() => null);
+        if (isLibraryMedia(block.mediaId) && !existsSync(path.join(MEDIA, src.slice('/media/'.length)))) {
+          const meta = await getMedia(block.mediaId).catch(() => null);
+          if (meta && meta.rev !== block.rev) outdated = true;
+        }
         // Files the server has are loaded by the print page from /media, by
         // their revisioned name: inlined as data URLs they were copied into
         // the snapshot, its JSON and every page that shows a slice of them,
@@ -257,6 +262,7 @@ app.post(
         if (!existsSync(path.join(MEDIA, src.slice('/media/'.length)))) missing.push(src);
       }
     }
+    if (outdated) return res.status(409).json({ missing, error: 'The Zikre Husain verses have been updated. Reload the page, then download again.' });
     if (missing.length) return res.status(422).json({ missing, error: 'A verse image is missing. Re-add its original screenshot before downloading.' });
     const key = createHash('sha256').update(JSON.stringify({ doc, assets, title })).digest('hex');
     const cached = completed.get(key);

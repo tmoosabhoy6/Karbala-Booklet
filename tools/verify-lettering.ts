@@ -54,6 +54,17 @@ try {
   assert(numbered.openingPng, 'The fihrist opening is delivered as its own image.');
   const opening = await sharp(numbered.openingPng!).raw().toBuffer();
   assert(opening.every((v, i) => i % 4 === 3 || [58, 69, 106][i % 4] === v), 'Opening words are pre-coloured navy, with no CSS masking.');
+  // A refrain of one repeated word (حسين حسين … حسينا) across justified
+  // gaps: its outermost words sit level with the row, so they are lettering,
+  // not margin numbers. The former cleaner removed them (6% of the ink).
+  const refrain = await readFile('tests/fixtures/lettering/refrain-margin-words.png');
+  const refrainRaw = await sharp(refrain).removeAlpha().raw().toBuffer();
+  let rawInk = 0;
+  for (let i = 0; i < refrainRaw.length; i += 3) if (255 - Math.min(refrainRaw[i], refrainRaw[i + 1], refrainRaw[i + 2]) > 100) rawInk++;
+  const refrainClean = await sharp((await cleanScreenshot(refrain, {}, { ocr: false })).png).ensureAlpha().raw().toBuffer();
+  let cleanInk = 0;
+  for (let i = 3; i < refrainClean.length; i += 4) if (refrainClean[i] > 100) cleanInk++;
+  assert(cleanInk >= rawInk * 0.98, `Refrain words at the margins must stay (${cleanInk} of ${rawInk} ink pixels).`);
   // Cover logos: one solid ink colour, fully transparent around it, and solid
   // strokes fully opaque so the cover's plaid can never tint the letters.
   for (const logo of ['logo-karbala.png', 'logo-faiz-husaini.png']) {
@@ -77,5 +88,5 @@ try {
   assert.equal(referenceBank.documents,6);assert.equal(referenceBank.pages,153);
   assert.equal((await letteringReferences('auto')).length,6);
   assert.equal((await letteringReferences('urdu')).length,2);
-  console.log('Passed: 11 real screenshot cases, margin numbers/badges, unmerged uniform rows, navy fihrist openings, opaque cover logos, faint strokes, detached dots, red refrains, portrait/strip sizing, six-PDF reference bank.');
+  console.log('Passed: 11 real screenshot cases, margin numbers/badges, refrain words at the margins kept, unmerged uniform rows, navy fihrist openings, opaque cover logos, faint strokes, detached dots, red refrains, portrait/strip sizing, six-PDF reference bank.');
 } finally { await closeRecognition(); }

@@ -81,7 +81,7 @@ export function LibrarySearch({ category, placeholder, onPick }: Props) {
                 <b>{hit.name}</b>
                 <small>
                   {KIND_LABEL[hit.entry.k] ?? 'Kalam'} · {hit.entry.g}
-                  {hit.entry.v > 1 && <> · {hit.entry.v} verses</>}
+                  {hit.entry.v > 1 && (hit.entry.c ?? 1) > 1 ? <> · {Math.ceil(hit.entry.v / hit.entry.c!)} couplets</> : hit.entry.v > 1 && <> · {hit.entry.v} verses</>}
                   {hit.name !== hit.entry.t && <> · also “{hit.entry.t}”</>}
                 </small>
               </div>

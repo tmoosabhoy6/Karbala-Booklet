@@ -3,7 +3,7 @@
 import sharp from 'sharp';
 import { recognize } from './recognize';
 
-export const PROCESSOR_VERSION = 8;
+export const PROCESSOR_VERSION = 9;
 /** Fihrist navy (#3a456a): opening words are delivered already coloured. */
 const NAVY = [58, 69, 106];
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -182,6 +182,13 @@ function removeDashedEdges(alpha: Uint8Array, W: number, H: number, label: Int32
     const outerRight = comps.every((c, i) => own.has(i + 1) || c.x0 <= x1 || c.y1 < top || c.y0 > bottom);
     const inside = comps.some((c, i) => !own.has(i + 1) && c.x0 < x0 && c.x1 > x1 && c.y0 <= bottom && c.y1 >= top);
     if (inside || !(outerLeft || outerRight)) continue;
+    // A frame line keeps clear of the text. The first letter of rows that all
+    // start alike (the alif of a repeated الوداع, a superscript alif above
+    // the same word) lines up just as straight, but touches its own word.
+    const T = Math.max(12, lowerMedian(line.map((t) => t.c.y1 - t.c.y0 + 1)));
+    const touching = line.filter((t) => comps.some((c, i) => !own.has(i + 1) && c.y0 <= t.c.y1 + T * 0.5 && c.y1 >= t.c.y0 - T * 0.5
+      && Math.max(c.x0 - t.c.x1, t.c.x0 - c.x1) < T * 1.5)).length;
+    if (touching > line.length * 0.2) continue;
     for (const t of line) { ids.add(t.id); clearComponents(alpha, W, H, label, [t.id], { x: t.c.x0, y: t.c.y0, w: t.c.x1 - t.c.x0 + 1, h: t.c.y1 - t.c.y0 + 1 }, 1); }
   }
   return ids;
@@ -259,7 +266,13 @@ function removeMarginMarks(alpha: Uint8Array, colors: Uint8Array, W: number, H: 
       }
     }
     const badge = c.n / (w * h) >= 0.5 && h >= T * 0.3 && w / h >= 0.5 && w / h <= 2 && coloured >= c.n * 0.5;
-    const between = pitch > 0 && Math.min(...centres.map((r) => Math.abs(r - cy))) > pitch * 0.3;
+    // Level with the lettering beside it, a mark is a word of that row (the
+    // last حسين of a refrain across a justified gap); a number set between
+    // two rows overlaps neither by much.
+    const own = new Set(c.ids);
+    const level = comps.some((o, i) => !own.has(i + 1) && o.y1 - o.y0 + 1 >= T * 0.25 && Math.max(o.x0 - c.x1, c.x0 - o.x1) < T * 3
+      && Math.min(o.y1, c.y1) - Math.max(o.y0, c.y0) >= Math.min(h, o.y1 - o.y0 + 1) * 0.6);
+    const between = pitch > 0 && Math.min(...centres.map((r) => Math.abs(r - cy))) > pitch * 0.3 && !level;
     if (badge || between) clear(c, alpha);
   }
 }
@@ -284,7 +297,10 @@ function splitMergedRows(alpha: Uint8Array, W: number, bands: [number, number][]
   }
   return out;
 }
-export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options: { ocr?: boolean } = {}): Promise<InkResult> {
+/** `marks: false` skips the margin-number and dashed-line passes: library
+ * verses come from the PDF with those already removed exactly, and the
+ * guesswork can only cost them lettering. */
+export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options: { ocr?: boolean; marks?: boolean } = {}): Promise<InkResult> {
   const { data, info } = await sharp(input, { limitInputPixels: 20_000_000 }).rotate().flatten({ background: '#fff' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const crop = clampRect(edits.crop ?? { x: 0, y: 0, w: info.width, h: info.height }, info.width, info.height);
   const W = crop.w, H = crop.h;
@@ -321,7 +337,7 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
       if ((a <= 1 || b >= H - 1) && b - a < typical * 0.55) erase(alpha, W, H, { x: 0, y: a, w: W, h: b - a });
     }
   }
-  if (edits.autoClean !== false && W * H <= 12_000_000) removeMarginMarks(alpha, colors, W, H);
+  if (edits.autoClean !== false && options.marks !== false && W * H <= 12_000_000) removeMarginMarks(alpha, colors, W, H);
   const warnings: string[] = [];
   let bands = findBands(alpha, W, H);
   const typical = median(bands.map(([a, b]) => b - a));
@@ -361,7 +377,9 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
   const padding = Math.max(3, Math.round(typical * 0.09));
   const t = clampRect({ x: bounds.x - padding, y: bounds.y - padding, w: bounds.w + padding * 2, h: bounds.h + padding * 2 }, W, H);
   const png = await makePng(false, t);
-  const finalBands = bands.map(([a, b]) => [Math.max(0, a - t.y), Math.min(t.h, b - t.y)] as [number, number]).filter(([a, b]) => b > a);
+  // A band split at an empty valley can keep no ink of its own: not a row.
+  const finalBands = bands.map(([a, b]) => [Math.max(0, a - t.y), Math.min(t.h, b - t.y)] as [number, number])
+    .filter(([a, b]) => b > a && box(alpha, W, H, a + t.y, b + t.y));
   // Stanza breaks come only from the source's own spacing: a baseline pitch
   // clearly above the screenshot's normal line pitch. Uniformly spaced rows
   // stay one group; rows are never paired up artificially.
