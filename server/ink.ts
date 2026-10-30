@@ -3,7 +3,7 @@
 import sharp from 'sharp';
 import { recognize } from './recognize';
 
-export const PROCESSOR_VERSION = 9;
+export const PROCESSOR_VERSION = 10;
 /** Fihrist navy (#3a456a): opening words are delivered already coloured. */
 const NAVY = [58, 69, 106];
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -388,18 +388,31 @@ export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options:
   const sortedPitches = [...pitches].sort((p, q) => p - q);
   const basePitch = pitches.length >= 2 ? sortedPitches[Math.floor((sortedPitches.length - 1) / 4)] : Infinity;
   let group = 0;
-  const regions = finalBands.map(([a, b], i): Region => {
+  // A stroke thinner than the row test (the 2px tail of a Nastaliq م) still
+  // belongs to its row: the row's edges reach over any ink touching them, at
+  // most halfway to the next row, so the printed crop never cuts it off.
+  const inkAt = (y: number) => { for (let x = 0; x < t.w; x++) if (alpha[(y + t.y) * W + x + t.x] > 55) return true; return false; };
+  const reach = (i: number): [number, number] => {
+    let [a, b] = finalBands[i];
+    const above = i ? Math.ceil((finalBands[i - 1][1] + a) / 2) : 0, below = i + 1 < finalBands.length ? Math.floor((b + finalBands[i + 1][0]) / 2) : t.h;
+    while (a > above && inkAt(a - 1)) a--;
+    while (b < below && inkAt(b)) b++;
+    return [a, b];
+  };
+  const regions = finalBands.map(([core0, core1], i): Region => {
     if (i && pitches[i - 1] > basePitch * 1.25) group++;
+    const [a, b] = reach(i);
     const ink = box(alpha, W, H, a + t.y, b + t.y)!;
     const previous = finalBands[i - 1], next = finalBands[i + 1];
     const y = Math.max(0, a - padding, previous ? Math.ceil((previous[1] + a) / 2) : 0);
     const end = Math.min(t.h, b + padding, next ? Math.floor((b + next[0]) / 2) : t.h);
     const x = Math.max(0, ink.x - t.x - padding);
-    const unresolvedRows = b - a > 80 && ink.w / (b - a) < 2.5;
+    const unresolvedRows = core1 - core0 > 80 && ink.w / (core1 - core0) < 2.5;
     if (unresolvedRows) warnings.push('Some closely joined lines could not be separated. Check their size; crop into complete verses if needed.');
     // A dense multi-line image must never be mistaken for one giant glyph and
     // shrunk to a 34pt thumbnail. Preserve it as a readable, intact group.
-    const lineHeight = unresolvedRows ? Math.min(b - a, Math.max(20, ink.w / 12)) : b - a;
+    // Lettering size follows the row test's band, not the thin tails.
+    const lineHeight = unresolvedRows ? Math.min(core1 - core0, Math.max(20, ink.w / 12)) : core1 - core0;
     return { x, y, w: Math.min(t.w - x, ink.w + padding * 2), h: end - y, lineHeight, group, top: a, bottom: b, center: Math.round(centres[i] * 10) / 10 };
   });
   const first = regions[0];

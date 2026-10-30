@@ -54,6 +54,14 @@ try {
   assert(numbered.openingPng, 'The fihrist opening is delivered as its own image.');
   const opening = await sharp(numbered.openingPng!).raw().toBuffer();
   assert(opening.every((v, i) => i % 4 === 3 || [58, 69, 106][i % 4] === v), 'Opening words are pre-coloured navy, with no CSS masking.');
+  // A stroke thinner than the row test (the 2px tail of a Nastaliq م) is
+  // inside its row's crop, so it is never cut off in print.
+  const tail = Buffer.from(`<svg width="2000" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="2000" height="400" fill="white"/>
+    ${[0, 1, 2].map((i) => Array.from({ length: 10 }, (_, j) => `<rect x="${200 + j * 160}" y="${40 + i * 120}" width="130" height="50" fill="black"/>`).join('')).join('')}
+    <rect x="900" y="90" width="2" height="28" fill="black"/></svg>`);
+  const tailed = await cleanScreenshot(tail, {}, { ocr: false });
+  const [tailRow] = tailed.regions;
+  assert(tailed.regions.length === 3 && tailRow.bottom - tailRow.top >= 50 + 28 - 1 && tailRow.lineHeight === 50, 'A thin tail stays inside its row; the lettering size ignores it.');
   // A refrain of one repeated word (حسين حسين … حسينا) across justified
   // gaps: its outermost words sit level with the row, so they are lettering,
   // not margin numbers. The former cleaner removed them (6% of the ink).
@@ -88,5 +96,5 @@ try {
   assert.equal(referenceBank.documents,6);assert.equal(referenceBank.pages,153);
   assert.equal((await letteringReferences('auto')).length,6);
   assert.equal((await letteringReferences('urdu')).length,2);
-  console.log('Passed: 11 real screenshot cases, margin numbers/badges, refrain words at the margins kept, unmerged uniform rows, navy fihrist openings, opaque cover logos, faint strokes, detached dots, red refrains, portrait/strip sizing, six-PDF reference bank.');
+  console.log('Passed: 11 real screenshot cases, margin numbers/badges, refrain words at the margins kept, thin tails inside their rows, unmerged uniform rows, navy fihrist openings, opaque cover logos, faint strokes, detached dots, red refrains, portrait/strip sizing, six-PDF reference bank.');
 } finally { await closeRecognition(); }
