@@ -5,15 +5,17 @@
 import type { RenderRequest } from './geometry';
 
 /** RGB pixels of `request`: each job's page crop drawn at `zoom`, whiteouts
- * and zones painted white, highlights un-blended to paper, shadow layers left
+ * and zones painted white, highlights un-blended to paper, shadow layers and
+ * title boxes (their pink and frame; the heading line in them prints) left
  * out, and the crop placed `dy` points down. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function renderPixels(mupdf: any, doc: any, request: RenderRequest): Uint8Array {
   const { jobs, width, height, zoom } = request;
-  // A device that draws everything into `draw` except the listed text objects:
-  // same colour, same number of glyphs, first glyph at the same origin.
+  // A device that draws everything into `draw` except the listed text objects
+  // (same colour, same number of glyphs, first glyph at the same origin) and
+  // the paths of the listed boxes (a path whose bounds are the box's).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const leaveOut = (draw: any, drops: number[][]) => {
+  const leaveOut = (draw: any, drops: number[][], boxes: number[][]) => {
     const rgb = (c: number[]) => (c.length === 1 ? [c[0], c[0], c[0]] : c.length === 4 ? [0, 1, 2].map((i) => (1 - c[i]) * (1 - c[3])) : c);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dropped = (text: any, ctm: number[], color: number[]) => {
@@ -34,6 +36,21 @@ export function renderPixels(mupdf: any, doc: any, request: RenderRequest): Uint
     const callbacks: Record<string, (...args: unknown[]) => unknown> = {};
     for (const name of names) callbacks[name] = (...args: unknown[]) => draw[name](...args);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isBox = (path: any, ctm: number[]) => {
+      if (!boxes.length) return false;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      const at = (x: number, y: number) => {
+        const px = x * ctm[0] + y * ctm[2] + ctm[4], py = x * ctm[1] + y * ctm[3] + ctm[5];
+        x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py);
+      };
+      path.walk({ moveTo: at, lineTo: at, curveTo: (_a: number, _b: number, _c: number, _d: number, x: number, y: number) => at(x, y) });
+      return boxes.some((b) => Math.abs(b[0] - x0) < 1.5 && Math.abs(b[1] - y0) < 1.5 && Math.abs(b[2] - x1) < 1.5 && Math.abs(b[3] - y1) < 1.5);
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    callbacks.fillPath = (path: any, evenOdd: any, ctm: any, ...rest: unknown[]) => { if (!isBox(path, ctm)) draw.fillPath(path, evenOdd, ctm, ...rest); };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    callbacks.strokePath = (path: any, stroke: any, ctm: any, ...rest: unknown[]) => { if (!isBox(path, ctm)) draw.strokePath(path, stroke, ctm, ...rest); };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     callbacks.fillText = (text: any, ctm: any, cs: any, color: any, alpha: any) => { if (!dropped(text, ctm, color)) draw.fillText(text, ctm, cs, color, alpha); };
     return new mupdf.Device(callbacks);
   };
@@ -44,7 +61,7 @@ export function renderPixels(mupdf: any, doc: any, request: RenderRequest): Uint
     const pix = new mupdf.Pixmap(mupdf.ColorSpace.DeviceRGB, [bx, by, Math.ceil(x1 * zoom), Math.ceil(y1 * zoom)], false);
     pix.clear(255);
     const draw = new mupdf.DrawDevice(mupdf.Matrix.scale(zoom, zoom), pix);
-    const dev = marks.d && marks.d.length ? leaveOut(draw, marks.d) : draw;
+    const dev = (marks.d && marks.d.length) || (marks.b && marks.b.length) ? leaveOut(draw, marks.d ?? [], marks.b ?? []) : draw;
     p.run(dev, mupdf.Matrix.identity);
     if (dev !== draw) { dev.close(); dev.destroy(); }
     draw.close(); draw.destroy();

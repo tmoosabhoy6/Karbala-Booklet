@@ -14,10 +14,11 @@ export interface Verses { st: Part[][]; g?: number[]; o?: number }
 /** `l2`: the verses of library version 2, when they differ (booklets made
  * with version 2 ids keep the verses they chose). */
 export interface LibraryKalam extends Verses { lh: number; pitch: number; tr: [number, number, number, number, number]; l2?: Verses }
-/** Per page: whiteouts, full-width zones, tints, and `d`: text objects to
+/** Per page: whiteouts, full-width zones, tints, `d`: text objects to
  * leave out (the shadow layers under lettering: [x0, y0, x1, y1, r, g, b,
- * glyphs, first glyph's x, y]). */
-export interface Marks { w?: number[][]; z?: number[][]; t?: [number, number, number, number, number[]][]; d?: number[][] }
+ * glyphs, first glyph's x, y]) and `b`: title boxes [x0, y0, x1, y1] whose
+ * pink and frame are left out (the heading line in them prints). */
+export interface Marks { w?: number[][]; z?: number[][]; t?: [number, number, number, number, number[]][]; d?: number[][]; b?: number[][] }
 /** `build`: this geometry's own digest (tools/build_library.py finalize).
  * `x`: the horizontal span every verse image covers, in points. */
 export interface Library { v: number; source: string; sha: string; build?: string; x?: [number, number]; kalams: LibraryKalam[]; marks: Record<string, Marks> }

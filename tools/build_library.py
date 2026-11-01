@@ -268,13 +268,30 @@ def shadow_layers(page):
     return drops, kept
 
 
+def box_edges(boxes):
+    """The rounded frame of each title box as white strips, for the analysis
+    raster only (the renderer leaves the frame out instead: marks `b`)."""
+    out = []
+    for x0, y0, x1, y1 in boxes:
+        w, rad = 1.3, 9
+        out += [(x0 - w, y0 - w, x1 + w, y0 + w), (x0 - w, y1 - w, x1 + w, y1 + w),
+                (x0 - w, y0 - w, x0 + w, y1 + w), (x1 - w, y0 - w, x1 + w, y1 + w)]
+        out += [(cx - w, cy - w, cx + rad, cy + rad) if cx == x0 and cy == y0 else
+                (cx - rad, cy - w, cx + w, cy + rad) if cy == y0 else
+                (cx - w, cy - rad, cx + rad, cy + w) if cx == x0 else
+                (cx - rad, cy - rad, cx + w, cy + w) for cx in (x0, x1) for cy in (y0, y1)]
+    return out
+
+
 def page_marks(book, i):
     """What never prints on page i: zones (full-width y ranges), whiteouts
     (rects), text layers to leave out (shadows under lettering) and, among
-    the whiteouts, the verse numbers (which also mark stanzas)."""
+    the whiteouts, the verse numbers (which also mark stanzas). `boxes`: the
+    pink title boxes; the line in a box is the kalam's heading and prints,
+    the box itself (fill and frame) does not."""
     page = book.doc[i]
     zones = [(0, PAGE_TOP)]
-    whiteouts, numbers, tints = [], [], []
+    whiteouts, numbers, tints, boxes = [], [], [], []
     drops, lettering_shadows = shadow_layers(page)
     for x in page.get_drawings():
         r, f = x['rect'], x.get('fill')
@@ -298,7 +315,9 @@ def page_marks(book, i):
         elif r.width > 150 and 20 < r.height < 60 and (near(f, (1, 0, 0)) or near(f, (0, 0.5, 0))):
             zones.append((r.y0 - 3, r.y1 + 3))  # navigation bar
         elif near(f, PINK) and r.width > 120 and r.height > 20:
-            zones.append((r.y0 - 3, r.y1 + 3))  # title box
+            # A title box: its pink printed as paper (tint), its frame left out.
+            boxes.append((round(r.x0, 1), round(r.y0, 1), round(r.x1, 1), round(r.y1, 1)))
+            tints.append([round(r.x0, 1), round(r.y0, 1), round(r.x1, 1), round(r.y1, 1), [round(v * 255) for v in f]])
         elif near(f, PINK) and r.width < 60 and r.height < 60:
             # A verse number in a pink badge.
             whiteouts.append((r.x0 - 1.5, r.y0 - 1.5, r.x1 + 1.5, r.y1 + 1.5))
@@ -336,7 +355,7 @@ def page_marks(book, i):
             whiteouts.append((x0 - 1.5, y0 - 1, x1 + 1.5, y1 + 1))
     whiteouts = sorted(set(tuple(round(v, 1) for v in w) for w in whiteouts))
     zones = sorted(set(tuple(round(v, 1) for v in z) for z in zones))
-    return zones, whiteouts, numbers, tints, drops
+    return zones, whiteouts, numbers, tints, drops, boxes
 
 
 def untint(img, tints):
@@ -407,33 +426,64 @@ def analyse_kalam(book, k, end_page, end_y, through=False):
     for i in range(k['p'], end_page + 1):
         if i in book.index:
             break
-        zones, whiteouts, numbers, tints, drops = page_marks(book, i)
+        zones, whiteouts, numbers, tints, drops, boxes = page_marks(book, i)
         top = k['y'] if i == k['p'] else 0
+        # The kalam's own title box prints (its heading); any other stays out.
+        own = [b for b in boxes if i == k['p'] and k['box'] and abs(b[1] - k['box'][1]) < 1 and abs(b[0] - k['box'][0]) < 1]
+        others = [(b[1] - 3, b[3] + 3) for b in boxes if b not in own]
         bottom = end_y if i == end_page else book.doc[i].rect.height
         orn = [o for o in book.ornaments(i) if o[1] >= top - 2 and o[3] <= bottom + 2]
         if orn and not through:
             bottom = min(bottom, min(o[1] for o in orn) - 1)
             ended = True
-        img = render(book, i, whiteouts, zones + [(0, top), (bottom, 1e9)], tints)
+        img = render(book, i, whiteouts + box_edges(boxes), zones + others + [(0, top), (bottom, 1e9)], tints)
         zones = [z for z in zones if z[1] > PAGE_TOP]
         bands, a = bands_of(img)
         rows = [band_info(img, a, t, b) for t, b in bands]
         rows = [r for r in rows if r['b'] - r['t'] >= 3]
+        for r in rows:
+            if any(b[1] - 2 <= r['c'] <= b[3] + 2 for b in own):
+                r['head'] = True
         numbers = [n for n in numbers if top <= (n[1] + n[3]) / 2 <= bottom]
-        pages.append({'p': i, 'rows': rows, 'numbers': numbers, 'tints': tints, 'drops': drops, 'zones': [list(z) for z in zones], 'whiteouts': [list(map(lambda v: round(v, 1), w)) for w in whiteouts], 'top': top, 'bottom': bottom})
+        pages.append({'p': i, 'rows': rows, 'numbers': numbers, 'tints': tints, 'drops': drops, 'boxes': [list(b) for b in boxes], 'zones': [list(z) for z in zones], 'whiteouts': [list(map(lambda v: round(v, 1), w)) for w in whiteouts], 'top': top, 'bottom': bottom})
         if ended:
             break
     # Leading header rows (786, the kalam's title and its author, in red) are not
     # verses. Only a kalam without a title box that opens a page has them; red
     # rows under a title box, or opening a kalam mid-page, are its refrain.
+    # A heading drawn as a picture (the calligraphed first line, Zikr al-Husain
+    # khair zaad al-zaakireen) is the kalam's heading line: it prints.
     dropped = 0
     for pg in (pages if not k['box'] and k['y'] < 60 and not k.get('part') else []):
-        while pg['rows'] and pg['rows'][0]['col'] > 0.8 and sum(len(p['rows']) for p in pages) > 1 and dropped < 8:
-            pg['rows'].pop(0)
+        pics = [im['bbox'] for im in book.doc[pg['p']].get_image_info() if im['bbox'][2] - im['bbox'][0] > 150]
+        j = 0
+        while j < len(pg['rows']) and pg['rows'][j]['col'] > 0.8 and sum(len(p['rows']) for p in pages) > 1 and dropped < 8:
+            r = pg['rows'][j]
+            if any(min(r['b'], im[3]) - max(r['t'], im[1]) > 0.5 * (r['b'] - r['t']) and im[0] < r['x1'] and im[2] > r['x0'] for im in pics):
+                r['head'] = True
+                j += 1
+                continue
+            pg['rows'].pop(j)
             dropped += 1
-        if pg['rows']:
+        if any(not r.get('head') for r in pg['rows']):
             break
     return pages, ended, dropped
+
+
+def with_heads(first, pages, heads):
+    """The first verse's parts with the kalam's heading line(s) above them:
+    the heading prints as part of the opening verse, so verse numbers (and
+    the verses booklets already chose) stay as they were."""
+    if not heads:
+        return first
+    pg = pages[heads[0][0]]
+    t, b = min(r['t'] for _, r in heads), max(r['b'] for _, r in heads)
+    y0 = round(t - max(1, min(8, (t - pg['top']) / 2)), 1)
+    c0, c1 = round(heads[0][1]['c'], 1), round(heads[-1][1]['c'], 1)
+    part = first[0]
+    if part[0] == pg['p'] and part[1] >= t - 10:
+        return [[part[0], min(y0, part[1]), part[2], c0, part[4]]] + [list(p) for p in first[1:]]
+    return [[pg['p'], y0, round(b + 1, 1), c0, c1]] + [list(p) for p in first]
 
 
 def stanzas_of(pages):
@@ -738,10 +788,10 @@ def orphans(args):
     for p in range(last, end_page + 1):
         if p in book.index:
             break
-        zones, whiteouts, numbers, tints, drops = page_marks(book, p)
+        zones, whiteouts, numbers, tints, drops, boxes = page_marks(book, p)
         top = end if p == last else 0
         bottom = end_y if p == end_page else 1e9
-        img = render(book, p, whiteouts, zones + [(0, top), (bottom, 1e9)], tints)
+        img = render(book, p, whiteouts, zones + [(b[1] - 3, b[3] + 3) for b in boxes] + [(0, top), (bottom, 1e9)], tints)
         bands, a = bands_of(img)
         rows = [band_info(img, a, t, b) for t, b in bands]
         verses = [r for r in rows if res['lh'] * 0.7 <= r['b'] - r['t'] <= res['lh'] * 1.6 and r['x1'] - r['x0'] >= 200]
@@ -765,6 +815,11 @@ def analyse_one(args):
     book = _book
     end_page, end_y = end_of(book, nxt)
     pages, ended, dropped = analyse_kalam(book, k, end_page, end_y)
+    # The heading line (in the title box, or a calligraphed heading) is not a
+    # verse of its own: it is laid out with the first verse (with_heads).
+    heads = [(pi, r) for pi, pg in enumerate(pages) for r in pg['rows'] if r.get('head')]
+    for pg in pages:
+        pg['rows'] = [r for r in pg['rows'] if not r.get('head')]
     st = stanzas_of(pages)
     if not st:
         return n, None, {}
@@ -774,9 +829,13 @@ def analyse_one(args):
     plan = verse_plan(stanzas)
     plan2 = verse_plan_v2(rows)
     # Each row's own crop (cut halfway to its neighbours), for verse_plan.
-    row_crops = lambda pages, stanzas: [c[0] for c in crops_for(pages, [[it] for g in stanzas for it in g])]
-    split = plan and {'plan': plan, 'rows': row_crops(pages, stanzas)}
-    split2 = plan2 and {'plan': plan2, 'rows': row_crops(pages, stanzas)}
+    def row_crops(pages, stanzas, heads=()):
+        rows = [c[0] for c in crops_for(pages, [[it] for g in stanzas for it in g])]
+        first = with_heads([rows[0]], pages, heads) if rows else []
+        return [first[0]] + rows[1:] if len(first) == 1 else rows
+    crops = [with_heads(crops[0], pages, heads)] + crops[1:]
+    split = plan and {'plan': plan, 'rows': row_crops(pages, stanzas, heads)}
+    split2 = plan2 and {'plan': plan2, 'rows': row_crops(pages, stanzas, heads)}
     # A ghazal whose misras are staggered row by row: chosen a couplet at a time.
     couplets = len(stanzas) == 1 and split and all(b - a == 1 for a, b, _ in plan) and staggered([r for _, r in stanzas[0]])
     every = list(pages)
@@ -789,7 +848,7 @@ def analyse_one(args):
         xrows = [len(g) for g in xstanzas]
         plain = lambda rows: [(sum(rows[:i]), sum(rows[:i + 1]), i) for i in range(len(rows))]
         r0, s0 = sum(rows), len(rows)
-        both = row_crops(pages, stanzas) + row_crops(xpages, xstanzas)
+        both = row_crops(pages, stanzas, heads) + row_crops(xpages, xstanzas)
         joined = lambda own, xplan: [*own, *[(a + r0, b + r0, g + s0) for a, b, g in xplan]]
         split = {'plan': joined(plan or plain(rows), verse_plan(xstanzas) or plain(xrows)), 'rows': both}
         split2 = {'plan': joined(plan2 or plain(rows), verse_plan_v2(xrows) or plain(xrows)), 'rows': both}
@@ -801,7 +860,7 @@ def analyse_one(args):
     marks = {}
     for pg in every:
         if pg['p'] in used:
-            m = {'w': pg['whiteouts'], 'z': pg['zones'], 't': pg['tints'], 'd': pg['drops']}
+            m = {'w': pg['whiteouts'], 'z': pg['zones'], 't': pg['tints'], 'd': pg['drops'], 'b': pg['boxes']}
             marks[pg['p']] = {k2: v for k2, v in m.items() if v}
     return n, {
         'n': n,
@@ -810,6 +869,7 @@ def analyse_one(args):
         'kind': k['group'][1], 'group': k['group'][2],
         'stanzas': crops, 'rows': rows, **({'split': split} if split else {}), **({'split2': split2} if split2 else {}),
         'lh': round(hmed, 1), 'pitch': round(base, 1), 'ended': ended, 'dropped': dropped,
+        **({'heads': len(heads)} if heads else {}),
         'pages': sorted(used), **({'couplets': 2} if couplets else {}), **({'parts': extra} if xst else {}),
         **({'was': k['was']} if k.get('was') else {}),
     }, marks
