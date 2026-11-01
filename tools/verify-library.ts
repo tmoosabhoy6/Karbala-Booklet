@@ -76,11 +76,11 @@ try {
   await page.locator('.verse-list li').nth(2).click({ modifiers: ['Shift'] });
   const t2 = Date.now();
   await page.locator('.verse-foot .primary').click();
-  const thumb = page.locator('.kalam img.thumb[src*="/media/lib3-"]').first();
+  const thumb = page.locator('.kalam img.thumb[src*="/media/lib4-"]').first();
   await thumb.waitFor({ timeout: 60_000 });
   step(`2 verses added in ${Date.now() - t2} ms`);
   const src = (await thumb.getAttribute('src'))!;
-  const id = /\/media\/(lib3-[\w-]+?)\.\d+\.png/.exec(src)![1];
+  const id = /\/media\/(lib4-[\w-]+?)\.\d+\.png/.exec(src)![1];
   const meta = await fetch(`${origin}/api/media/${id}?existing=1`).then((r) => r.json());
   assert(meta.library, 'The verse must be stored for the current library build.');
   assert(!log.includes('Making the verse'), 'The device must make the verse itself.');

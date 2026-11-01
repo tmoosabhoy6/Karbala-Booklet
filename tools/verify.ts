@@ -90,7 +90,7 @@ try {
   const libIndex = await fetch(`${origin}/library/index.json`).then((r) => r.json());
   assert(libIndex.kalams.length > 1800 && libIndex.kalams[0].v === 51, 'The library lists every kalam; Ya Sayyid al-Shuhada has 51 verses.');
   const plan = await fetch(`${origin}/api/library/0/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: [0, 1, 3] }) }).then((r) => r.json());
-  assert.deepEqual(plan.ids, ['lib3-0-0t1_3-0'], 'Chosen verses make one image.');
+  assert.deepEqual(plan.ids, ['lib4-0-0t1_3-0'], 'Chosen verses make one image.');
   const verses = await fetch(`${origin}/api/media/${plan.ids[0]}`).then((r) => r.json());
   assert.equal(verses.regions.length, 12, 'Three verses of four rows each.');
   assert.deepEqual([...new Set(verses.regions.map((r: { group: number }) => r.group))], [0, 1, 2], 'Each verse is its own stanza.');
@@ -99,7 +99,7 @@ try {
   const remade = Buffer.from(await fetch(`${origin}/media/${verses.id}.${verses.rev}.png`).then((r) => r.arrayBuffer()));
   assert(remade.equals(versesPng), 'A lost library image is made again, byte for byte, under the same name.');
   const whole = await fetch(`${origin}/api/library/0/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: null }) }).then((r) => r.json());
-  assert(whole.ids.length > 3 && whole.ids.every((id: string, i: number) => id === `lib3-0-all-${i}`), 'A long kalam comes in several images.');
+  assert(whole.ids.length > 3 && whole.ids.every((id: string, i: number) => id === `lib4-0-all-${i}`), 'A long kalam comes in several images.');
   // Lettering printed with a drop shadow keeps every line: Ae Allah na Dai's
   // opening line and its اے مولى محمد ! refrain line were whited out with
   // their shadows, leaving six of a verse's seven rows.
@@ -127,7 +127,7 @@ try {
   assert(ghazal >= 0 && libIndex.kalams[ghazal].v === libIndex.kalams[ghazal].r && libIndex.kalams[ghazal].v > 20, 'Each couplet of a ghazal is its own verse.');
   const couplets = await fetch(`${origin}/api/library/${ghazal}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: [0, 1, 4] }) }).then((r) => r.json());
   const coupletMeta = await fetch(`${origin}/api/media/${couplets.ids[0]}`).then((r) => r.json());
-  assert(couplets.ids.length === 1 && coupletMeta.regions.length === 3, 'Three chosen couplets make three rows.');
+  assert(couplets.ids.length === 1 && coupletMeta.regions.length === 4, 'Its heading line and three chosen couplets make four rows.');
   assert.deepEqual([...new Set(coupletMeta.regions.map((r: { group: number }) => r.group))], [0], 'Chosen couplets print as one run.');
   // Stanzas printed without a gap, their block moving from side to side
   // (Mere Baba ko na maqtal mein: an opening line, then eight stanzas of three
@@ -138,6 +138,22 @@ try {
   const stanza = await fetch(`${origin}/api/library/${duldul}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: [1] }) }).then((r) => r.json());
   assert.equal((await fetch(`${origin}/api/media/${stanza.ids[0]}`).then((r) => r.json())).regions.length, 3, 'A stanza is three rows.');
   assert.equal((await fetch(`${origin}/api/media/lib2-${duldul}-1-0`).then((r) => r.json())).regions.length, 1, 'A version 2 id keeps its single row.');
+  // Chosen stanzas of a kalam printed without gaps still print as separate
+  // verses: verses 1–3 ran together into one long verse.
+  const three = await fetch(`${origin}/api/library/${duldul}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: [0, 1, 2] }) }).then((r) => r.json());
+  const threeMeta = await fetch(`${origin}/api/media/${three.ids[0]}`).then((r) => r.json());
+  assert.equal(threeMeta.regions.length, 8, 'Heading and opening line, then two stanzas of three rows.');
+  assert.deepEqual([...new Set(threeMeta.regions.map((r: { group: number }) => r.group))], [0, 1, 2], 'Each chosen stanza is a verse of its own.');
+  // Numbered stanzas whose repeated line closes each stanza (Ya Husaina par
+  // hame qurbaan che): two rows and the repeated line, every time; the title
+  // box only repeats the opening line, so it is not printed twice.
+  const qurbaan = libIndex.kalams.findIndex((k: { t: string }) => k.t === 'Ya Husaina par hame qurbaan che qurbaan che');
+  assert(qurbaan >= 0 && libIndex.kalams[qurbaan].v === 40 && libIndex.kalams[qurbaan].r === 120, 'Ya Husaina par hame qurbaan che has 40 verses of three rows.');
+  const q = await fetch(`${origin}/api/library/${qurbaan}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses: [0, 3] }) }).then((r) => r.json());
+  const qMeta = await fetch(`${origin}/api/media/${q.ids[0]}`).then((r) => r.json());
+  assert.equal(qMeta.regions.length, 6, 'Two verses of three rows, the opening line once.');
+  assert.deepEqual([...new Set(qMeta.regions.map((r: { group: number }) => r.group))], [0, 1], 'Each verse is its own stanza.');
+  assert.equal((await fetch(`${origin}/api/media/lib3-${qurbaan}-3-0`).then((r) => r.json())).regions.length, 4, 'A version 3 id keeps naming the rows it named.');
   // Four rows, then two sung to another tune, again and again: each six-row
   // pair is one verse.
   const tune = libIndex.kalams.find((k: { t: string }) => k.t === 'Donon jahan mein khalq ka sardaar hai Ali');

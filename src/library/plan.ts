@@ -20,7 +20,14 @@ export function stanzasOf(rows: Row[]): { stanzas: Row[][]; pitch: number; lh: n
   const refrain = rows.map((r) => r.col > 0.75);
   const ends = rows.flatMap((_, j) => (refrain[j] && (j + 1 === rows.length || !refrain[j + 1]) ? [j] : []));
   if (ends.length >= 3 && rows.length / ends.length >= 2.5 && !refrain[0]) {
+    const gaps = brk;
     brk = rows.map((_, j) => !j || ends.includes(j - 1));
+    // The opening set apart by a gap above the first stanza is a verse of its own.
+    const starts = [...brk.flatMap((b, j) => (b ? [j] : [])), rows.length];
+    const sizes = new Map<number, number>();
+    starts.slice(2).forEach((b, i) => sizes.set(b - starts[i + 1], (sizes.get(b - starts[i + 1]) ?? 0) + 1));
+    const usual = [...sizes].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (usual && starts[1] > usual && gaps[starts[1] - usual]) brk[starts[1] - usual] = true;
   }
   let groups: Row[][] = [];
   rows.forEach((r, j) => (brk[j] || !groups.length ? groups.push([r]) : groups[groups.length - 1].push(r)));
@@ -83,11 +90,46 @@ function mergeRefrains(units: Unit[]): Unit[] {
   return count >= 2 && covered >= 0.6 * sizes.reduce((a, b) => a + b, 0) ? merged : units;
 }
 
+/** A stanza's blocks set alike, when it is several stanzas printed without
+ * gaps: two or more blocks of at least two rows (a body and its refrain line
+ * together, when that pair repeats). tools/build_library.py stanza_blocks. */
+function stanzaBlocks(g: Row[], start: number, si: number): Unit[] | null {
+  const n = g.length;
+  let runs: Unit[] = [];
+  let at = start;
+  for (const s of splitMultiples(layoutRuns(g))) { runs.push([at, at + s, si]); at += s; }
+  let sizes = runs.map(([a, b]) => b - a);
+  const pairs = sizes.flatMap((x, i) => (i % 2 === 0 && i + 1 < sizes.length ? [`${x},${sizes[i + 1]}`] : []));
+  if (pairs.length >= 2 && sizes.length % 2 === 0 && new Set(pairs).size === 1 && sizes[0] > sizes[1]) {
+    runs = pairs.map((_, i) => [runs[2 * i][0], runs[2 * i + 1][1], si] as Unit);
+    sizes = runs.map(([a, b]) => b - a);
+  }
+  const fits = () => runs.length >= 2 && Math.min(...sizes) >= 2 && Math.max(...sizes) <= 0.6 * n;
+  if (fits()) return runs;
+  // Otherwise a line in colour that closes each stanza (a refrain) marks where the next starts.
+  const bounds = [0, ...g.slice(0, -1).flatMap((r, j) => (r.col > 0.75 && g[j + 1].col <= 0.75 ? [j + 1] : [])), n];
+  runs = bounds.slice(1).map((b, i) => [start + bounds[i], start + b, si] as Unit);
+  sizes = runs.map(([a, b]) => b - a);
+  return fits() ? runs : null;
+}
+
+/** Verses that are whole multiples of the kalam's usual verse, cut into
+ * verses of that size where the usual size is clear (build_library.py split_units). */
+function splitUnits(units: Unit[]): Unit[] {
+  const counts = new Map<number, number>();
+  for (const [a, b] of units) if (b - a >= 2) counts.set(b - a, (counts.get(b - a) ?? 0) + 1);
+  const [t, seen] = [...counts].sort((x, y) => y[1] - x[1] || x[0] - y[0])[0] ?? [0, 0];
+  if (seen < 3 || seen < 0.5 * units.length) return units;
+  return units.flatMap(([a, b, si]) => (b - a >= 2 * t && (b - a) % t === 0 ? Array.from({ length: (b - a) / t }, (_, i) => [a + i * t, a + (i + 1) * t, si] as Unit) : [[a, b, si] as Unit]));
+}
+
 /** The verses a kalam is chosen by, as [first row, end row, stanza]. */
 export function versePlan(stanzas: Row[][]): Unit[] {
   const rows = stanzas.map((g) => g.length);
   const real = rows.filter((n) => n >= 2).sort((a, b) => a - b);
   const typical = real.length ? real[real.length >> 1] : 1;
+  const common = new Map<number, number>();
+  for (const n of rows) common.set(n, (common.get(n) ?? 0) + 1);
   let units: Unit[] = [];
   let start = 0;
   stanzas.forEach((g, si) => {
@@ -101,10 +143,15 @@ export function versePlan(stanzas: Row[][]): Unit[] {
       const blocky = runs.length >= 2 && mergeRefrains(runs).reduce((sum, [a, b]) => sum + (b - a >= 2 ? b - a : 0), 0) >= 0.75 * n;
       if (blocky) units.push(...runs);
       else for (let r = 0; r < n; r++) units.push([start + r, start + r + 1, si]);
-    } else units.push([start, start + n, si]);
+    } else {
+      // A page of stanzas set without gaps, each block moving side to side.
+      const blocks = n >= 6 && ((common.get(n) ?? 0) < 3 || n >= 12) ? stanzaBlocks(g, start, si) : null;
+      if (blocks) units.push(...blocks);
+      else units.push([start, start + n, si]);
+    }
     start += n;
   });
-  units = mergeRefrains(units);
+  units = splitUnits(mergeRefrains(units));
   return units;
 }
 

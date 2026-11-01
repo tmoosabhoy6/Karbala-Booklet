@@ -235,7 +235,16 @@ export function analyzePdf(mupdf: any, doc: any, name: string, sha: string, prog
     const st = plan.map(([a, b]) => joinParts(crops.slice(a, b)));
     const t = k.title ?? rows[0];
     const couplets = stanzas.length === 1 && plan.every(([a, b]) => b - a === 1) && staggered(rows);
-    out.push({ st, g: plan.map(([, , g]) => g), lh: +kh.toFixed(1), pitch: +kp.toFixed(1), tr: [t.page, +Math.max(0, t.x0 - 6).toFixed(1), +(t.t - 3).toFixed(1), +(t.x1 + 6).toFixed(1), +(t.b + 3).toFixed(1)] });
+    // Print groups (tools/build_library.py print_groups): single rows of one
+    // run print together; a staggered ghazal's couplet is one group; any verse
+    // of two rows or more is a group of its own.
+    const ids = new Map<string, number>();
+    const g = plan.map(([a, b, si], i) => {
+      const key = couplets ? `c${i >> 1}` : b - a === 1 ? `s${si}` : `v${i}`;
+      if (!ids.has(key)) ids.set(key, ids.size);
+      return ids.get(key)!;
+    });
+    out.push({ st, g, lh: +kh.toFixed(1), pitch: +kp.toFixed(1), tr: [t.page, +Math.max(0, t.x0 - 6).toFixed(1), +(t.t - 3).toFixed(1), +(t.x1 + 6).toFixed(1), +(t.b + 3).toFixed(1)] });
     found.push({ v: st.length, r: rows.length, ...(couplets ? { c: 2 } : {}), pages: [rows[0].page, rows.at(-1)!.page] });
   }
   return { library: { v: 1, source: name, sha, x, kalams: out, marks }, found };

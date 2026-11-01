@@ -16,7 +16,7 @@ Needs PyMuPDF, numpy and Pillow:  python3 tools/build_library.py
 Transliterated titles come from tools/library_titles.txt (one per kalam, in
 PDF order). `--finalize` rebuilds only the two app files from analysis.json.
 """
-import json, os, re, sys, hashlib
+import json, os, re, sys, hashlib, unicodedata
 from collections import Counter, defaultdict
 
 import numpy as np
@@ -82,6 +82,21 @@ class Book:
         self.n = len(self.doc)
         self.index = {p - 1 for a, b in INDEX_RANGES for p in range(a, b + 1)}
         self._spans = {}
+        self._chars = {}
+
+    def chars(self, i):
+        """Every character on page i with its centre: (x, y, char)."""
+        if i not in self._chars:
+            out = []
+            for b in self.doc[i].get_text('rawdict')['blocks']:
+                for l in b.get('lines', []):
+                    for sp in l['spans']:
+                        for ch in sp['chars']:
+                            if not ch['c'].isspace():
+                                x0, y0, x1, y1 = ch['bbox']
+                                out.append(((x0 + x1) / 2, (y0 + y1) / 2, ch['c']))
+            self._chars[i] = out
+        return self._chars[i]
 
     def spans(self, i):
         if i not in self._spans:
@@ -445,6 +460,8 @@ def analyse_kalam(book, k, end_page, end_y, through=False):
         bands, a = bands_of(img)
         rows = [band_info(img, a, t, b) for t, b in bands]
         rows = [r for r in rows if r['b'] - r['t'] >= 3]
+        for r in rows:
+            r['txt'] = row_text(book, i, r)
         if own:
             himg = render(book, i, whiteouts + box_edges(boxes), zones + others + [(0, top), (bottom, 1e9)], tints)
             ha = 255 - himg.min(axis=2)
@@ -495,6 +512,78 @@ def with_heads(first, pages, heads):
     return [[pg['p'], y0, round(b + 1, 1), c0, c1]] + [list(p) for p in first]
 
 
+def labelled_breaks(pages, seq, base):
+    """Stanza breaks where each stanza's number sits beside it (a label).
+
+    A label stands beside its stanza's body: the block of rows set alike
+    (sharing both edges) around the label. Rows between two bodies (a refrain
+    line in another setting, Ya Husaina par hame qurbaan che) close the stanza
+    above them, unless a clearly wider gap says where the break is. Picking
+    the widest of evenly spaced gaps put the refrain at the top of one verse
+    and the bottom of the next."""
+    brk = [False] * len(seq)
+    brk[0] = True
+    gap = lambda j: seq[j][1]['c'] - seq[j - 1][1]['c']
+    # Right-aligned rows of one body; their left ends vary with line length.
+    alike = lambda a, b: abs(a['x1'] - b['x1']) < EDGE and abs(a['x0'] - b['x0']) < 3 * EDGE
+
+    def clear_gap(cands):
+        """The break among `cands` that a stanza-sized gap marks, or None."""
+        if not cands:
+            return None
+        gs = sorted((gap(j), j) for j in cands)
+        top, j = gs[-1]
+        second = gs[-2][0] if len(gs) > 1 else base
+        return j if top > base * 1.5 and top > second + base * 0.2 else None
+
+    for pi, pg in enumerate(pages):
+        idx = [j for j, (p2, _) in enumerate(seq) if p2 == pi]
+        cs = sorted((n[1] + n[3]) / 2 for n in pg['numbers'])
+        labels = []
+        for c in cs:
+            if not labels or c - labels[-1] > 12:
+                labels.append(c)
+        if not idx or not labels:
+            continue
+        # Each label's body: the rows set alike around the row nearest to it,
+        # never reaching past halfway to the next label.
+        bodies = []
+        for li, c in enumerate(labels):
+            lo = (labels[li - 1] + c) / 2 if li else -1e9
+            hi = (labels[li + 1] + c) / 2 if li + 1 < len(labels) else 1e9
+            near_rows = [j for j in idx if lo <= seq[j][1]['c'] <= hi]
+            if not near_rows:
+                bodies.append(None)
+                continue
+            j0 = min(near_rows, key=lambda j: abs(seq[j][1]['c'] - c))
+            a = b = j0
+            while a - 1 in near_rows and alike(seq[a - 1][1], seq[j0][1]):
+                a -= 1
+            while b + 1 in near_rows and alike(seq[b + 1][1], seq[j0][1]):
+                b += 1
+            bodies.append((a, b))
+        bodies = [x for x in bodies if x]
+        for (a1, b1), (a2, b2) in zip(bodies, bodies[1:]):
+            cut = clear_gap(list(range(b1 + 1, a2 + 1)))
+            brk[cut if cut is not None else a2] = True
+        if not bodies or idx[0] == 0:
+            continue
+        # Rows above the page's first body close the stanza of the page before.
+        a = bodies[0][0]
+        cut = clear_gap(list(range(idx[0] + 1, a + 1)))
+        brk[cut if cut is not None else a] = True
+    return brk
+
+
+def row_text(book, p, r):
+    """The text of a row (characters whose centre lies in it), without
+    spaces: the PDF's own glyph codes, enough to tell two lines apart."""
+    # Marks, kashidas and stretching fillers vary from copy to copy of a line.
+    return ''.join(c for x, _, c in sorted((x, y, c) for x, y, c in book.chars(p)
+                                           if r['t'] - 1 <= y <= r['b'] + 1 and r['x0'] - 3 <= x <= r['x1'] + 3)
+                   if unicodedata.category(c)[0] not in 'MCZP' and c != '\u0640')
+
+
 def stanzas_of(pages):
     """Rows grouped into stanzas (the units a long kalam's verses are chosen by).
 
@@ -527,11 +616,20 @@ def stanzas_of(pages):
             return r['t'] - 2 <= cy <= r['b'] + 2
         leading = [(pi, n) for pi, n in nums if any(p2 == pi and overlaps(n, r) and n[0] >= r['x1'] - 25 for p2, r in seq)]
     if use_refrain and len(leading) < max(1, len(nums) * 0.6):
+        gaps = brk
         brk = [False] * len(seq)
         brk[0] = True
         for j in ends:
             if j + 1 < len(seq):
                 brk[j + 1] = True
+        # The opening (matla) set apart by a gap above the first stanza: a
+        # verse of its own, when what follows the gap is a usual stanza.
+        starts = [j for j in range(len(seq)) if brk[j]] + [len(seq)]
+        usual = Counter(b - a for a, b in zip(starts[1:], starts[2:])).most_common(1)
+        if usual and starts[1] > usual[0][0]:
+            j = starts[1] - usual[0][0]
+            if 0 < j and gaps[j]:
+                brk[j] = True
         nums = nums or [None]
     elif nums:
         def overlaps(n, r):
@@ -546,30 +644,7 @@ def stanzas_of(pages):
                 if any(p2 == pi and overlaps(n, r) for p2, n in leading):
                     brk[j] = True
         else:
-            # Labels: each sits beside its stanza. Between two labels the stanza
-            # break is the widest gap; rows above a page's first label continue
-            # the stanza before them when a stanza-sized gap separates them.
-            brk = [False] * len(seq)
-            brk[0] = True
-            gap = lambda j: seq[j][1]['c'] - seq[j - 1][1]['c']
-            half = lambda j: (seq[j][1]['b'] - seq[j][1]['t']) / 2
-            for pi, pg in enumerate(pages):
-                idx = [j for j, (p2, _) in enumerate(seq) if p2 == pi]
-                labels = sorted((n[1] + n[3]) / 2 for n in pg['numbers'])
-                if not idx or not labels:
-                    continue
-                for a, b in zip(labels, labels[1:]):
-                    between = [j for j in idx[1:] if seq[j - 1][1]['c'] >= a - half(j - 1) and seq[j][1]['c'] <= b + half(j)]
-                    if between:
-                        brk[max(between, key=gap)] = True
-                if idx[0] == 0:
-                    continue
-                above = [j for j in idx[1:] if seq[j][1]['c'] <= labels[0] + half(j)]
-                cut = max(above, key=gap) if above else None
-                if cut is not None and gap(cut) > base * 1.3:
-                    brk[cut] = True
-                else:
-                    brk[idx[0]] = True
+            brk = labelled_breaks(pages, seq, base)
     groups = []
     for j, item in enumerate(seq):
         if brk[j]:
@@ -621,26 +696,6 @@ def crops_for(pages, stanzas):
             part[2] = round(b + max(1, pad_bot), 1)
     # [page, y0, y1, centre of the first row, centre of the last row]
     return [[[pages[pi]['p'], y0, y1, c0, c1] for pi, y0, y1, c0, c1 in parts] for parts in flat]
-
-
-def verse_plan_v2(rows):
-    """The verse plan of library version 2 (one verse per row for every
-    oversized stanza), kept so booklets made with it still get the verses
-    they chose (server/library.ts, `l2`)."""
-    real = sorted(n for n in rows if n >= 2)
-    typical = real[len(real) // 2] if real else 1
-    plan, start, changed = [], 0, False
-    for si, n in enumerate(rows):
-        if len(real) >= 3 and typical >= 2 and n >= 2 * typical and n % typical == 0:
-            plan += [(start + c, start + c + typical, si) for c in range(0, n, typical)]
-            changed = True
-        elif n >= 2 and (len(rows) == 1 or (n >= 10 and (len(real) < 3 or n >= 1.5 * typical))):
-            plan += [(start + r, start + r + 1, si) for r in range(n)]
-            changed = True
-        else:
-            plan.append((start, start + n, si))
-        start += n
-    return plan if changed else None
 
 
 # Rows of one stanza share both edges (they are set as one justified block);
@@ -701,6 +756,52 @@ def merge_refrains(units):
     return merged if count >= 2 and covered >= 0.6 * sum(sizes) else units
 
 
+def stanza_blocks(g, start, si, repeated={}):
+    """A stanza's rows as blocks set alike, when it is several stanzas: at
+    least two blocks of two or more rows each (a short refrain line counted
+    with the block it closes, once its pattern repeats), else None."""
+    n = len(g)
+    runs, at = [], start
+    for s in split_multiples(layout_runs([r for _, r in g])):
+        runs.append((at, at + s, si))
+        at += s
+    sizes = [b - a for a, b, _ in runs]
+    # Body and refrain: a long run then a short one, the same pair every time.
+    pairs = [(x, y) for x, y in zip(sizes[::2], sizes[1::2])]
+    if len(pairs) >= 2 and len(set(pairs)) == 1 and pairs[0][0] > pairs[0][1] and len(sizes) % 2 == 0:
+        runs = [(runs[i][0], runs[i + 1][1], si) for i in range(0, len(runs), 2)]
+        sizes = [b - a for a, b, _ in runs]
+    if len(runs) < 2 or min(sizes) < 2 or max(sizes) > 0.6 * n:
+        # Otherwise a line repeated through the kalam (its refrain, Shah na
+        # ehsaan che) closes each stanza, and the next line starts a new one.
+        rep = lambda r: r.get('txt') and repeated.get(r['txt'], 0) >= 3
+        cuts = [j + 1 for j in range(n - 1) if rep(g[j][1]) and not rep(g[j + 1][1])]
+        bounds = [0] + cuts + [n]
+        runs = [(start + a, start + b, si) for a, b in zip(bounds, bounds[1:])]
+        sizes = [b - a for a, b, _ in runs]
+        if len(runs) < 2 or min(sizes) < 2 or max(sizes) > 0.6 * n:
+            return None
+    return runs
+
+
+def split_units(units):
+    """Verses that are whole multiples of the kalam's usual verse (three
+    rows, then a run of nine whose ragged lines hid where its blocks move):
+    cut into verses of the usual size. Only where the usual size is clear."""
+    sizes = [b - a for a, b, _ in units]
+    common = Counter(x for x in sizes if x >= 2).most_common(1)
+    if not common or common[0][1] < 3 or common[0][1] < 0.5 * len(units):
+        return units
+    t = common[0][0]
+    out = []
+    for a, b, si in units:
+        if b - a >= 2 * t and (b - a) % t == 0:
+            out += [(c, c + t, si) for c in range(a, b, t)]
+        else:
+            out.append((a, b, si))
+    return out
+
+
 def verse_plan(stanzas):
     """The verses a kalam is chosen by: its stanzas, unless they are not
     enough. A kalam in one continuous run and any oversized stanza are cut
@@ -715,6 +816,8 @@ def verse_plan(stanzas):
     rows = [len(g) for g in stanzas]
     real = sorted(n for n in rows if n >= 2)
     typical = real[len(real) // 2] if real else 1
+    common = Counter(rows)
+    repeated = Counter(r['txt'] for g in stanzas for _, r in g if r.get('txt'))
     units, start = [], 0
     for si, g in enumerate(stanzas):
         n = len(g)
@@ -731,10 +834,15 @@ def verse_plan(stanzas):
                 units += runs
             else:
                 units += [(start + r, start + r + 1, si) for r in range(n)]
+        elif n >= 6 and (common[n] < 3 or n >= 12) and (blocks := stanza_blocks(g, start, si, repeated)):
+            # A page of stanzas set without gaps, each block moving side to
+            # side (Ek daur Ali ka tha Kufe mein: a matla, then a gap, then
+            # whole pages of three-row stanzas): one verse per block.
+            units += blocks
         else:
             units.append((start, start + n, si))
         start += n
-    units = merge_refrains(units)
+    units = split_units(merge_refrains(units))
     plain = [(sum(rows[:i]), sum(rows[:i + 1]), i) for i in range(len(rows))]
     return None if units == plain else units
 
@@ -824,11 +932,21 @@ def analyse_one(args):
     book = _book
     end_page, end_y = end_of(book, nxt)
     pages, ended, dropped = analyse_kalam(book, k, end_page, end_y)
+    dup_head = False
     # The heading line (in the title box, or a calligraphed heading) is not a
     # verse of its own: it is laid out with the first verse (with_heads).
     heads = [(pi, r) for pi, pg in enumerate(pages) for r in pg['rows'] if r.get('head')]
     for pg in pages:
         pg['rows'] = [r for r in pg['rows'] if not r.get('head')]
+    # A heading that only repeats the first verse row (Ya Husaina par hame
+    # qurbaan che: the title box holds the opening line) would print the
+    # line twice: the verse already has it.
+    first = next(((pi, r) for pi, pg in enumerate(pages) for r in pg['rows']), None)
+    if heads and first and len(heads) == 1:
+        h = row_text(book, pages[heads[0][0]]['p'], heads[0][1])
+        if h and h == row_text(book, pages[first[0]]['p'], first[1]):
+            heads = []
+            dup_head = True
     st = stanzas_of(pages)
     if not st:
         return n, None, {}
@@ -836,7 +954,6 @@ def analyse_one(args):
     crops = crops_for(pages, stanzas)
     rows = [len(g) for g in stanzas]
     plan = verse_plan(stanzas)
-    plan2 = verse_plan_v2(rows)
     # Each row's own crop (cut halfway to its neighbours), for verse_plan.
     def row_crops(pages, stanzas, heads=()):
         rows = [c[0] for c in crops_for(pages, [[it] for g in stanzas for it in g])]
@@ -844,7 +961,6 @@ def analyse_one(args):
         return [first[0]] + rows[1:] if len(first) == 1 else rows
     crops = [with_heads(crops[0], pages, heads)] + crops[1:]
     split = plan and {'plan': plan, 'rows': row_crops(pages, stanzas, heads)}
-    split2 = plan2 and {'plan': plan2, 'rows': row_crops(pages, stanzas, heads)}
     # A ghazal whose misras are staggered row by row: chosen a couplet at a time.
     couplets = len(stanzas) == 1 and split and all(b - a == 1 for a, b, _ in plan) and staggered([r for _, r in stanzas[0]])
     every = list(pages)
@@ -860,7 +976,6 @@ def analyse_one(args):
         both = row_crops(pages, stanzas, heads) + row_crops(xpages, xstanzas)
         joined = lambda own, xplan: [*own, *[(a + r0, b + r0, g + s0) for a, b, g in xplan]]
         split = {'plan': joined(plan or plain(rows), verse_plan(xstanzas) or plain(xrows)), 'rows': both}
-        split2 = {'plan': joined(plan2 or plain(rows), verse_plan_v2(xrows) or plain(xrows)), 'rows': both}
         crops = crops + crops_for(xpages, xstanzas)
         rows = rows + xrows
         every += xpages
@@ -876,9 +991,9 @@ def analyse_one(args):
         'p': k['p'], 'y': round(k['y'], 1), 'box': k['box'] and [round(v, 1) for v in k['box']],
         'row': k.get('row') and {'ip': k['row']['ip'], 'rect': [round(v, 1) for v in k['row']['rect']]},
         'kind': k['group'][1], 'group': k['group'][2],
-        'stanzas': crops, 'rows': rows, **({'split': split} if split else {}), **({'split2': split2} if split2 else {}),
+        'stanzas': crops, 'rows': rows, **({'split': split} if split else {}),
         'lh': round(hmed, 1), 'pitch': round(base, 1), 'ended': ended, 'dropped': dropped,
-        **({'heads': len(heads)} if heads else {}),
+        **({'heads': len(heads)} if heads else {}), **({'dup_head': True} if dup_head else {}),
         'pages': sorted(used), **({'couplets': 2} if couplets else {}), **({'parts': extra} if xst else {}),
         **({'was': k['was']} if k.get('was') else {}),
     }, marks
@@ -935,6 +1050,31 @@ def main():
     print('wrote', tmp, file=sys.stderr)
 
 
+def print_groups(plan, couplets=False):
+    """Each verse's print group (src/library/geometry.ts stanzasOf): chosen
+    verses of one group print as one stanza, at line pitch. Single rows of
+    one run (a ghazal's couplets) share their stanza's group; a staggered
+    ghazal's two rows of a couplet share one; every verse of two rows or more
+    is a group of its own, set a stanza gap from the next (verses that are
+    blocks of a run without gaps, Mere Baba ko na maqtal mein, ran together
+    into one long verse)."""
+    keys = [('c', i // 2) if couplets else ('s', si) if b - a == 1 else ('v', i) for i, (a, b, si) in enumerate(plan)]
+    ids = {}
+    return [ids.setdefault(key, len(ids)) for key in keys]
+
+
+def regroup(verses):
+    """Print groups for verses frozen from an older build, from their parts:
+    a verse of one row ([page, y0, y1, c, c]; the first may carry its heading
+    above it) keeps its group, any other gets its own."""
+    if 'g' not in verses:
+        return verses
+    st, g = verses['st'], verses['g']
+    one = lambda i: len(st[i]) == 1 and (st[i][0][3] == st[i][0][4] or (i == 0 and len(st) > 1 and len(st[1]) == 1 and st[1][0][3] == st[1][0][4]))
+    ids = {}
+    return {**verses, 'g': [ids.setdefault(('s', g[i]) if one(i) else ('v', i), len(ids)) for i in range(len(st))]}
+
+
 def finalize():
     """analysis.json + the transliterated titles → the files the app reads."""
     with open(os.path.join(OUT_SERVER, 'analysis.json')) as f:
@@ -946,6 +1086,12 @@ def finalize():
                 n, t, *other = [part.strip() for part in line.rstrip('\n').split('|')]
                 titles[int(n)] = t
                 spellings[int(n)] = [o for o in other if o]
+    # The library this build replaces: its verses stay what older ids name.
+    try:
+        with open(os.path.join(OUT_SERVER, 'library.json')) as f:
+            before = json.load(f)
+    except FileNotFoundError:
+        before = None
     kalams, index = [], []
     for k in A['kalams']:
         if k.get('row'):
@@ -961,37 +1107,47 @@ def finalize():
             if not split:
                 return {'st': k['stanzas']}
             rows, plan = split['rows'], split['plan']
-            return {'st': [join_parts(rows[a:b]) for a, b, _ in plan], 'g': [g for _, _, g in plan]}
+            return {'st': [join_parts(rows[a:b]) for a, b, _ in plan], 'g': print_groups(plan, k.get('couplets'))}
         entry = {**verses(k.get('split')), 'lh': k['lh'], 'pitch': k['pitch'], 'tr': [round(v, 1) for v in tr]}
-        # Version 2 verses (one per row in every run without gaps), for the
-        # booklets that chose them; `o` counts what version 1 ids leave out:
-        # verses found above where the kalam used to start.
-        old = verses(k.get('split2'))
-        if k.get('was'):
-            old['o'] = sum(1 for s in old['st'] if (s[0][0], s[0][2]) <= (k['was'][0], k['was'][1]))
-        if old['st'] != entry['st'] or old.get('g') != entry.get('g'):
-            entry['l2'] = old
-        elif 'o' in old:
-            entry['o'] = old['o']
+        # The verses older library versions numbered, frozen from the library
+        # this replaces, so a booklet keeps exactly the verses it chose:
+        # `l3` version 3's, `l2` version 2's (`o`: what version 1 ids leave out).
+        prev = before['kalams'][len(kalams)] if before and len(before['kalams']) == len(A['kalams']) else None
+        if prev:
+            own = lambda e, keys=('st', 'g'): {x: e[x] for x in keys if x in e}
+            l3 = prev.get('l3') if before['v'] >= 4 else None
+            l2 = prev.get('l2') if before['v'] >= 4 else None
+            if before['v'] < 4:
+                # Version 3 printed blocks of a gapless run as one; its verses
+                # print apart now, as they do in this version.
+                l3 = regroup(own(prev))
+                l2 = regroup(prev['l2']) if prev.get('l2') else regroup(own(prev, ('st', 'g', 'o')))
+            l3 = l3 or own(prev)
+            l2 = l2 or l3
+            if l3 != own(entry):
+                entry['l3'] = l3
+            if l2 != own(entry.get('l3') or entry):
+                entry['l2'] = l2
         kalams.append(entry)
         title = titles.get(k['n'], '')
         aliases = [titles[a] for a in k['aliases'] if titles.get(a, '-') not in ('-', '', title)] + spellings.get(k['n'], [])
         # `c`: verses are chosen this many at a time (a couplet of two rows).
         index.append({'t': title, **({'a': aliases} if aliases else {}), 'k': k['kind'], 'g': k['group'],
                       'v': len(entry['st']), 'r': sum(k['rows']), **({'c': k['couplets']} if k.get('couplets') else {})})
-    used = {part[0] for k in kalams for s in k['st'] for part in s} | {k['tr'][0] for k in kalams}
-    marks = {p: m for p, m in A['whiteouts'].items() if int(p) in used}
+    used = {part[0] for k in kalams for v in [k, k.get('l2') or {}, k.get('l3') or {}] for s in v.get('st', []) for part in s} | {k['tr'][0] for k in kalams}
+    marks = {**{p: m for p, m in (before or {}).get('marks', {}).items() if int(p) in used},
+             **{p: m for p, m in A['whiteouts'].items() if int(p) in used}}
     with open(SRC, 'rb') as f:
         digest = hashlib.sha256(f.read()).hexdigest()[:16]
     # `build` changes with the geometry, so made images and cached previews of
     # an older build are never reused (server/library.ts libraryBuild).
     build = hashlib.sha256(json.dumps([digest, kalams, marks], separators=(',', ':')).encode()).hexdigest()[:16]
-    lib = {'v': 3, 'source': 'references/Zikre Husain AS 1446.pdf', 'sha': digest, 'build': build, 'kalams': kalams, 'marks': marks}
+    lib = {'v': 4, 'source': 'references/Zikre Husain AS 1446.pdf', 'sha': digest, 'build': build, 'kalams': kalams, 'marks': marks}
     os.makedirs(OUT_PUBLIC, exist_ok=True)
     with open(os.path.join(OUT_SERVER, 'library.json'), 'w') as f:
         json.dump(lib, f, separators=(',', ':'), ensure_ascii=False)
     with open(os.path.join(OUT_PUBLIC, 'index.json'), 'w') as f:
-        json.dump({'v': 3, 'sha': digest, 'build': build, 'kalams': index}, f, separators=(',', ':'), ensure_ascii=False)
+        json.dump({'v': 4, 'sha': digest, 'build': build, 'kalams': index}, f, separators=(',', ':'), ensure_ascii=False)
     print(len(kalams), 'kalams;', sum(1 for i in index if not i['t']), 'without a title', file=sys.stderr)
 
 

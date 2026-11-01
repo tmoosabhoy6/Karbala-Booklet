@@ -11,9 +11,10 @@ export type Part = [number, number, number, number, number];
  * verse is a stanza of its own. `o`: verses found above where the kalam used
  * to start, which version 1 ids do not count. */
 export interface Verses { st: Part[][]; g?: number[]; o?: number }
-/** `l2`: the verses of library version 2, when they differ (booklets made
- * with version 2 ids keep the verses they chose). */
-export interface LibraryKalam extends Verses { lh: number; pitch: number; tr: [number, number, number, number, number]; l2?: Verses }
+/** `l3`, `l2`: the verses of library versions 3 and 2, when they differ
+ * (booklets made with their ids keep the verses they chose; without `l2`,
+ * version 2 numbered them as version 3 did). */
+export interface LibraryKalam extends Verses { lh: number; pitch: number; tr: [number, number, number, number, number]; l2?: Verses; l3?: Verses }
 /** Per page: whiteouts, full-width zones, tints, `d`: text objects to
  * leave out (the shadow layers under lettering: [x0, y0, x1, y1, r, g, b,
  * glyphs, first glyph's x, y]) and `b`: title boxes [x0, y0, x1, y1] whose
@@ -58,8 +59,11 @@ export interface Placed { part: Part; dy: number }
 export interface Block { placed: Placed[]; height: number; continues: boolean }
 
 /** Chosen verses as stanzas to print, each a list of parts. Chosen verses of
- * the same stanza print together as one, at line pitch; neighbouring ones on
- * a page join into one crop, so a whole stanza prints exactly as it stands. */
+ * the same group `g` (single rows of one run: a ghazal, couplet after couplet)
+ * print together as one, at line pitch; neighbouring ones on a page join into
+ * one crop. A verse of two rows or more has a group of its own, so blocks of a
+ * kalam printed without gaps (Mere Baba ko na maqtal mein) never run together
+ * into one long verse (tools/build_library.py print_groups). */
 function stanzasOf(k: Verses, verses: number[]): Part[][] {
   const out: Part[][] = [];
   let group: number | null = null, last = -2;
@@ -127,7 +131,8 @@ export function planIds(lib: Library, n: number, verses: number[] | null): strin
 }
 
 /** The block a library media id stands for. Older ids name the verses of
- * their own library version: version 2 counted every row of a run without
+ * their own library version: version 3 split some numbered and gapless
+ * kalams differently (`l3`), version 2 counted every row of a run without
  * gaps as a verse (`l2`), version 1 also left out `o` verses at the start. */
 export function blockOf(lib: Library, id: string): { k: LibraryKalam; block: Block } {
   const m = LIBRARY_ID.exec(id);
@@ -135,7 +140,7 @@ export function blockOf(lib: Library, id: string): { k: LibraryKalam; block: Blo
   if (!m || version < 1 || version > lib.v) throw new Error('This library verse is from an older library version. Add it again.');
   const k = lib.kalams[Number(m[2])];
   if (!k) throw new Error('No such kalam in the library.');
-  const verses: Verses = version < lib.v && version <= 2 && k.l2 ? k.l2 : k;
+  const verses: Verses = version >= lib.v ? k : version === 3 ? k.l3 ?? k : k.l2 ?? k.l3 ?? k;
   const offset = version === 1 ? verses.o ?? k.o ?? 0 : 0;
   const chosen = decodeVerses(m[3], verses.st.length).map((v) => (m[3] === 'all' ? v : v + offset));
   const block = layout({ ...verses, lh: k.lh, pitch: k.pitch }, chosen, spanOf(lib))[Number(m[4])];
