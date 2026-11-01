@@ -429,21 +429,30 @@ def analyse_kalam(book, k, end_page, end_y, through=False):
         zones, whiteouts, numbers, tints, drops, boxes = page_marks(book, i)
         top = k['y'] if i == k['p'] else 0
         # The kalam's own title box prints (its heading); any other stays out.
-        own = [b for b in boxes if i == k['p'] and k['box'] and abs(b[1] - k['box'][1]) < 1 and abs(b[0] - k['box'][0]) < 1]
+        # (Boxes side by side on its line are the same heading.)
+        own = [b for b in boxes if i == k['p'] and k['box'] and min(b[3], k['box'][3]) - max(b[1], k['box'][1]) > 0.5 * (b[3] - b[1])]
         others = [(b[1] - 3, b[3] + 3) for b in boxes if b not in own]
+        # Verse rows are found with every box left out, as they always were;
+        # the heading line in the kalam's own box is read on its own below.
+        others_all = others + [(b[1] - 3, b[3] + 3) for b in own]
         bottom = end_y if i == end_page else book.doc[i].rect.height
         orn = [o for o in book.ornaments(i) if o[1] >= top - 2 and o[3] <= bottom + 2]
         if orn and not through:
             bottom = min(bottom, min(o[1] for o in orn) - 1)
             ended = True
-        img = render(book, i, whiteouts + box_edges(boxes), zones + others + [(0, top), (bottom, 1e9)], tints)
+        img = render(book, i, whiteouts, zones + others_all + [(0, top), (bottom, 1e9)], tints)
         zones = [z for z in zones if z[1] > PAGE_TOP]
         bands, a = bands_of(img)
         rows = [band_info(img, a, t, b) for t, b in bands]
         rows = [r for r in rows if r['b'] - r['t'] >= 3]
-        for r in rows:
-            if any(b[1] - 2 <= r['c'] <= b[3] + 2 for b in own):
-                r['head'] = True
+        if own:
+            himg = render(book, i, whiteouts + box_edges(boxes), zones + others + [(0, top), (bottom, 1e9)], tints)
+            ha = 255 - himg.min(axis=2)
+            y0, y1 = int((min(b[1] for b in own) + 1.5) * SCALE), int((max(b[3] for b in own) - 1.5) * SCALE)
+            ink = np.where((ha[y0:y1] > 55).sum(axis=1) >= 3)[0]
+            if len(ink):
+                head = band_info(himg, ha, y0 + int(ink[0]), y0 + int(ink[-1]) + 1)
+                rows = [{**head, 'head': True}] + rows
         numbers = [n for n in numbers if top <= (n[1] + n[3]) / 2 <= bottom]
         pages.append({'p': i, 'rows': rows, 'numbers': numbers, 'tints': tints, 'drops': drops, 'boxes': [list(b) for b in boxes], 'zones': [list(z) for z in zones], 'whiteouts': [list(map(lambda v: round(v, 1), w)) for w in whiteouts], 'top': top, 'bottom': bottom})
         if ended:
