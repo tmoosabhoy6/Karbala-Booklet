@@ -12,6 +12,8 @@ import { AIRestore } from './AIRestore';
 import { LibrarySearch } from './LibrarySearch';
 import { VersePicker } from './VersePicker';
 import type { LibraryHit } from './library';
+import { MyPdfs } from './MyPdfs';
+import { prefetchZh, userVerses, zhPlan } from '../library/client';
 import './editor.css';
 
 export function Editor({ city, onCity }: { city: City; onCity: (city: City) => void }) {
@@ -47,25 +49,40 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
     [updateKalam],
   );
 
-  /** A kalam (or chosen verses) from Zikre Husain into a kalam card: a new one
-   * unless `kalamId` names the card to fill. With `replace` the card's old
-   * content goes once the first new image is ready (and stays if none comes).
-   * Each image is rendered from the PDF and cleaned on the server, then
-   * printed like any screenshot. */
+  // This device keeps its own copy of Zikre Husain, fetched once when idle.
+  useEffect(() => prefetchZh(), []);
+
+  /** A kalam (or chosen verses) from Zikre Husain or an added PDF into a kalam
+   * card: a new one unless `kalamId` names the card to fill. With `replace`
+   * the card's old content goes once the first new image is ready (and stays
+   * if none comes). Each image is rendered from the PDF and cleaned on this
+   * device (on the server when this device cannot), then printed like any
+   * screenshot. */
   const addFromLibrary = useCallback(
     async (category: Category, hit: LibraryHit, verses: number[] | null, kalamId?: string, replace = false) => {
       const id = kalamId ?? uid();
       if (!kalamId) updateKalams(category, (ks) => [...ks, { id, name: '', blocks: [] }]);
       setActive({ category, id });
       setFetching((f) => ({ ...f, [id]: 1 }));
+      const place = (meta: Parameters<typeof imageBlockFrom>[0], i: number) => {
+        const block = imageBlockFrom(meta);
+        updateKalam(category, id, (k) => ({ ...k, blocks: replace && i === 0 ? [block] : [...k.blocks, block] }));
+      };
       try {
-        const { ids } = await api.libraryPlan(hit.n, verses);
-        for (let i = 0; i < ids.length; i++) {
-          setFetching((f) => ({ ...f, [id]: ids.length - i }));
-          const meta = await api.media(ids[i]);
-          if (!meta) throw new Error('The verses could not be made.');
-          const block = imageBlockFrom(meta);
-          updateKalam(category, id, (k) => ({ ...k, blocks: replace && i === 0 ? [block] : [...k.blocks, block] }));
+        if (hit.source === 'zh') {
+          const ids = (await zhPlan(hit.n, verses)) ?? (await api.libraryPlan(hit.n, verses)).ids;
+          for (let i = 0; i < ids.length; i++) {
+            setFetching((f) => ({ ...f, [id]: ids.length - i }));
+            const meta = await api.libraryMedia(ids[i]);
+            if (!meta) throw new Error('The verses could not be made.');
+            place(meta, i);
+          }
+        } else {
+          const made = await userVerses(hit.source, hit.n, verses);
+          for (let i = 0; i < made.length; i++) {
+            setFetching((f) => ({ ...f, [id]: made.length - i }));
+            place(await api.addRendered(made[i]), i);
+          }
         }
       } catch (e) {
         alert(`Could not add “${hit.name}”: ${(e as Error).message}`);
@@ -260,6 +277,7 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
               })}
             </section>
           ))}
+          <MyPdfs />
           <div className="footer-tools">
             <button
               className="ghost"

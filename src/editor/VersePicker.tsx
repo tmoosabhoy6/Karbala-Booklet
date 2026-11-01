@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { LibraryHit, titleSrc, verseSrc } from './library';
+import type { LibraryHit } from './library';
+import { LibImage } from './LibImage';
+import { openZh, previewUrl, supported, useLocalStatus } from '../library/client';
 
 const TOUCH = matchMedia('(pointer: coarse)').matches;
 
@@ -23,6 +25,20 @@ export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   const [anchor, setAnchor] = useState<number | null>(null);
   const [shown, setShown] = useState(false);
+  const local = useLocalStatus();
+  // Opening a Zikre Husain kalam makes this device's copy ready (downloading
+  // it the first time); until then the server makes the previews.
+  useEffect(() => { if (hit.source === 'zh' && supported) openZh().catch(() => undefined); }, [hit.source]);
+  // Once previews are made on this device, make the rest in the background
+  // (after the ones on screen, which ask first), so scrolling finds them ready.
+  const localReady = hit.source !== 'zh' || local.state === 'ready';
+  useEffect(() => {
+    if (!localReady) return;
+    const t = setTimeout(() => {
+      for (let i = 0; i < items; i++) void previewUrl(hit.source, hit.n, [i * per, Math.min(count, (i + 1) * per) - 1]).catch(() => undefined);
+    }, 50);
+    return () => clearTimeout(t);
+  }, [localReady, hit.source, hit.n, items, per, count]);
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setShown(true));
@@ -47,7 +63,7 @@ export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
   const list = [...chosen].sort((a, b) => a - b);
   return (
     <div className={`verse-backdrop${shown ? ' shown' : ''}`} onMouseDown={onClose}>
-      <aside className="verse-sheet" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label={`Choose verses of ${hit.name}`}>
+      <aside className="verse-sheet" data-local={local.state} onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label={`Choose verses of ${hit.name}`}>
         <header className="verse-head">
           <div>
             <h2>{hit.name}</h2>
@@ -55,8 +71,14 @@ export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
               {items} {per > 1 ? 'couplet' : 'verse'}{items === 1 ? '' : 's'} · {TOUCH ? 'tap the verses to print' : 'click to choose, Shift-click for a range'}
               {replacing && ' · replaces what this kalam has now'}
             </small>
+            {hit.source === 'zh' && local.state === 'downloading' && (
+              <small className="local-note">
+                Saving Zikre Husain on this device{local.total ? ` · ${Math.round((100 * (local.loaded ?? 0)) / local.total)}%` : '…'} (once; then verses appear instantly)
+              </small>
+            )}
+            {hit.source !== 'zh' && <small className="local-note">From your PDF: {hit.entry.g}</small>}
           </div>
-          <img className="verse-title" src={titleSrc(hit.n)} alt="" />
+          <LibImage className="verse-title" source={hit.source} n={hit.n} what="title" />
           <button className="ghost" onClick={onClose} aria-label="Close">✕</button>
         </header>
         <div className="verse-tools">
@@ -70,7 +92,7 @@ export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
             return (
               <li key={i} className={on ? 'on' : ''} onClick={(e) => toggle(i, e.shiftKey)}>
                 <span className="verse-no">{on ? '✓' : i + 1}</span>
-                <img src={verseSrc(hit.n, vs[0], vs[vs.length - 1])} alt={`${per > 1 ? 'Couplet' : 'Verse'} ${i + 1}`} loading="lazy" draggable={false} />
+                <LibImage source={hit.source} n={hit.n} what={[vs[0], vs[vs.length - 1]]} alt={`${per > 1 ? 'Couplet' : 'Verse'} ${i + 1}`} />
               </li>
             );
           })}

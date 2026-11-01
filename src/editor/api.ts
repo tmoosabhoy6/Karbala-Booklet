@@ -3,6 +3,8 @@ import { mediaSrc } from '../booklet/media';
 import type { ImageBlock } from '../booklet/model';
 import type { ExportRequest } from '../booklet/print';
 import { cityKey, readBackup, saveBackup, type MediaBackup } from './cache';
+import { zhBuild, zhVerse, type MadeVerse } from '../library/client';
+import { PROCESSOR_VERSION } from '../library/ink';
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
@@ -140,6 +142,39 @@ export const api = {
     }
     if (!res.ok) throw new Error(await errorText(res));
     return ((await res.json()) as { url: string }).url;
+  },
+  /** A Zikre Husain verse: the server's copy when it has one; otherwise made
+   * on this device and handed to the server finished (no work there);
+   * otherwise made by the server. */
+  libraryMedia: async (id: string): Promise<MediaMeta | null> => {
+    const existing = await fetch(`/api/media/${id}?existing=1`).then((r) => (r.ok ? (r.json() as Promise<MediaMeta>) : null)).catch(() => null);
+    if (existing) return existing;
+    try {
+      const made = await zhVerse(id);
+      if (made) {
+        const meta = { ...made.geometry };
+        const header = new TextEncoder().encode(JSON.stringify({ build: await zhBuild(), meta, sizes: [made.png.size, made.opening.size] }));
+        const length = new Uint8Array(4);
+        new DataView(length.buffer).setUint32(0, header.length);
+        const res = await fetch(`/api/library/media/${id}`, { method: 'POST', body: new Blob([length, header, made.png, made.opening]) });
+        if (res.ok) return (await res.json()) as MediaMeta;
+        console.warn('The server did not take a verse made on this device:', await res.text());
+      }
+    } catch (error) {
+      console.warn('Making the verse on this device failed; the server makes it instead.', error);
+    }
+    return api.media(id);
+  },
+  /** A verse rendered and cleaned on this device from a PDF added here: handed
+   * to the server finished, and kept in this browser like a screenshot (the
+   * render is its original), so a server that loses it gets it back. */
+  addRendered: async (made: MadeVerse): Promise<MediaMeta> => {
+    const id = crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const original = made.original ?? made.png;
+    const meta = { ...made.geometry, rev: Date.now(), edits: {}, processorVersion: PROCESSOR_VERSION, format: 'png' as const, openingImage: true, ...(made.continues ? { continues: true } : {}) };
+    const saved = await reinstate(id, meta, original, made.png, made.opening);
+    await saveBackup(`media:${id}`, { original, meta: saved, ...(saved.rev === meta.rev ? { png: made.png, opening: made.opening } : {}) } satisfies MediaBackup);
+    return saved;
   },
   /** The Zikre Husain library: which images make up a kalam (or chosen verses). */
   libraryPlan: (n: number, verses: number[] | null) =>

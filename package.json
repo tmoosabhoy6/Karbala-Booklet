@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "verify": "npm run build && tsx tools/verify.ts",
+    "verify:library": "npm run build && tsx tools/verify-library.ts",
     "dev": "concurrently -k -n server,web -c magenta,cyan \"tsx watch server/index.ts\" \"vite\"",
     "build": "tsc && vite build && node scripts/build-server.mjs",
     "start": "npm run build && NODE_ENV=production node build/server.js",

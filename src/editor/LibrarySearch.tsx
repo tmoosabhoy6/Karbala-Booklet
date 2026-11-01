@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Category } from '../booklet/model';
-import { KIND_LABEL, LibraryHit, searchLibrary, titleSrc } from './library';
+import { KIND_LABEL, LibraryHit, searchLibrary } from './library';
+import { LibImage } from './LibImage';
+import { onUserChange } from '../library/user';
 
 interface Props {
   category: Category;
@@ -18,6 +20,9 @@ export function LibrarySearch({ category, placeholder, onPick }: Props) {
   const [at, setAt] = useState(0);
   const [error, setError] = useState('');
   const box = useRef<HTMLDivElement>(null);
+  // Search again when a PDF is added or its kalams are named.
+  const [revision, setRevision] = useState(0);
+  useEffect(() => onUserChange(() => setRevision((r) => r + 1)), []);
 
   useEffect(() => {
     let live = true;
@@ -27,7 +32,7 @@ export function LibrarySearch({ category, placeholder, onPick }: Props) {
         .catch((e: Error) => live && setError(e.message));
     }, 60);
     return () => { live = false; clearTimeout(t); };
-  }, [text, category]);
+  }, [text, category, revision]);
 
   useEffect(() => {
     const close = (e: PointerEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
@@ -67,10 +72,10 @@ export function LibrarySearch({ category, placeholder, onPick }: Props) {
       {showing && (
         <ul className="lib-results" role="listbox">
           {error && <li className="lib-empty">{error}</li>}
-          {!error && !hits.length && <li className="lib-empty">Nothing in Zikre Husain matches “{text.trim()}” yet. Keep typing, or try another spelling.</li>}
+          {!error && !hits.length && <li className="lib-empty">Nothing in Zikre Husain or your PDFs matches “{text.trim()}” yet. Keep typing, or try another spelling.</li>}
           {hits.map((hit, i) => (
             <li
-              key={hit.n}
+              key={`${hit.source}:${hit.n}`}
               role="option"
               aria-selected={i === at}
               className={i === at ? 'on' : ''}
@@ -80,12 +85,12 @@ export function LibrarySearch({ category, placeholder, onPick }: Props) {
               <div className="lib-text">
                 <b>{hit.name}</b>
                 <small>
-                  {KIND_LABEL[hit.entry.k] ?? 'Kalam'} · {hit.entry.g}
+                  {hit.source === 'zh' ? <>{KIND_LABEL[hit.entry.k] ?? 'Kalam'} · {hit.entry.g}</> : <>Your PDF · {hit.entry.g}</>}
                   {hit.entry.v > 1 && (hit.entry.c ?? 1) > 1 ? <> · {Math.ceil(hit.entry.v / hit.entry.c!)} couplets</> : hit.entry.v > 1 && <> · {hit.entry.v} verses</>}
                   {hit.name !== hit.entry.t && <> · also “{hit.entry.t}”</>}
                 </small>
               </div>
-              <img className="lib-title" src={titleSrc(hit.n)} alt="" loading="lazy" />
+              <LibImage className="lib-title" source={hit.source} n={hit.n} what="title" />
             </li>
           ))}
         </ul>

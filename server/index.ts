@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Browser } from 'playwright';
 import sharp from 'sharp';
-import { addMedia, editMedia, ensureFixedMedia, getMedia, MEDIA, pngName, pngSize, readJson, reinstateMedia, writeJson, type MediaMeta } from './store';
+import { addMedia, currentLibraryMedia, editMedia, ensureFixedMedia, getMedia, MEDIA, pngName, pngSize, readJson, reinstateMedia, storeLibraryMedia, writeJson, type MediaMeta } from './store';
 import type { ExportRequest, PrintPayload } from '../src/booklet/print';
 import { mediaSrc, openingSrc } from '../src/booklet/media';
 import { paginate } from '../src/booklet/paginate';
@@ -20,7 +20,7 @@ import { closeRecognition } from './recognize';
 import { restorationJob, restorationStatus, startRestoration } from './restore';
 import { heavyWork } from './resources';
 import { validScript } from './lettering';
-import { closeLibrary, isLibraryMedia, libraryAvailable, libraryPlan, libraryPreview } from './library';
+import { closeLibrary, isLibraryMedia, libraryAvailable, libraryGeometry, libraryPlan, libraryPreview, librarySource } from './library';
 
 const PORT = Number(process.env.PORT ?? 3001);
 // 0.0.0.0 when hosted (or to reach it from a phone on the same Wi-Fi).
@@ -116,7 +116,8 @@ app.post(
 app.get(
   '/api/media/:id',
   route(async (req, res) => {
-    const m = await getMedia(req.params.id);
+    // `existing`: only a library verse already made (the browser makes it otherwise).
+    const m = req.query.existing && isLibraryMedia(req.params.id) ? await currentLibraryMedia(req.params.id) : await getMedia(req.params.id);
     if (!m) return res.status(404).end();
     res.json(m);
   }),
@@ -132,6 +133,40 @@ app.get(
 );
 // ---- Zikre Husain library ----
 app.get('/api/library', (_req, res) => res.json({ available: libraryAvailable() }));
+// The PDF and its geometry, for the browser to render verses itself
+// (src/library/client.ts). Each version's URL never changes content.
+app.get('/api/library/source.pdf', (req, res) => {
+  const file = librarySource(), lib = libraryGeometry();
+  if (!file || !lib) return res.status(404).send('The kalam library is not available on this server.');
+  if (req.query.v === lib.sha) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.type('application/pdf').sendFile(file);
+});
+app.get('/api/library/geometry', (req, res) => {
+  const lib = libraryGeometry();
+  if (!lib) return res.status(404).send('The kalam library is not available on this server.');
+  if (req.query.v === lib.build) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.json(lib);
+});
+// A library verse finished in the browser. Body: 4-byte length, JSON
+// { build, meta, sizes: [png, opening] }, then the two files back to back.
+app.post(
+  '/api/library/media/:id',
+  express.raw({ type: () => true, limit: '60mb' }),
+  route(async (req, res) => {
+    const body = req.body as Buffer;
+    if (!Buffer.isBuffer(body) || body.length < 4) return res.status(400).send('No image received.');
+    const headerEnd = 4 + body.readUInt32BE(0);
+    const header = JSON.parse(body.subarray(4, headerEnd).toString()) as { build: string; meta: Partial<MediaMeta>; sizes: number[] };
+    const [pngLength, openingLength] = header.sizes ?? [];
+    if (headerEnd + pngLength + openingLength !== body.length) return res.status(400).send('Incomplete verse image.');
+    const png = body.subarray(headerEnd, headerEnd + pngLength), opening = body.subarray(headerEnd + pngLength);
+    try {
+      res.json(await storeLibraryMedia(req.params.id, header.build, header.meta, png, opening));
+    } catch (error) {
+      res.status(409).send((error as Error).message);
+    }
+  }),
+);
 app.post('/api/library/:n/plan', route(async (req, res) => {
   const verses = req.body?.verses;
   res.json(libraryPlan(Number(req.params.n), Array.isArray(verses) ? verses.map(Number) : null));
@@ -324,6 +359,15 @@ app.post(
 if (PROD) {
   // Built code and styles carry a content hash in their names (dist/app/), so
   // the browser keeps them for good; everything else is checked each visit.
+  // Pre-compressed WebAssembly (scripts/build-server.mjs) for browsers that take brotli.
+  app.get(/^\/app\/[\w.-]+\.wasm$/, (req, res, next) => {
+    const file = path.join(ROOT, 'dist', `${req.path}.br`);
+    if (!/\bbr\b/.test(String(req.headers['accept-encoding'] ?? '')) || !existsSync(file)) return next();
+    res.setHeader('Content-Encoding', 'br');
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.type('application/wasm').sendFile(file);
+  });
   app.use('/app', express.static(path.join(ROOT, 'dist/app'), { maxAge: '1y', immutable: true }));
   app.use(express.static(path.join(ROOT, 'dist')));
 }

@@ -12,24 +12,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import sharp from 'sharp';
+import { blockOf, blockRequest, LIBRARY_ID, planIds, previewRequest, type Library, type RenderRequest } from '../src/library/geometry';
+import { renderPixels } from '../src/library/render';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LIBRARY_FILE = path.join(ROOT, 'server/library/library.json');
-
-/** [page, y0, y1, centre of first row, centre of last row] in PDF points. */
-type Part = [number, number, number, number, number];
-/** `st`: each verse's parts. `g`: each verse's stanza, when verses are rows or
- * pieces of stanzas (a ghazal, an oversized stanza; tools/build_library.py
- * verse_plan); without it every verse is a stanza of its own. */
-/** `o`: verses found above where the kalam used to start, which version 1
- * ids do not count. */
-interface LibraryKalam { st: Part[][]; g?: number[]; o?: number; lh: number; pitch: number; tr: [number, number, number, number, number] }
-/** Per page: whiteouts, full-width zones, tints, and `d`: text objects to
- * leave out (the shadow layers under lettering: [x0, y0, x1, y1, r, g, b,
- * glyphs, first glyph's x, y]). */
-interface Marks { w?: number[][]; z?: number[][]; t?: [number, number, number, number, number[]][]; d?: number[][] }
-/** `build`: this geometry's own digest (tools/build_library.py finalize). */
-interface Library { v: number; source: string; sha: string; build?: string; kalams: LibraryKalam[]; marks: Record<string, Marks> }
 
 let library: Library | null | undefined;
 const load = (): Library | null => {
@@ -44,190 +31,38 @@ const load = (): Library | null => {
   return library;
 };
 export const libraryAvailable = () => !!load();
+/** The geometry, for the browser to render verses itself (src/library/worker.ts). */
+export const libraryGeometry = () => load();
+/** The PDF the library renders from. */
+export const librarySource = () => { const lib = load(); return lib ? path.join(ROOT, lib.source) : null; };
 /** What a library image is made from: the geometry and this renderer. An
  * image made by an older build is made again, under a new revision. */
 const RENDERER = 2;
 export const libraryBuild = () => `${load()?.build ?? load()?.sha ?? 'none'}-r${RENDERER}`;
 
-/** Library media ids: lib<version>-<kalam>-<verses>-<block>, e.g. lib1-0-0t9_12-0.
- * Everything about the image follows from the id, so a server that lost the
- * files makes the same ones again. */
-const ID = /^lib(\d+)-(\d+)-(all|[\dt_]+)-(\d+)$/;
-export const isLibraryMedia = (id: string) => ID.test(id);
-
-const encode = (verses: number[] | null, count: number) => {
-  if (!verses || (verses.length === count && verses.every((v, i) => v === i))) return 'all';
-  const out: string[] = [];
-  for (let i = 0; i < verses.length; i++) {
-    let j = i;
-    while (j + 1 < verses.length && verses[j + 1] === verses[j] + 1) j++;
-    out.push(j > i ? `${verses[i]}t${verses[j]}` : `${verses[i]}`);
-    i = j;
-  }
-  return out.join('_');
-};
-const decode = (sel: string, count: number): number[] => {
-  if (sel === 'all') return Array.from({ length: count }, (_, i) => i);
-  return sel.split('_').flatMap((r) => {
-    const [a, b = a] = r.split('t').map(Number);
-    return Array.from({ length: b - a + 1 }, (_, i) => a + i);
-  });
-};
-
-/** Render scale: the kalam's verse rows come out about 128 px tall, around
- * 270 DPI at the booklet's 34 pt line, sharper than any screenshot. */
-const zoomOf = (k: LibraryKalam) => Math.min(5, Math.max(2.5, 128 / Math.max(10, k.lh)));
-const X0 = 18, X1 = 594;
-/** Pixels per rendered block; the screenshot cleaner's margin-mark pass runs up to 12M. */
-const MAX_PIXELS = 10_000_000;
-
-interface Placed { part: Part; dy: number }
-interface Block { placed: Placed[]; height: number; continues: boolean }
-
-/** Chosen verses as stanzas to print, each a list of parts. Chosen verses of
- * the same stanza print together as one, at line pitch; neighbouring ones on
- * a page join into one crop, so a whole stanza prints exactly as it stands. */
-function stanzasOf(k: LibraryKalam, verses: number[]): Part[][] {
-  const out: Part[][] = [];
-  let group: number | null = null, last = -2;
-  for (const v of verses) {
-    const parts = k.st[v];
-    if (!parts) continue;
-    const g = k.g?.[v] ?? null;
-    const run = out[out.length - 1];
-    if (g === null || g !== group || !run) out.push(parts.map((p) => [...p] as Part));
-    else {
-      const prev = run[run.length - 1];
-      const [first, ...rest] = parts;
-      if (v === last + 1 && prev[0] === first[0]) run[run.length - 1] = [prev[0], prev[1], first[2], prev[3], first[4]];
-      else run.push([...first] as Part);
-      run.push(...rest.map((p) => [...p] as Part));
-    }
-    group = g;
-    last = v;
-  }
-  return out;
-}
-
-/** Chosen verses laid out into blocks of whole stanzas (a stanza taller than a
- * block continues in the next, marked `continues`). Inside a block a stanza's
- * pieces from consecutive pages join at its own line pitch; stanzas are kept a
- * clear stanza gap apart, which the cleaner reads as the stanza break. */
-function layout(k: LibraryKalam, verses: number[]): Block[] {
-  const z = zoomOf(k);
-  const maxH = MAX_PIXELS / ((X1 - X0) * z * z); // in points
-  const blocks: Block[] = [];
-  let cur: Block | null = null;
-  const start = (continues: boolean) => { cur = { placed: [], height: 0, continues }; blocks.push(cur); };
-  for (const parts of stanzasOf(k, verses)) {
-    const total = parts.reduce((h, p) => h + p[2] - p[1], 0) + (parts.length - 1) * k.pitch;
-    if (!cur || (cur as Block).height + k.pitch * 1.2 + total > maxH) start(false);
-    parts.forEach((part, i) => {
-      const b = cur as Block;
-      const h = part[2] - part[1];
-      if (b.placed.length && b.height + h > maxH) start(true);
-      const c = cur as Block;
-      let dy = c.height;
-      if (c.placed.length) {
-        const prev = c.placed[c.placed.length - 1];
-        // The same stanza going on (on the next page, or at a chosen verse
-        // further down): its first row one line pitch below the last row
-        // before it. A new stanza: a stanza gap below.
-        const prevLast = prev.dy + prev.part[4] - prev.part[1];
-        dy = i > 0 ? prevLast + k.pitch - (part[3] - part[1]) : Math.max(c.height + k.pitch * 0.9, prevLast + k.pitch * 2 - (part[3] - part[1]));
-      }
-      c.placed.push({ part, dy });
-      c.height = dy + h;
-    });
-  }
-  return blocks;
-}
+export const isLibraryMedia = (id: string) => LIBRARY_ID.test(id);
 
 export function libraryPlan(n: number, verses: number[] | null) {
   const lib = load();
-  const k = lib?.kalams[n];
-  if (!lib || !k) throw new Error('No such kalam in the library.');
-  const chosen = verses ? [...new Set(verses)].filter((v) => v >= 0 && v < k.st.length).sort((a, b) => a - b) : null;
-  if (chosen && !chosen.length) throw new Error('Choose at least one verse.');
-  const sel = encode(chosen, k.st.length);
-  const blocks = layout(k, decode(sel, k.st.length));
-  return { ids: blocks.map((_, i) => `lib${lib.v}-${n}-${sel}-${i}`) };
+  if (!lib) throw new Error('No such kalam in the library.');
+  return { ids: planIds(lib, n, verses) };
 }
 
 // ---- rendering worker -----------------------------------------------------
 
 const WORKER = `
 const { parentPort, workerData } = require('node:worker_threads');
+// tsx (dev) keeps function names with an __name helper the source may call.
+const __name = (f) => f;
+const renderPixels = (${renderPixels.toString()});
 let doc;
-// A device that draws everything into \`draw\` except the listed text objects:
-// same colour, same number of glyphs, first glyph at the same origin.
-const leaveOut = (mupdf, draw, drops) => {
-  const rgb = (c) => c.length === 1 ? [c[0], c[0], c[0]] : c.length === 4 ? [0, 1, 2].map((i) => (1 - c[i]) * (1 - c[3])) : c;
-  const dropped = (text, ctm, color) => {
-    const [r, g, b] = rgb(color);
-    const near = drops.filter((d) => Math.abs(d[4] - r) < 0.03 && Math.abs(d[5] - g) < 0.03 && Math.abs(d[6] - b) < 0.03);
-    if (!near.length) return false;
-    let n = 0, first = null;
-    text.walk({ showGlyph: (font, trm) => { if (!first) first = trm; n++; } });
-    if (!first) return false;
-    const x = first[4] * ctm[0] + first[5] * ctm[2] + ctm[4], y = first[4] * ctm[1] + first[5] * ctm[3] + ctm[5];
-    return near.some((d) => d[7] === n && Math.abs(d[8] - x) < 0.6 && Math.abs(d[9] - y) < 0.6);
-  };
-  const pass = (name) => (...args) => draw[name](...args);
-  const names = ['fillPath', 'strokePath', 'clipPath', 'clipStrokePath', 'strokeText', 'clipText', 'clipStrokeText', 'ignoreText',
-    'fillShade', 'fillImage', 'fillImageMask', 'clipImageMask', 'popClip', 'beginMask', 'endMask', 'beginGroup', 'endGroup',
-    'beginTile', 'endTile', 'beginLayer', 'endLayer'];
-  const callbacks = Object.fromEntries(names.map((n) => [n, pass(n)]));
-  callbacks.fillText = (text, ctm, cs, color, alpha) => { if (!dropped(text, ctm, color)) draw.fillText(text, ctm, cs, color, alpha); };
-  return new mupdf.Device(callbacks);
-};
 const ready = import(workerData.mupdf).then((mupdf) => {
   doc = mupdf.Document.openDocument(require('node:fs').readFileSync(workerData.file), 'application/pdf');
   return mupdf;
 });
-parentPort.on('message', async ({ id, jobs, width, height, zoom, white }) => {
+parentPort.on('message', async ({ id, request }) => {
   try {
-    const mupdf = await ready;
-    const out = new Uint8Array(width * height * 3).fill(255);
-    for (const { page, x0, y0, x1, y1, dy, marks } of jobs) {
-      const p = doc.loadPage(page);
-      const bx = Math.floor(x0 * zoom), by = Math.floor(y0 * zoom);
-      const pix = new mupdf.Pixmap(mupdf.ColorSpace.DeviceRGB, [bx, by, Math.ceil(x1 * zoom), Math.ceil(y1 * zoom)], false);
-      pix.clear(255);
-      const draw = new mupdf.DrawDevice(mupdf.Matrix.scale(zoom, zoom), pix);
-      const dev = marks.d && marks.d.length ? leaveOut(mupdf, draw, marks.d) : draw;
-      p.run(dev, mupdf.Matrix.identity);
-      if (dev !== draw) { dev.close(); dev.destroy(); }
-      draw.close(); draw.destroy();
-      const w = pix.getWidth(), h = pix.getHeight(), stride = pix.getStride();
-      const px = pix.getPixels();
-      const fill = (rx0, ry0, rx1, ry1, fn) => {
-        const a = Math.max(0, Math.floor(rx0 * zoom) - bx), b = Math.min(w, Math.ceil(rx1 * zoom) - bx);
-        const c = Math.max(0, Math.floor(ry0 * zoom) - by), d = Math.min(h, Math.ceil(ry1 * zoom) - by);
-        for (let y = c; y < d; y++) for (let x = a; x < b; x++) fn(y * stride + x * 3);
-      };
-      // A highlight behind text is un-blended back to paper; marks go white.
-      for (const [tx0, ty0, tx1, ty1, t] of marks.t || []) fill(tx0, ty0, tx1, ty1, (o) => {
-        let a = 0;
-        for (let c = 0; c < 3; c++) a = Math.max(a, (t[c] - px[o + c]) / Math.max(1, t[c]));
-        a = Math.min(1, Math.max(0, a));
-        for (let c = 0; c < 3; c++) px[o + c] = Math.min(255, px[o + c] + (1 - a) * (255 - t[c]));
-      });
-      for (const [rx0, ry0, rx1, ry1] of marks.w || []) fill(rx0, ry0, rx1, ry1, (o) => { px[o] = px[o + 1] = px[o + 2] = 255; });
-      for (const [ry0, ry1] of marks.z || []) fill(0, ry0, 1e4, ry1, (o) => { px[o] = px[o + 1] = px[o + 2] = 255; });
-      const oy = Math.round(dy * zoom);
-      for (let y = 0; y < h; y++) {
-        const ty = oy + y;
-        if (ty < 0 || ty >= height) continue;
-        // Overlapping crops (a verse joined across pages) keep the darker ink.
-        const row = ty * width * 3;
-        for (let x = 0; x < Math.min(w, width) * 3; x++) {
-          const v = px[y * stride + x];
-          if (v < out[row + x]) out[row + x] = v;
-        }
-      }
-      pix.destroy(); p.destroy();
-    }
+    const out = renderPixels(await ready, doc, request);
     parentPort.postMessage({ id, data: out }, [out.buffer]);
   } catch (error) {
     parentPort.postMessage({ id, error: String(error && error.message || error) });
@@ -271,47 +106,35 @@ export async function closeLibrary() {
   else if (w) worker = w;
 }
 
-async function render(jobs: { page: number; x0: number; y0: number; x1: number; y1: number; dy: number }[], width: number, height: number, zoom: number) {
-  const lib = load()!;
+async function render(request: RenderRequest) {
   clearTimeout(idleTimer);
   const id = nextJob++;
   const data = await new Promise<Uint8Array>((resolve, reject) => {
     waiting.set(id, { resolve, reject });
-    getWorker().postMessage({ id, width, height, zoom, jobs: jobs.map((j) => ({ ...j, marks: lib.marks[j.page] ?? {} })) });
+    getWorker().postMessage({ id, request });
   });
   idleTimer = setTimeout(() => void closeLibrary(), 45_000);
   idleTimer.unref();
-  return sharp(Buffer.from(data.buffer, data.byteOffset, data.byteLength), { raw: { width, height, channels: 3 } });
+  return sharp(Buffer.from(data.buffer, data.byteOffset, data.byteLength), { raw: { width: request.width, height: request.height, channels: 3 } });
 }
 
-function blockOf(id: string) {
-  const m = ID.exec(id);
+const blockOfId = (id: string) => {
   const lib = load();
-  // Version 1 ids name the same kalams and verses, counted without `o`.
-  const legacy = !!m && Number(m[1]) === 1 && lib?.v === 2;
-  if (!m || !lib || (Number(m[1]) !== lib.v && !legacy)) throw new Error('This library verse is from an older library version. Add it again.');
-  const k = lib.kalams[Number(m[2])];
-  if (!k) throw new Error('No such kalam in the library.');
-  const verses = legacy && m[3] !== 'all' ? decode(m[3], k.st.length).map((v) => v + (k.o ?? 0)) : decode(m[3], k.st.length);
-  const block = layout(k, verses)[Number(m[4])];
-  if (!block) throw new Error('No such part of the kalam.');
-  return { k, block };
-}
+  if (!lib) throw new Error('The kalam library is not available on this server.');
+  return { lib, ...blockOf(lib, id) };
+};
 
 /** Whether a library image's first verse runs on from the image before it. */
 export const libraryContinues = (id: string) => {
-  try { return blockOf(id).block.continues; } catch { return false; }
+  try { return blockOfId(id).block.continues; } catch { return false; }
 };
 
 /** The image a library media id stands for, ready for the screenshot cleaner. */
-export async function libraryImage(id: string): Promise<Buffer> {
-  const { k, block } = blockOf(id);
-  const zoom = zoomOf(k);
-  const width = Math.ceil((X1 - X0) * zoom), height = Math.ceil(block.height * zoom) + 2;
-  const jobs = block.placed.map(({ part, dy }) => ({ page: part[0], x0: X0, y0: part[1], x1: X1, y1: part[2], dy }));
-  const png = await (await render(jobs, width, height, zoom)).png({ compressionLevel: 6 }).toBuffer();
+export async function libraryImage(id: string, options: { keepOpen?: boolean } = {}): Promise<Buffer> {
+  const { lib, k, block } = blockOfId(id);
+  const png = await (await render(blockRequest(lib, k, block))).png({ compressionLevel: 6 }).toBuffer();
   // The cleaner comes next and needs the memory more than MuPDF does.
-  await closeLibrary();
+  if (!options.keepOpen) await closeLibrary();
   return png;
 }
 
@@ -319,20 +142,9 @@ export async function libraryImage(id: string): Promise<Buffer> {
  * picker: one verse, or a couplet's verses [first, last] together. */
 export async function libraryPreview(n: number, what: 'title' | [number, number]): Promise<Buffer> {
   const lib = load();
-  const k = lib?.kalams[n];
-  if (!k) throw new Error('No such kalam in the library.');
-  if (what === 'title') {
-    const [page, x0, y0, x1, y1] = k.tr;
-    const zoom = 2.2;
-    const width = Math.ceil((x1 - x0) * zoom), height = Math.ceil((y1 - y0) * zoom);
-    const image = await render([{ page, x0, y0, x1, y1, dy: 0 }], width, height, zoom);
-    return image.trim({ background: '#ffffff', threshold: 40 }).png().toBuffer();
-  }
-  const [first, last] = what;
-  if (!k.st[first] || !k.st[last] || last < first || last - first > 3) throw new Error('No such verse.');
-  const zoom = Math.min(2, Math.max(1.2, 40 / Math.max(10, k.lh)));
-  const block = layout(k, Array.from({ length: last - first + 1 }, (_, i) => first + i))[0];
-  const width = Math.ceil((X1 - X0) * zoom), height = Math.ceil(block.height * zoom) + 2;
-  const image = await render(block.placed.map(({ part, dy }) => ({ page: part[0], x0: X0, y0: part[1], x1: X1, y1: part[2], dy })), width, height, zoom);
-  return image.trim({ background: '#ffffff', threshold: 30 }).png({ palette: true, quality: 90 }).toBuffer();
+  if (!lib) throw new Error('No such kalam in the library.');
+  const image = await render(previewRequest(lib, n, what));
+  return what === 'title'
+    ? image.trim({ background: '#ffffff', threshold: 40 }).png().toBuffer()
+    : image.trim({ background: '#ffffff', threshold: 30 }).png({ palette: true, quality: 90 }).toBuffer();
 }

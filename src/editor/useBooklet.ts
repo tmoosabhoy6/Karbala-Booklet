@@ -141,7 +141,7 @@ export function useBooklet(city: City) {
         setDocState(copied && kept?.overrides ? { ...fresh, overrides: kept.overrides } : fresh);
       }
       for (const id of libraryIds) {
-        const meta = await api.media(id).catch(() => null);
+        const meta = await api.libraryMedia(id).catch(() => null);
         const block = allBlocks.find((b) => b.kind === 'image' && b.mediaId === id);
         if (!meta || (block?.kind === 'image' && block.rev === meta.rev)) continue;
         // Cleaned again by a newer cleaner: follow its files.

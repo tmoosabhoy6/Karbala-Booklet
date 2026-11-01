@@ -1130,3 +1130,137 @@ button.ghost.on {
     display: none;
   }
 }
+
+/* Library previews made on this device: a soft placeholder until each is ready. */
+img.loading {
+  background: linear-gradient(90deg, #f3eced 0%, #fbf8f8 50%, #f3eced 100%) 0 0 / 200% 100%;
+  animation: lib-shimmer 1.2s linear infinite;
+  border-radius: 6px;
+}
+.lib-title.loading { width: 90px; }
+.verse-title.loading { width: 120px; }
+img.failed { animation: none; background: #f6eeee; }
+@keyframes lib-shimmer { to { background-position: -200% 0; } }
+
+.local-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--ui-maroon) !important;
+  font-size: 11px;
+}
+
+/* Your kalam PDFs */
+.my-pdfs .hint {
+  margin: 0 0 10px;
+  color: var(--ui-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.pdf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+}
+.pdf-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pdf-text b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdf-text small { color: var(--ui-muted); }
+.pdf-name {
+  width: 100%;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ui-maroon);
+  background: transparent;
+}
+.pdf-name:hover, .pdf-name:focus { border-color: var(--ui-line); outline: none; }
+.name-list {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  list-style: none;
+  background: #faf7f7;
+}
+.name-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 8px 10px 8px 8px;
+  background: #fff;
+  border: 1.5px solid var(--ui-line);
+  border-radius: 10px;
+}
+.name-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.name-title {
+  align-self: flex-end;
+  max-width: 100%;
+  height: 34px;
+  min-width: 80px;
+  object-fit: contain;
+  object-position: right center;
+  mix-blend-mode: multiply;
+}
+.name-body input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  font: inherit;
+}
+.name-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.name-tools button { white-space: nowrap; font-size: 11px; }
+@media (max-width: 900px) {
+  .name-body input { font-size: 16px; }
+}
+.split-list {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 340px;
+  overflow: auto;
+  border-top: 1px dashed var(--ui-line);
+}
+.split-list li {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--ui-line);
+}
+.split-list button { align-self: flex-start; font-size: 11px; }
+.split-list img {
+  min-height: 30px;
+  max-height: 120px;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}

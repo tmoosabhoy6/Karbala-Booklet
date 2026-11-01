@@ -4,6 +4,7 @@
 // Sayyid, Syed; Maula, Moula, Mawla), so every word is compared three ways:
 // as typed, folded to a common spelling, and as its consonant skeleton.
 import type { Category } from '../booklet/model';
+import { listUserPdfs, userKalams, userVersion } from '../library/user';
 
 export interface LibraryEntry {
   /** Transliterated title, then other names the PDF's index gives it. */
@@ -19,7 +20,8 @@ export interface LibraryEntry {
   c?: number;
 }
 
-export interface LibraryHit { n: number; entry: LibraryEntry; score: number; name: string }
+/** `source`: `zh` (Zikre Husain) or the key of a PDF added on this device. */
+export interface LibraryHit { source: string; n: number; entry: LibraryEntry; score: number; name: string }
 
 /** Booklet sections each library kind belongs to (a match there ranks first). */
 const KIND_CATEGORIES: Record<string, Category[]> = {
@@ -145,36 +147,50 @@ function nameScore(query: Name, name: Name): number {
   return Math.max(score, run) - name.words.length * 0.004;
 }
 
-let loaded: Promise<{ entries: LibraryEntry[]; names: Name[][] }> | null = null;
-/** The library build, so previews are cached for good but never go stale. */
-let version = '';
+interface Indexed { source: string; entries: LibraryEntry[]; names: Name[][] }
+const indexed = (source: string, entries: LibraryEntry[]): Indexed => ({ source, entries, names: entries.map((e) => [e.t, ...(e.a ?? [])].filter(Boolean).map(prepare)) });
+
+let loaded: Promise<Indexed> | null = null;
 export function loadLibrary() {
   return (loaded ??= fetch('/library/index.json')
     .then((r) => {
       if (!r.ok) throw new Error('The kalam library is not available.');
-      return r.json() as Promise<{ sha: string; build?: string; kalams: LibraryEntry[] }>;
+      return r.json() as Promise<{ kalams: LibraryEntry[] }>;
     })
-    .then(({ sha, build, kalams }) => (version = build ?? sha, { entries: kalams, names: kalams.map((e) => [e.t, ...(e.a ?? [])].filter(Boolean).map(prepare)) }))
+    .then(({ kalams }) => indexed('zh', kalams))
     .catch((error) => { loaded = null; throw error; }));
 }
 
+/** PDFs added on this device: each kalam by the name you gave it, and by the
+ * PDF's name and its number in it ("Chehlum 1448 3"). */
+let own: { version: number; index: Promise<Indexed[]> } | null = null;
+function userLibraries(): Promise<Indexed[]> {
+  if (own?.version === userVersion()) return own.index;
+  const index = listUserPdfs().then((pdfs) => Promise.all(pdfs.map(async (pdf) => indexed(pdf.key, (await userKalams(pdf.key)).map((k, i) => ({
+    t: k.title || `${pdf.name} ${i + 1}`, a: k.title ? [`${pdf.name} ${i + 1}`] : [], k: 'kalam', g: pdf.name, v: k.v, r: k.r, ...(k.c ? { c: k.c } : {}),
+  }))))));
+  own = { version: userVersion(), index };
+  return index;
+}
+
 export async function searchLibrary(text: string, category: Category | undefined, limit = 8): Promise<LibraryHit[]> {
-  const { entries, names } = await loadLibrary();
+  const sources = [...await userLibraries().catch(() => []), await loadLibrary()];
   const query = prepare(text);
   if (!query.words.length) return [];
   const hits: LibraryHit[] = [];
-  entries.forEach((entry, n) => {
-    let best = 0, bestName = entry.t;
-    for (const name of names[n]) {
-      const s = nameScore(query, name);
-      if (s > best) { best = s; bestName = name.text; }
-    }
-    if (best <= 0.35 * query.words.length) return;
-    if (category && KIND_CATEGORIES[entry.k]?.includes(category)) best += 0.25;
-    hits.push({ n, entry, score: best, name: bestName });
-  });
+  for (const { source, entries, names } of sources) {
+    entries.forEach((entry, n) => {
+      let best = 0, bestName = entry.t;
+      for (const name of names[n]) {
+        const s = nameScore(query, name);
+        if (s > best) { best = s; bestName = name.text; }
+      }
+      if (best <= 0.35 * query.words.length) return;
+      if (category && KIND_CATEGORIES[entry.k]?.includes(category)) best += 0.25;
+      // Your own PDFs first when they match as well.
+      if (source !== 'zh') best += 0.05;
+      hits.push({ source, n, entry, score: best, name: bestName });
+    });
+  }
   return hits.sort((a, b) => b.score - a.score || a.n - b.n).slice(0, limit);
 }
-
-export const titleSrc = (n: number) => `/api/library/${n}/title.png?v=${version}`;
-export const verseSrc = (n: number, first: number, last = first) => `/api/library/${n}/verse-${first}${last > first ? `-${last}` : ''}.png?v=${version}`;

@@ -564,15 +564,10 @@ def crops_for(pages, stanzas):
     return [[[pages[pi]['p'], y0, y1, c0, c1] for pi, y0, y1, c0, c1 in parts] for parts in flat]
 
 
-def verse_plan(rows):
-    """The verses a kalam is chosen by, when its stanzas are not enough: a
-    kalam in one continuous run (a ghazal, couplet after couplet) and any
-    oversized stanza become one verse per row; a stanza that is a whole
-    multiple of the kalam's usual stanza (a missed break) becomes stanzas of
-    that size. `rows` are the rows per stanza; the result is
-    [(first row, end row, stanza), ...] over the kalam's rows, or None when
-    every stanza stays one verse. Pieces keep their stanza: chosen together
-    they print exactly as the stanza did."""
+def verse_plan_v2(rows):
+    """The verse plan of library version 2 (one verse per row for every
+    oversized stanza), kept so booklets made with it still get the verses
+    they chose (server/library.ts, `l2`)."""
     real = sorted(n for n in rows if n >= 2)
     typical = real[len(real) // 2] if real else 1
     plan, start, changed = [], 0, False
@@ -587,6 +582,102 @@ def verse_plan(rows):
             plan.append((start, start + n, si))
         start += n
     return plan if changed else None
+
+
+# Rows of one stanza share both edges (they are set as one justified block);
+# where a kalam prints its stanzas without a gap, the block moves instead
+# (Mere Baba ko na maqtal mein: three rows to the right, three to the left).
+EDGE = 14
+
+
+def layout_runs(rows):
+    """Consecutive rows that share both edges, as run lengths."""
+    runs = []
+    for j, r in enumerate(rows):
+        p = rows[j - 1] if j else None
+        if p and abs(r['x0'] - p['x0']) < EDGE and abs(r['x1'] - p['x1']) < EDGE:
+            runs[-1] += 1
+        else:
+            runs.append(1)
+    return runs
+
+
+def split_multiples(sizes):
+    """A run that is a whole multiple of the kalam's usual stanza is that many
+    stanzas set alike (two blocks on the same side, usually across a page
+    break): it is cut into stanzas of the usual size."""
+    common = Counter(s for s in sizes if s >= 2).most_common(1)
+    if not common or common[0][1] < 3:
+        return sizes
+    typical = common[0][0]
+    out = []
+    for s in sizes:
+        out += [typical] * (s // typical) if s >= 2 * typical and s % typical == 0 else [s]
+    return out
+
+
+def merge_refrains(units):
+    """Units [(first row, end row, stanza)] → verses. A kalam whose units
+    alternate long and short (four rows, then two sung to another tune; three
+    rows, then a refrain line) is chosen body and refrain together: each long
+    unit followed by a short one becomes one verse. Only inside one printed
+    block: stanzas the source sets apart (numbered, or a gap between them)
+    stay apart."""
+    sizes = [b - a for a, b, _ in units]
+    same = [units[j][2] == units[j + 1][2] for j in range(len(units) - 1)]
+    pairs = Counter((x, y) for x, y, s in zip(sizes, sizes[1:], same) if x > y and s)
+    if not pairs:
+        return units
+    (big, small), _ = pairs.most_common(1)[0]
+    merged, j, covered, count = [], 0, 0, 0
+    while j < len(units):
+        if j + 1 < len(units) and same[j] and sizes[j] == big and sizes[j + 1] == small:
+            merged.append((units[j][0], units[j + 1][1], units[j][2]))
+            covered += big + small
+            count += 1
+            j += 2
+        else:
+            merged.append(units[j])
+            j += 1
+    return merged if count >= 2 and covered >= 0.6 * sum(sizes) else units
+
+
+def verse_plan(stanzas):
+    """The verses a kalam is chosen by: its stanzas, unless they are not
+    enough. A kalam in one continuous run and any oversized stanza are cut
+    where their rows' block moves (layout_runs); with no such moves they
+    become one verse per row (a ghazal, couplet after couplet; two columns,
+    one couplet per row). A stanza that is a whole multiple of the usual
+    stanza becomes stanzas of that size, and a long stanza followed by a short
+    one (a refrain in another tune) is one verse. `stanzas` are the stanzas'
+    rows; the result is [(first row, end row, stanza), ...] over the kalam's
+    rows, or None when every stanza stays one verse. Pieces keep their
+    stanza: chosen together they print exactly as the stanza did."""
+    rows = [len(g) for g in stanzas]
+    real = sorted(n for n in rows if n >= 2)
+    typical = real[len(real) // 2] if real else 1
+    units, start = [], 0
+    for si, g in enumerate(stanzas):
+        n = len(g)
+        if len(real) >= 3 and typical >= 2 and n >= 2 * typical and n % typical == 0:
+            units += [(start + c, start + c + typical, si) for c in range(0, n, typical)]
+        elif n >= 2 and (len(rows) == 1 or (n >= 10 and (len(real) < 3 or n >= 1.5 * typical))):
+            runs, at = [], start
+            for s in split_multiples(layout_runs([r for _, r in g])):
+                runs.append((at, at + s, si))
+                at += s
+            # Real blocks: most rows in blocks of two or more, once a refrain
+            # line is counted with the block it closes.
+            if len(runs) >= 2 and sum(b - a for a, b, _ in merge_refrains(runs) if b - a >= 2) >= 0.75 * n:
+                units += runs
+            else:
+                units += [(start + r, start + r + 1, si) for r in range(n)]
+        else:
+            units.append((start, start + n, si))
+        start += n
+    units = merge_refrains(units)
+    plain = [(sum(rows[:i]), sum(rows[:i + 1]), i) for i in range(len(rows))]
+    return None if units == plain else units
 
 
 def staggered(rows):
@@ -679,12 +770,15 @@ def analyse_one(args):
         return n, None, {}
     stanzas, base, hmed, mode = st
     crops = crops_for(pages, stanzas)
-    plan = verse_plan([len(g) for g in stanzas])
+    rows = [len(g) for g in stanzas]
+    plan = verse_plan(stanzas)
+    plan2 = verse_plan_v2(rows)
     # Each row's own crop (cut halfway to its neighbours), for verse_plan.
     row_crops = lambda pages, stanzas: [c[0] for c in crops_for(pages, [[it] for g in stanzas for it in g])]
     split = plan and {'plan': plan, 'rows': row_crops(pages, stanzas)}
-    couplets = len(stanzas) == 1 and split and staggered([r for _, r in stanzas[0]])
-    rows = [len(g) for g in stanzas]
+    split2 = plan2 and {'plan': plan2, 'rows': row_crops(pages, stanzas)}
+    # A ghazal whose misras are staggered row by row: chosen a couplet at a time.
+    couplets = len(stanzas) == 1 and split and all(b - a == 1 for a, b, _ in plan) and staggered([r for _, r in stanzas[0]])
     every = list(pages)
     xpages = extra and analyse_kalam(book, {'p': extra[0], 'y': extra[1], 'box': None, 'part': True}, end_page, end_y, through=True)[0]
     xst = xpages and stanzas_of(xpages)
@@ -693,11 +787,12 @@ def analyse_one(args):
         # keep their numbers: each part's stanzas (or rows) as it stands.
         xstanzas = xst[0]
         xrows = [len(g) for g in xstanzas]
-        own = plan or [(sum(rows[:i]), sum(rows[:i + 1]), i) for i in range(len(rows))]
-        xplan = verse_plan(xrows) or [(sum(xrows[:i]), sum(xrows[:i + 1]), i) for i in range(len(xrows))]
+        plain = lambda rows: [(sum(rows[:i]), sum(rows[:i + 1]), i) for i in range(len(rows))]
         r0, s0 = sum(rows), len(rows)
-        split = {'plan': own + [(a + r0, b + r0, g + s0) for a, b, g in xplan],
-                 'rows': row_crops(pages, stanzas) + row_crops(xpages, xstanzas)}
+        both = row_crops(pages, stanzas) + row_crops(xpages, xstanzas)
+        joined = lambda own, xplan: [*own, *[(a + r0, b + r0, g + s0) for a, b, g in xplan]]
+        split = {'plan': joined(plan or plain(rows), verse_plan(xstanzas) or plain(xrows)), 'rows': both}
+        split2 = {'plan': joined(plan2 or plain(rows), verse_plan_v2(xrows) or plain(xrows)), 'rows': both}
         crops = crops + crops_for(xpages, xstanzas)
         rows = rows + xrows
         every += xpages
@@ -713,7 +808,7 @@ def analyse_one(args):
         'p': k['p'], 'y': round(k['y'], 1), 'box': k['box'] and [round(v, 1) for v in k['box']],
         'row': k.get('row') and {'ip': k['row']['ip'], 'rect': [round(v, 1) for v in k['row']['rect']]},
         'kind': k['group'][1], 'group': k['group'][2],
-        'stanzas': crops, 'rows': rows, **({'split': split} if split else {}),
+        'stanzas': crops, 'rows': rows, **({'split': split} if split else {}), **({'split2': split2} if split2 else {}),
         'lh': round(hmed, 1), 'pitch': round(base, 1), 'ended': ended, 'dropped': dropped,
         'pages': sorted(used), **({'couplets': 2} if couplets else {}), **({'parts': extra} if xst else {}),
         **({'was': k['was']} if k.get('was') else {}),
@@ -791,19 +886,24 @@ def finalize():
         else:
             s0 = k['stanzas'][0][0]
             tr = [s0[0], 30, s0[1], 582, min(s0[2], s0[1] + k['pitch'] * 1.2)]
-        entry = {'st': k['stanzas'], 'lh': k['lh'], 'pitch': k['pitch'], 'tr': [round(v, 1) for v in tr]}
-        if k.get('was'):
-            # Verses found above where the kalam used to start: version 1 ids
-            # count its verses from there (server/library.ts).
-            entry['o'] = sum(1 for s in k['stanzas'] if (s[0][0], s[0][2]) <= (k['was'][0], k['was'][1]))
-        if k.get('split'):
-            # Verses smaller than stanzas; `g` is each one's stanza, which the
+        def verses(split):
+            # Verses other than stanzas; `g` is each one's stanza, which the
             # server prints without a stanza gap inside (server/library.ts).
-            rows, plan = k['split']['rows'], k['split']['plan']
-            entry['st'] = [join_parts(rows[a:b]) for a, b, _ in plan]
-            entry['g'] = [g for _, _, g in plan]
-            if 'o' in entry:
-                entry['o'] = sum(1 for s in entry['st'] if (s[0][0], s[0][2]) <= (k['was'][0], k['was'][1]))
+            if not split:
+                return {'st': k['stanzas']}
+            rows, plan = split['rows'], split['plan']
+            return {'st': [join_parts(rows[a:b]) for a, b, _ in plan], 'g': [g for _, _, g in plan]}
+        entry = {**verses(k.get('split')), 'lh': k['lh'], 'pitch': k['pitch'], 'tr': [round(v, 1) for v in tr]}
+        # Version 2 verses (one per row in every run without gaps), for the
+        # booklets that chose them; `o` counts what version 1 ids leave out:
+        # verses found above where the kalam used to start.
+        old = verses(k.get('split2'))
+        if k.get('was'):
+            old['o'] = sum(1 for s in old['st'] if (s[0][0], s[0][2]) <= (k['was'][0], k['was'][1]))
+        if old['st'] != entry['st'] or old.get('g') != entry.get('g'):
+            entry['l2'] = old
+        elif 'o' in old:
+            entry['o'] = old['o']
         kalams.append(entry)
         title = titles.get(k['n'], '')
         aliases = [titles[a] for a in k['aliases'] if titles.get(a, '-') not in ('-', '', title)] + spellings.get(k['n'], [])
@@ -817,12 +917,12 @@ def finalize():
     # `build` changes with the geometry, so made images and cached previews of
     # an older build are never reused (server/library.ts libraryBuild).
     build = hashlib.sha256(json.dumps([digest, kalams, marks], separators=(',', ':')).encode()).hexdigest()[:16]
-    lib = {'v': 2, 'source': 'references/Zikre Husain AS 1446.pdf', 'sha': digest, 'build': build, 'kalams': kalams, 'marks': marks}
+    lib = {'v': 3, 'source': 'references/Zikre Husain AS 1446.pdf', 'sha': digest, 'build': build, 'kalams': kalams, 'marks': marks}
     os.makedirs(OUT_PUBLIC, exist_ok=True)
     with open(os.path.join(OUT_SERVER, 'library.json'), 'w') as f:
         json.dump(lib, f, separators=(',', ':'), ensure_ascii=False)
     with open(os.path.join(OUT_PUBLIC, 'index.json'), 'w') as f:
-        json.dump({'v': 2, 'sha': digest, 'build': build, 'kalams': index}, f, separators=(',', ':'), ensure_ascii=False)
+        json.dump({'v': 3, 'sha': digest, 'build': build, 'kalams': index}, f, separators=(',', ':'), ensure_ascii=False)
     print(len(kalams), 'kalams;', sum(1 for i in index if not i['t']), 'without a title', file=sys.stderr)
 
 
