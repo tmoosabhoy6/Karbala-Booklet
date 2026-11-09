@@ -1,65 +1,169 @@
-// A durable copy of data/ in Supabase Storage, for hosts whose disk is wiped
-// on every restart (Render's free plan). Every file the server writes under
-// data/ is copied there in the background; a file missing on disk (after a
-// restart) is fetched back the first time something asks for it. So pinned
-// defaults, the open booklets and every screenshot are the same on every
-// device, whenever the server last restarted.
+// A durable copy of data/, for hosts whose disk is wiped on every restart
+// (Render's free plan). Every file the server writes under data/ is copied
+// there in the background; a file missing on disk (after a restart) is
+// fetched back the first time something asks for it. So pinned defaults, the
+// open booklets, every screenshot and every added kalam PDF are the same on
+// every device, whenever the server last restarted.
 //
-// Off unless SUPABASE_URL and SUPABASE_SERVICE_KEY are set (Render →
-// Environment). SUPABASE_BUCKET names the bucket (default "booklet"); it must
-// exist and be private.
+// Where (Render → Environment), the first one set:
+//  - GitHub: GITHUB_STORAGE_TOKEN, a fine-grained token with "Contents: read
+//    and write" on the repository. Files go into the folder GITHUB_STORAGE_DIR
+//    (default "storage") on the branch GITHUB_STORAGE_BRANCH (default
+//    "storage", made from the default branch the first time) of
+//    GITHUB_STORAGE_REPO (default: the repository Render deploys). Not main:
+//    every save would be a commit that redeploys and restarts the app.
+//    In a public repository the stored files are public too.
+//  - Supabase Storage: SUPABASE_URL and SUPABASE_SERVICE_KEY, bucket
+//    SUPABASE_BUCKET (default "booklet", private).
 import { existsSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const BASE = process.env.SUPABASE_URL?.replace(/\/+$/, '') ?? '';
-const KEY = process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_KEY ?? '';
-const BUCKET = process.env.SUPABASE_BUCKET ?? 'booklet';
-export const durable = !!(BASE && KEY);
-export const durableStatus = () => ({ durable, bucket: durable ? BUCKET : null, pending: latest.size, failures });
+interface Backend {
+  where: string;
+  /** The stored copy of `name`, or null when there is none. */
+  get(name: string): Promise<Buffer | null>;
+  put(name: string, data: Buffer): Promise<void>;
+  /** How long a file must stay unchanged before it is sent (ms). */
+  quiet: number;
+}
 
-// A legacy key is a JWT and goes in both headers; a new secret key
-// (sb_secret_…) only in `apikey`.
-const headers = (): Record<string, string> => (KEY.startsWith('eyJ') ? { Authorization: `Bearer ${KEY}`, apikey: KEY } : { apikey: KEY });
-const objectUrl = (name: string) => `${BASE}/storage/v1/object/${BUCKET}/${name.split('/').map(encodeURIComponent).join('/')}`;
+const segments = (name: string) => name.split('/').map(encodeURIComponent).join('/');
+
+// ---- GitHub: a folder on a branch of the repository ----
+function github(): Backend | null {
+  const token = process.env.GITHUB_STORAGE_TOKEN ?? '';
+  const repo = process.env.GITHUB_STORAGE_REPO ?? process.env.RENDER_GIT_REPO_SLUG ?? '';
+  if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return null;
+  const branch = process.env.GITHUB_STORAGE_BRANCH ?? 'storage';
+  const dir = (process.env.GITHUB_STORAGE_DIR ?? 'storage').replace(/^\/+|\/+$/g, '');
+  const api = (process.env.GITHUB_API_URL ?? 'https://api.github.com').replace(/\/+$/, '');
+  const call = (route: string, init: RequestInit & { accept?: string } = {}) => fetch(`${api}/repos/${repo}${route}`, {
+    ...init, signal: AbortSignal.timeout(90_000),
+    headers: { Authorization: `Bearer ${token}`, Accept: init.accept ?? 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'karbala-booklet', ...(init.body ? { 'Content-Type': 'application/json' } : {}) },
+  });
+  const failed = async (res: Response) => new Error(`GitHub ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+  const contents = (name: string) => `/contents/${segments(dir ? `${dir}/${name}` : name)}`;
+  // The branch is made from the default branch the first time it is needed.
+  let ready: Promise<void> | null = null;
+  const ensureBranch = () => (ready ??= (async () => {
+    const found = await call(`/branches/${encodeURIComponent(branch)}`);
+    if (found.ok) return;
+    if (found.status !== 404) throw await failed(found);
+    const info = await call('');
+    if (!info.ok) throw await failed(info);
+    const base = (await info.json()) as { default_branch: string };
+    const head = await call(`/git/ref/heads/${encodeURIComponent(base.default_branch)}`);
+    if (!head.ok) throw await failed(head);
+    const sha = ((await head.json()) as { object: { sha: string } }).object.sha;
+    const made = await call('/git/refs', { method: 'POST', body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }) });
+    if (!made.ok && made.status !== 422) throw await failed(made); // 422: made meanwhile
+  })().catch((error) => { ready = null; throw error; }));
+  // Each file's current blob, which an update must name.
+  const shas = new Map<string, string>();
+  const currentSha = async (name: string) => {
+    const res = await call(`${contents(name)}?ref=${encodeURIComponent(branch)}`);
+    if (res.status === 404) { shas.delete(name); return undefined; }
+    if (!res.ok) throw await failed(res);
+    const sha = ((await res.json()) as { sha: string }).sha;
+    shas.set(name, sha);
+    return sha;
+  };
+  return {
+    where: `github:${repo}@${branch}/${dir}`,
+    // Each save is a commit: an autosaved booklet goes once it has been
+    // still for a few seconds, not on every keystroke.
+    quiet: 4000,
+    async get(name) {
+      await ensureBranch();
+      const res = await call(`${contents(name)}?ref=${encodeURIComponent(branch)}`, { accept: 'application/vnd.github.raw+json' });
+      if (res.status === 404) return null;
+      if (!res.ok) throw await failed(res);
+      return Buffer.from(await res.arrayBuffer());
+    },
+    async put(name, data) {
+      await ensureBranch();
+      for (let attempt = 0; ; attempt++) {
+        const sha = shas.get(name);
+        const res = await call(contents(name), { method: 'PUT', body: JSON.stringify({ message: `Save ${name}`, content: data.toString('base64'), branch, ...(sha ? { sha } : {}) }) });
+        if (res.ok) { shas.set(name, ((await res.json()) as { content: { sha: string } }).content.sha); return; }
+        // The file exists (or changed) and its blob was not named: look it up.
+        if ((res.status === 409 || res.status === 422) && attempt < 2) { await currentSha(name); continue; }
+        throw await failed(res);
+      }
+    },
+  };
+}
+
+// ---- Supabase Storage ----
+function supabase(): Backend | null {
+  const base = process.env.SUPABASE_URL?.replace(/\/+$/, '') ?? '';
+  const key = process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_KEY ?? '';
+  if (!base || !key) return null;
+  const bucket = process.env.SUPABASE_BUCKET ?? 'booklet';
+  // A legacy key is a JWT and goes in both headers; a new secret key
+  // (sb_secret_…) only in `apikey`.
+  const headers: Record<string, string> = key.startsWith('eyJ') ? { Authorization: `Bearer ${key}`, apikey: key } : { apikey: key };
+  const url = (name: string) => `${base}/storage/v1/object/${bucket}/${segments(name)}`;
+  return {
+    where: `supabase:${bucket}`,
+    quiet: 0,
+    async get(name) {
+      const res = await fetch(url(name), { headers, signal: AbortSignal.timeout(60_000) });
+      if (!res.ok) return null;
+      return Buffer.from(await res.arrayBuffer());
+    },
+    async put(name, data) {
+      const res = await fetch(url(name), {
+        method: 'POST', signal: AbortSignal.timeout(60_000), body: data,
+        headers: { ...headers, 'x-upsert': 'true', 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-cache' },
+      });
+      if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`.slice(0, 300));
+    },
+  };
+}
+
+const backend = github() ?? supabase();
+export const durable = !!backend;
 let failures = 0;
+export const durableStatus = () => ({ durable, where: backend?.where ?? null, pending: latest.size, failures });
 
-// Uploads: one at a time per file, and only the newest content (an autosaved
-// booklet changes twice a second while typing; older versions are skipped).
-const latest = new Map<string, Buffer>();
-const running = new Map<string, Promise<void>>();
-function upload(name: string) {
-  if (running.has(name)) return running.get(name)!;
-  const job = (async () => {
-    for (let attempt = 0; latest.has(name); attempt++) {
-      const data = latest.get(name)!;
+// ---- uploads: one at a time, newest content only ----
+// An autosaved booklet changes twice a second while typing: only its latest
+// content is sent, once it has been still for `quiet` ms.
+const latest = new Map<string, { data: Buffer; at: number; attempts: number }>();
+let worker: Promise<void> | null = null;
+let flushing = false;
+function work() {
+  return worker ??= (async () => {
+    while (latest.size && backend) {
+      const now = Date.now();
+      const due = [...latest].filter(([, v]) => flushing || now - v.at >= backend.quiet).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!due) { await new Promise((r) => setTimeout(r, 500)); continue; }
+      const [name, entry] = due;
       try {
-        const res = await fetch(objectUrl(name), {
-          method: 'POST', signal: AbortSignal.timeout(60_000),
-          headers: { ...headers(), 'x-upsert': 'true', 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-cache' },
-          body: data,
-        });
-        if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`.slice(0, 300));
-        if (latest.get(name) === data) latest.delete(name);
+        await backend.put(name, entry.data);
+        if (latest.get(name) === entry) latest.delete(name);
       } catch (error) {
         failures++;
         console.error(`Durable copy of ${name} failed:`, (error as Error).message);
-        if (attempt >= 4) { latest.delete(name); break; }
-        await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+        if (latest.get(name) !== entry) continue;
+        if (++entry.attempts >= 5) latest.delete(name);
+        else { entry.at = Date.now() + 2000 * 2 ** entry.attempts; }
       }
     }
-  })().finally(() => running.delete(name));
-  running.set(name, job);
-  return job;
+  })().finally(() => { worker = null; if (latest.size) void work(); });
 }
+
+const nameOf = (root: string, file: string) => path.relative(root, file).split(path.sep).join('/');
 
 /** Copy a file just written under `root` (data/) to durable storage. */
 export function mirror(root: string, file: string, data: Buffer | string) {
-  if (!durable) return;
-  const name = path.relative(root, file).split(path.sep).join('/');
+  if (!backend) return;
+  const name = nameOf(root, file);
   if (name.startsWith('..') || /(^|\/)fixed-|\.tmp$|^ocr\//.test(name)) return;
-  latest.set(name, Buffer.isBuffer(data) ? data : Buffer.from(data));
-  void upload(name);
+  latest.set(name, { data: Buffer.isBuffer(data) ? data : Buffer.from(data), at: Date.now(), attempts: 0 });
+  void work();
 }
 
 const fetching = new Map<string, Promise<boolean>>();
@@ -67,20 +171,18 @@ const fetching = new Map<string, Promise<boolean>>();
  * this server lost it. False when neither has it. */
 export function ensureLocal(root: string, file: string): Promise<boolean> {
   if (existsSync(file)) return Promise.resolve(true);
-  if (!durable) return Promise.resolve(false);
-  const name = path.relative(root, file).split(path.sep).join('/');
+  if (!backend) return Promise.resolve(false);
+  const name = nameOf(root, file);
   if (name.startsWith('..')) return Promise.resolve(false);
-  // Not uploaded yet (written moments ago): it is still in memory.
-  const pending = latest.get(name);
   if (!fetching.has(name)) fetching.set(name, (async () => {
-    let data = pending ?? null;
+    // Not sent yet (written moments ago): it is still in memory.
+    let data = latest.get(name)?.data ?? null;
     if (!data) {
-      const res = await fetch(objectUrl(name), { headers: headers(), signal: AbortSignal.timeout(60_000) }).catch((error: Error) => {
+      data = await backend.get(name).catch((error: Error) => {
         console.error(`Durable copy of ${name} could not be read:`, error.message);
         return null;
       });
-      if (!res?.ok) return false;
-      data = Buffer.from(await res.arrayBuffer());
+      if (!data) return false;
     }
     await mkdir(path.dirname(file), { recursive: true });
     const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
@@ -91,9 +193,9 @@ export function ensureLocal(root: string, file: string): Promise<boolean> {
   return fetching.get(name)!;
 }
 
-/** Before shutdown: finish the copies still on their way. */
-export async function flushDurable(timeoutMs = 20_000) {
-  if (!durable) return;
-  for (const name of latest.keys()) void upload(name);
-  await Promise.race([Promise.allSettled([...running.values()]), new Promise((r) => setTimeout(r, timeoutMs))]);
+/** Before shutdown: send the copies still waiting, without the quiet time. */
+export async function flushDurable(timeoutMs = 25_000) {
+  if (!backend || !latest.size) return;
+  flushing = true;
+  await Promise.race([(async () => { while (latest.size) await work(); })(), new Promise((r) => setTimeout(r, timeoutMs))]);
 }

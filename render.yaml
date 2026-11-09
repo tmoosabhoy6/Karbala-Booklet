@@ -3,8 +3,9 @@
 # or redeploys, and it sleeps after 15 idle minutes (first visit after that
 # takes about a minute). To keep work, switch to plan: starter and add back
 #   disk: { name: data, mountPath: /data, sizeGB: 1 }
-# Or keep the free plan and set SUPABASE_URL + SUPABASE_SERVICE_KEY (README):
-# every file is then kept in Supabase Storage and comes back after a restart.
+# Or keep the free plan and set GITHUB_STORAGE_TOKEN (README): every file is
+# then kept in the storage/ folder of this repository's `storage` branch and
+# comes back after a restart.
 # Frankfurt is the closest region to Iraq. No password: anyone with the link
 # can open it. To add one later, set APP_PASSWORD in the Environment tab.
 services:
@@ -25,3 +26,5 @@ services:
         - tools/**
         - "**/*.md"
         - .claude/**
+        # Stored work, should it ever be kept on main (GITHUB_STORAGE_BRANCH).
+        - storage/**
