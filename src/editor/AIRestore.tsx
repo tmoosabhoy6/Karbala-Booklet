@@ -3,6 +3,14 @@ import { mediaSrc } from '../booklet/media';
 import { imageBlockFrom, type ImageBlock, type MediaMeta } from '../booklet/model';
 import { api, type RestorationJob } from './api';
 
+let configured: Promise<boolean> | null = null;
+/** Whether AI restoration is set up on the server (asked once per visit). */
+export function useAiReady() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => { void (configured ??= api.aiStatus().then((s) => s.configured, () => false)).then(setReady); }, []);
+  return ready;
+}
+
 export function AIRestore({ block, onClose, onUse }: { block: ImageBlock; onClose: () => void; onUse: (meta: MediaMeta) => void }) {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [job, setJob] = useState<RestorationJob | null>(null);

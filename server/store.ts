@@ -5,6 +5,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { copyFile, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { cleanScreenshot, Edits, PROCESSOR_VERSION, Region } from './ink';
+import type { Recognized } from '../src/library/ink';
 import { heavyWork } from './resources';
 import { isLibraryMedia, libraryBuild, libraryContinues, libraryGeometry, libraryImage } from './library';
 import { ensureLocal, mirror } from './durable';
@@ -49,6 +50,8 @@ export interface MediaMeta {
   continues?: boolean;
   /** The HD pass's enlargement of the cleaned source (server/ink.ts). */
   scale?: number;
+  /** OCR of the original, reused by every later clean of it. */
+  ocr?: Recognized;
   /** The library build a library image was made from (library.ts libraryBuild). */
   library?: string;
 }
@@ -93,22 +96,22 @@ async function saveFile(file: string, data: Buffer) {
  * durable storage when a restart lost it. */
 export const ensureMediaFile = (name: string) => ensureLocal(DATA, path.join(MEDIA, name));
 
-function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration'], library?: string): Promise<MediaMeta> {
-  return heavyWork(() => processImage(id, original, edits, rev, restoration, library));
+function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration'], library?: string, known?: Recognized): Promise<MediaMeta> {
+  return heavyWork(() => processImage(id, original, edits, rev, restoration, library, known));
 }
 /** Clean a screenshot into its finished files and metadata (no disk writes). */
-export async function cleanMedia(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration']) {
+export async function cleanMedia(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration'], known?: Recognized) {
   // Built-in pages and library verses need no OCR: no page numbers to find,
   // and the fihrist shows their own opening words.
-  const { png, openingPng, ...geometry } = await cleanScreenshot(original, edits, { ocr: !id.startsWith('fixed-') && !isLibraryMedia(id) && !restoration, marks: !isLibraryMedia(id), enhance: !isLibraryMedia(id) });
+  const { png, openingPng, ...geometry } = await cleanScreenshot(original, edits, { ocr: !id.startsWith('fixed-') && !isLibraryMedia(id) && !restoration, marks: !isLibraryMedia(id), enhance: !isLibraryMedia(id), known });
   // A 50% tracing threshold erased faint hairlines and small dots. Export the
   // antialiased ink itself, including high-resolution generated drafts.
   const meta: MediaMeta = { id, rev, ...geometry, edits, restoration, processorVersion: PROCESSOR_VERSION, format: 'png', openingImage: !!openingPng };
   if (isLibraryMedia(id) && libraryContinues(id)) meta.continues = true;
   return { meta, png, openingPng };
 }
-async function processImage(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration'], library?: string): Promise<MediaMeta> {
-  const { meta, png, openingPng } = await cleanMedia(id, original, edits, rev, restoration);
+async function processImage(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration'], library?: string, known?: Recognized): Promise<MediaMeta> {
+  const { meta, png, openingPng } = await cleanMedia(id, original, edits, rev, restoration, known);
   if (library) meta.library = library;
   // Only the versioned PNG and the opening words are ever read; old SVG
   // entries are rebuilt on request (see svgWrapper).
@@ -135,7 +138,7 @@ export async function editMedia(id: string, edits: Edits): Promise<MediaMeta> {
   const original = await readFile(path.join(MEDIA, `${id}.orig`));
   // Timestamp revisions keep cached files (served immutable) from going stale.
   // A library verse keeps its build, so its crop and erase edits stay.
-  return writeProcessed(id, original, edits, Math.max(Date.now(), prev.rev + 1), prev.restoration, isLibraryMedia(id) ? prev.library : undefined);
+  return writeProcessed(id, original, edits, Math.max(Date.now(), prev.rev + 1), prev.restoration, isLibraryMedia(id) ? prev.library : undefined, prev.ocr);
 }
 
 const processing = new Map<string, Promise<MediaMeta>>();
@@ -190,7 +193,7 @@ export async function storeLibraryMedia(id: string, build: string, given: Partia
   return meta;
 }
 
-export async function getMedia(id: string): Promise<MediaMeta | null> {
+export async function getMedia(id: string, options: { wait?: boolean } = {}): Promise<MediaMeta | null> {
   safeId(id);
   if (!id.startsWith('fixed-')) await ensureLocal(DATA, metaPath(id));
   if (!existsSync(metaPath(id)) && isLibraryMedia(id)) return makeLibraryMedia(id);
@@ -201,13 +204,21 @@ export async function getMedia(id: string): Promise<MediaMeta | null> {
   if (isLibraryMedia(id)) return meta.processorVersion === PROCESSOR_VERSION && meta.library === libraryBuild() ? meta : makeLibraryMedia(id);
   if (meta.processorVersion === PROCESSOR_VERSION) return meta;
   if (!processing.has(id)) processing.set(id, ensureMediaFile(`${id}.orig`).then(() => readFile(path.join(MEDIA, `${id}.orig`)))
-    .then((original) => writeProcessed(id, original, meta.edits ?? {}, Math.max(Date.now(), meta.rev + 1), meta.restoration))
+    .then((original) => writeProcessed(id, original, meta.edits ?? {}, Math.max(Date.now(), meta.rev + 1), meta.restoration, undefined, meta.ocr))
     .finally(() => processing.delete(id)));
+  // Made by an older cleaner: cleaned again in the background (OCR on the
+  // free host takes many seconds a screenshot) while its current files keep
+  // serving; the editor picks up the new version on its next load.
+  const current = meta.format === 'png' && (await ensureMediaFile(pngName(id, meta.rev)));
+  if (current && !options.wait) {
+    processing.get(id)!.catch((error) => console.error(`Cleaning ${id} again failed:`, error));
+    return meta;
+  }
   return processing.get(id)!;
 }
 
 /** Only fields the server itself writes are taken from a browser's copy. */
-const META_KEYS = ['rev', 'width', 'height', 'bands', 'lineHeight', 'edits', 'processorVersion', 'format', 'regions', 'suggestedName', 'recognitionConfidence', 'warnings', 'opening', 'openingImage', 'restoration', 'continues', 'scale'] as const;
+const META_KEYS = ['rev', 'width', 'height', 'bands', 'lineHeight', 'edits', 'processorVersion', 'format', 'regions', 'suggestedName', 'recognitionConfidence', 'warnings', 'opening', 'openingImage', 'restoration', 'continues', 'scale', 'ocr'] as const;
 const positive = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) > 0;
 
 /**
@@ -239,7 +250,7 @@ export async function reinstateMedia(id: string, given: Partial<MediaMeta>, file
   ]);
   await writeWhole(metaPath(id), JSON.stringify(meta));
   // A copy from an older cleaner is brought up to date from its original.
-  return (await getMedia(id))!;
+  return (await getMedia(id, { wait: true }))!;
 }
 
 /** Revision of a fixed page: fixed by its source and the cleaner version, so

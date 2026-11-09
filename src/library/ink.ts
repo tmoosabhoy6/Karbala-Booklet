@@ -20,7 +20,12 @@ export interface InkGeometry {
   warnings: string[];
   /** How much the server's HD pass enlarged the cleaned source (server/ink.ts). */
   scale?: number;
+  /** What OCR found, in the source's own pixels: kept, so cleaning the same
+   * source again (an edit, a newer cleaner) never runs OCR again. */
+  ocr?: Recognized;
 }
+/** OCR of `area` (source px): a suggested name and the page numbers in it. */
+export interface Recognized { area: Rect; name: string; confidence: number; numbers: Rect[] }
 /** The finished lettering and the fihrist's navy opening words, as RGBA. */
 export interface InkPixels extends InkGeometry { image: Pixels; openingImage: Pixels }
 /** OCR of the ink flattened onto white (RGBA): a suggested name and the page numbers it found. */
@@ -309,7 +314,7 @@ function splitMergedRows(alpha: Uint8Array, W: number, bands: [number, number][]
 /** `marks: false` skips the margin-number and dashed-line passes: library
  * verses come from the PDF with those already removed exactly, and the
  * guesswork can only cost them lettering. */
-export async function cleanPixels(source: Pixels, edits: Edits = {}, options: { recognize?: Recognizer; marks?: boolean } = {}): Promise<InkPixels> {
+export async function cleanPixels(source: Pixels, edits: Edits = {}, options: { recognize?: Recognizer; marks?: boolean; known?: Recognized } = {}): Promise<InkPixels> {
   // RGB on white (an RGBA source is flattened onto white first).
   const info = { width: source.width, height: source.height };
   let data = source.data;
@@ -387,10 +392,18 @@ export async function cleanPixels(source: Pixels, edits: Edits = {}, options: { 
     return { data: rgba, width: r.w, height: r.h, channels: 4 };
   };
   let suggestedName = '', recognitionConfidence = 0;
+  let ocr: Recognized | undefined;
   try { if (options.recognize) {
-    const recognized = await options.recognize(makeImage(true));
-    suggestedName = recognized.name; recognitionConfidence = recognized.confidence;
-    if (edits.autoClean !== false) for (const r of recognized.numbers) erase(alpha, W, H, { x: r.x - 2, y: r.y - 2, w: r.w + 4, h: r.h + 4 });
+    // An earlier OCR of this source covering this crop is used as it is.
+    const k = options.known;
+    const covered = k && crop.x >= k.area.x && crop.y >= k.area.y && crop.x + crop.w <= k.area.x + k.area.w && crop.y + crop.h <= k.area.y + k.area.h;
+    if (covered) ocr = k;
+    else {
+      const recognized = await options.recognize(makeImage(true));
+      ocr = { area: crop, name: recognized.name, confidence: recognized.confidence, numbers: recognized.numbers.map((r) => ({ ...r, x: r.x + crop.x, y: r.y + crop.y })) };
+    }
+    suggestedName = ocr.name; recognitionConfidence = ocr.confidence;
+    if (edits.autoClean !== false) for (const r of ocr.numbers) erase(alpha, W, H, { x: r.x - crop.x - 2, y: r.y - crop.y - 2, w: r.w + 4, h: r.h + 4 });
   } } catch (error) {
     console.error('Index recognition unavailable:', error);
     warnings.push('Automatic page-number detection was unavailable. Check for screenshot page numbers.');
@@ -471,6 +484,6 @@ export async function cleanPixels(source: Pixels, edits: Edits = {}, options: { 
   }
   const openingImage: Pixels = { data: navy, width: ow, height: oh, channels: 4 };
   if (median(finalBands.map(([a, b]) => b - a)) < 20) warnings.push('Low-resolution source: a larger original screenshot or PDF will print more clearly.');
-  return { width: t.w, height: t.h, bands: finalBands, lineHeight: median(finalBands.map(([a, b]) => b - a)), regions, opening: { x: ox, y: oy, w: ow, h: oh }, suggestedName, recognitionConfidence, warnings, image, openingImage };
+  return { width: t.w, height: t.h, bands: finalBands, lineHeight: median(finalBands.map(([a, b]) => b - a)), regions, opening: { x: ox, y: oy, w: ow, h: oh }, suggestedName, recognitionConfidence, warnings, image, openingImage, ...(ocr ? { ocr } : {}) };
 }
 

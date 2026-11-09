@@ -14,13 +14,13 @@ import type { ExportRequest, PrintPayload } from '../src/booklet/print';
 import { mediaSrc, openingSrc } from '../src/booklet/media';
 import { paginate } from '../src/booklet/paginate';
 import { mergeDuplicateStreams } from './pdf';
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { PROCESSOR_VERSION, svgWrapper } from './ink';
 import { closeRecognition } from './recognize';
 import { restorationJob, restorationStatus, startRestoration } from './restore';
 import { beforeOtherHeavyWork, heavyWaiting, heavyWork } from './resources';
 import { validScript } from './lettering';
-import { durableStatus, flushDurable, mirror } from './durable';
+import { durableStatus, ensureLocal, flushDurable, mirror } from './durable';
 import { closeLibrary, isLibraryMedia, libraryAvailable, libraryGeometry, libraryPlan, libraryPreview, librarySource } from './library';
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -251,6 +251,57 @@ for (const [name, empty] of [['booklet', null], ['defaults', {}]] as const) {
     res.json(null);
   }));
 }
+
+// ---- kalam PDFs added in the editor (src/library/user.ts) ----
+// Each device finds the kalams in a PDF itself; the PDF and what was found
+// in it (with the names given to each kalam) are kept here too, so every
+// device has every added PDF. `pdfs/index.json` lists them, removed ones
+// included (so a device that still has one drops it).
+const PDFS = path.join(DATA, 'pdfs');
+const pdfFile = (key: string, ext: string) => (/^u:[0-9a-f]{16}$/.test(key) ? path.join(PDFS, `${key.slice(2)}.${ext}`) : null);
+type SharedPdf = { key: string; updated: number; deleted?: boolean };
+await mkdir(PDFS, { recursive: true });
+const pdfIndex = async () => (await readJson<SharedPdf[]>('pdfs/index.json')) ?? [];
+let pdfTurn = Promise.resolve();
+const updateIndex = (entry: SharedPdf) => (pdfTurn = pdfTurn.catch(() => undefined).then(async () => {
+  const list = (await pdfIndex()).filter((p) => p.key !== entry.key);
+  await writeJson('pdfs/index.json', [...list, entry]);
+}));
+app.get('/api/pdfs', route(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json(await pdfIndex()); }));
+app.get('/api/pdfs/:key', route(async (req, res) => {
+  const file = pdfFile(req.params.key, 'json');
+  if (!file || !(await ensureLocal(DATA, file))) return res.status(404).end();
+  res.type('json').sendFile(file);
+}));
+app.get('/api/pdfs/:key/file', route(async (req, res) => {
+  const file = pdfFile(req.params.key, 'pdf');
+  if (!file || !(await ensureLocal(DATA, file))) return res.status(404).end();
+  res.type('application/pdf').sendFile(file);
+}));
+app.put('/api/pdfs/:key/file', express.raw({ type: () => true, limit: '80mb' }), route(async (req, res) => {
+  const file = pdfFile(req.params.key, 'pdf');
+  const body = req.body as Buffer;
+  if (!file || !Buffer.isBuffer(body) || body.subarray(0, 5).toString() !== '%PDF-') return res.status(400).send('Not a PDF.');
+  await mkdir(PDFS, { recursive: true });
+  if (!existsSync(file)) { await writeFile(`${file}.tmp`, body); await rename(`${file}.tmp`, file); mirror(DATA, file, body); }
+  res.end();
+}));
+app.put('/api/pdfs/:key', route(async (req, res) => {
+  const file = pdfFile(req.params.key, 'json');
+  const updated = Number(req.body?.updated);
+  if (!file || !req.body?.pdf || !req.body?.lib || !Array.isArray(req.body?.kalams) || !Number.isFinite(updated)) return res.status(400).send('Incomplete PDF details.');
+  const known = (await pdfIndex()).find((p) => p.key === req.params.key);
+  if (known && known.updated > updated) return res.status(409).json(known);
+  await mkdir(PDFS, { recursive: true });
+  await writeJson(path.relative(DATA, file), req.body);
+  await updateIndex({ key: req.params.key, updated });
+  res.json(null);
+}));
+app.delete('/api/pdfs/:key', route(async (req, res) => {
+  if (!pdfFile(req.params.key, 'json')) return res.status(400).end();
+  await updateIndex({ key: req.params.key, updated: Number(req.query.updated) || Date.now(), deleted: true });
+  res.json(null);
+}));
 
 // ---- PDF export ----
 const pending = new Map<string, unknown>();

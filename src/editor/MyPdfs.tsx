@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supported } from '../library/client';
-import { addUserPdf, editKalams, listUserPdfs, nameKalams, onUserChange, removeUserPdf, renameUserPdf, userKalams, type UserKalam, type UserPdf } from '../library/user';
+import { addUserPdf, syncUserPdfs, editKalams, listUserPdfs, nameKalams, onUserChange, removeUserPdf, renameUserPdf, userKalams, type UserKalam, type UserPdf } from '../library/user';
 import { LibImage } from './LibImage';
 
 /** PDFs of kalams added on this device: upload one, and its kalams are found,
@@ -19,6 +19,8 @@ export function MyPdfs() {
     })));
   }, []);
   useEffect(() => { void refresh(); return onUserChange(() => void refresh()); }, [refresh]);
+  // PDFs added on your other devices come here (and this device's go there).
+  useEffect(() => { if (supported) void syncUserPdfs(); }, []);
 
   const add = async (file: File) => {
     setReading({ name: file.name, done: 0, total: 0 });
@@ -37,8 +39,8 @@ export function MyPdfs() {
     <section className="section my-pdfs">
       <h2>Your kalam PDFs</h2>
       <p className="hint">
-        Add a PDF of kalams and it is kept on this device: its kalams are found and split into verses, and they show up in every search box above. Give
-        them English names to find them by name (until then, search the PDF's name).
+        Add PDFs of kalams (several at once if you like): their kalams are found and split into verses, and they show up in every search box above, on
+        every device you use. Give them English names to find them by name (until then, search the PDF's name).
       </p>
       {pdfs.map((p) => (
         <div className="pdf-row" key={p.key}>
@@ -66,17 +68,19 @@ export function MyPdfs() {
         </div>
       )}
       <button className="add" disabled={!!reading} onClick={() => input.current?.click()}>
-        + Add a PDF of kalams
+        + Add PDFs of kalams
       </button>
       <input
         ref={input}
         type="file"
         accept="application/pdf,.pdf"
+        multiple
         hidden
         onChange={(e) => {
-          const file = e.target.files?.[0];
+          const files = Array.from(e.target.files ?? []);
           e.target.value = '';
-          if (file) void add(file);
+          // Several at once: read one after another, the last one opens for naming.
+          void files.reduce((done, file) => done.then(() => add(file)), Promise.resolve());
         }}
       />
       {naming && <NameKalams pdf={naming} onClose={() => setNaming(null)} />}

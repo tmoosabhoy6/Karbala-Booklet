@@ -3,7 +3,7 @@
 // lettering up to print resolution (enhance below), encode PNGs.
 import sharp from 'sharp';
 import { recognize } from './recognize';
-import { cleanPixels, type Edits, type InkGeometry, type Pixels, type Rect } from '../src/library/ink';
+import { cleanPixels, type Edits, type InkGeometry, type Pixels, type Recognized, type Rect } from '../src/library/ink';
 
 export { PROCESSOR_VERSION, findBands } from '../src/library/ink';
 export type { Edits, Rect, Region } from '../src/library/ink';
@@ -120,11 +120,12 @@ async function enhance(result: InkGeometry & { image: Pixels }): Promise<{ geome
   return { geometry, image: { data: out, width: W, height: H, channels: 4 }, opening: { data: navy, width: opening.w, height: opening.h, channels: 4 } };
 }
 
-export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options: { ocr?: boolean; marks?: boolean; enhance?: boolean } = {}): Promise<InkResult> {
+export async function cleanScreenshot(input: Buffer, edits: Edits = {}, options: { ocr?: boolean; marks?: boolean; enhance?: boolean; known?: Recognized } = {}): Promise<InkResult> {
   const { data, info } = await sharp(input, { limitInputPixels: 20_000_000 }).rotate().flatten({ background: '#fff' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const source: Pixels = { data: new Uint8Array(data.buffer, data.byteOffset, data.byteLength), width: info.width, height: info.height, channels: 3 };
   const cleaned = await cleanPixels(source, edits, {
     marks: options.marks,
+    known: options.known,
     recognize: options.ocr !== false ? async (white) => recognize(await encode(white)) : undefined,
   });
   const { image, openingImage, ...geometry } = cleaned;

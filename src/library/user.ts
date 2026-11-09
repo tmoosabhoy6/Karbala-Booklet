@@ -1,10 +1,12 @@
-// PDFs of kalams added on this device: kept in its storage with what was found
-// in them (src/library/analyze.ts) and the names given to each kalam, so they
-// can be searched and added like the Zikre Husain library.
+// PDFs of kalams added in the editor: kept in this device's storage with what
+// was found in them (src/library/analyze.ts) and the names given to each
+// kalam, so they can be searched and added like the Zikre Husain library.
+// Each is also kept on the server (server/index.ts /api/pdfs), so a PDF added
+// on the laptop is on the phone too (syncUserPdfs).
 import { analyzeUserPdf, closeUser } from './client';
 import type { FoundKalam } from './analyze';
 import type { Library } from './geometry';
-import { deleteFile, deleteMeta, readMeta, writeFile, writeMeta } from './store';
+import { deleteFile, deleteMeta, readFile, readMeta, writeFile, writeMeta } from './store';
 
 export interface UserPdf { key: string; name: string; size: number; added: number; pages: number }
 /** One kalam of an added PDF: its name (typed by you) and what it holds. */
@@ -39,6 +41,78 @@ async function digest(bytes: ArrayBuffer): Promise<string> {
   return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
 }
 
+// ---- sharing with the server ----
+type Shared = { key: string; updated: number; deleted?: boolean };
+const enc = encodeURIComponent;
+const updatedAt = async (key: string) => (await readMeta<number>(`updated:${key}`).catch(() => undefined)) ?? 0;
+/** Send this device's copy of a PDF's details (and the file, the first time). */
+async function share(key: string, withFile = false) {
+  try {
+    const [list, lib, kalams] = await Promise.all([listUserPdfs(), readMeta<Library>(`lib:${key}`), userKalams(key)]);
+    const pdf = list.find((p) => p.key === key);
+    if (!pdf || !lib) return;
+    if (withFile) {
+      const blob = await readFile(key);
+      if (!blob) return;
+      const sent = await fetch(`/api/pdfs/${enc(key)}/file`, { method: 'PUT', body: blob });
+      if (!sent.ok) throw new Error(await sent.text());
+    }
+    const updated = Date.now();
+    await writeMeta(`updated:${key}`, updated);
+    const res = await fetch(`/api/pdfs/${enc(key)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pdf, lib, kalams, updated }) });
+    if (!res.ok && res.status !== 409) throw new Error(await res.text());
+  } catch (error) {
+    console.warn('This PDF could not be shared with your other devices yet:', error);
+  }
+}
+
+let syncing: Promise<void> | null = null;
+/** Bring this device's PDFs in line with the server's: PDFs added or named
+ * on another device come here; PDFs only here (added before sharing, or
+ * offline) go there; removed ones go. Once per page load. */
+export function syncUserPdfs(): Promise<void> {
+  return syncing ??= (async () => {
+    const res = await fetch('/api/pdfs', { cache: 'no-store' }).catch(() => null);
+    if (!res?.ok) return;
+    const remote = (await res.json()) as Shared[];
+    let list = await listUserPdfs();
+    let touched = false;
+    for (const r of remote) {
+      const have = list.some((p) => p.key === r.key);
+      const mine = await updatedAt(r.key);
+      if (r.deleted) {
+        if (have && mine <= r.updated) { await dropLocal(r.key); list = list.filter((p) => p.key !== r.key); touched = true; }
+        continue;
+      }
+      if (have && mine >= r.updated) continue;
+      try {
+        const details = await fetch(`/api/pdfs/${enc(r.key)}`).then((x) => (x.ok ? x.json() : null)) as { pdf: UserPdf; lib: Library; kalams: UserKalam[]; updated: number } | null;
+        if (!details) continue;
+        if (!(await readFile(r.key))) {
+          const file = await fetch(`/api/pdfs/${enc(r.key)}/file`);
+          if (!file.ok) continue;
+          await writeFile(r.key, await file.blob());
+        }
+        await Promise.all([writeMeta(`lib:${r.key}`, details.lib), writeMeta(`kalams:${r.key}`, details.kalams), writeMeta(`updated:${r.key}`, details.updated)]);
+        list = [...list.filter((p) => p.key !== r.key), details.pdf];
+        await writeMeta(LIST, list);
+        closeUser(r.key);
+        touched = true;
+      } catch (error) {
+        console.warn('A PDF from your other devices could not be brought here:', error);
+      }
+    }
+    for (const p of list) if (!remote.some((r) => r.key === p.key)) await share(p.key, true);
+    if (touched) changed();
+  })().catch((error) => console.warn('PDF sync failed:', error));
+}
+
+async function dropLocal(key: string) {
+  closeUser(key);
+  await writeMeta(LIST, (await listUserPdfs()).filter((p) => p.key !== key));
+  await Promise.all([deleteFile(key), deleteMeta(`lib:${key}`), deleteMeta(`kalams:${key}`), deleteMeta(`updated:${key}`)]);
+}
+
 /** Keep a PDF on this device and find its kalams. */
 export async function addUserPdf(file: File, progress: (done: number, total: number) => void): Promise<UserPdf> {
   if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) throw new Error('Choose a PDF file.');
@@ -58,6 +132,7 @@ export async function addUserPdf(file: File, progress: (done: number, total: num
     await writeMeta(LIST, [...list, pdf]);
     void navigator.storage?.persist?.().catch(() => undefined);
     changed();
+    void share(key, true);
     return pdf;
   } catch (error) {
     await deleteFile(key).catch(() => undefined);
@@ -66,15 +141,15 @@ export async function addUserPdf(file: File, progress: (done: number, total: num
 }
 
 export async function removeUserPdf(key: string) {
-  closeUser(key);
-  await writeMeta(LIST, (await listUserPdfs()).filter((p) => p.key !== key));
-  await Promise.all([deleteFile(key), deleteMeta(`lib:${key}`), deleteMeta(`kalams:${key}`)]);
+  await dropLocal(key);
   changed();
+  void fetch(`/api/pdfs/${enc(key)}?updated=${Date.now()}`, { method: 'DELETE' }).catch(() => undefined);
 }
 
 export async function renameUserPdf(key: string, name: string) {
   await writeMeta(LIST, (await listUserPdfs()).map((p) => (p.key === key ? { ...p, name } : p)));
   changed();
+  void share(key);
 }
 
 /** Name the kalams of an added PDF (English letters, for the search). */
@@ -82,6 +157,7 @@ export async function nameKalams(key: string, titles: string[]) {
   const kalams = await userKalams(key);
   await writeMeta(`kalams:${key}`, kalams.map((k, i) => ({ ...k, title: titles[i] ?? k.title })));
   changed();
+  void share(key);
 }
 
 /** Fix how the PDF was split: kalam `n` is really the rest of the one before
@@ -106,6 +182,7 @@ export async function editKalams(key: string, n: number, edit: 'join' | 'remove'
     await Promise.all([writeMeta(`lib:${key}`, lib), writeMeta(`kalams:${key}`, kalams)]);
     closeUser(key);
     changed();
+    void share(key);
     return;
   }
   if (edit === 'join') {
@@ -120,4 +197,5 @@ export async function editKalams(key: string, n: number, edit: 'join' | 'remove'
   await Promise.all([writeMeta(`lib:${key}`, lib), writeMeta(`kalams:${key}`, kalams)]);
   closeUser(key); // the worker reads the new geometry next time
   changed();
+  void share(key);
 }

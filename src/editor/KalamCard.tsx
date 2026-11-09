@@ -4,6 +4,7 @@ import { Block, Category, Defaults, Kalam, imageBlockFrom, isBuiltinMedia, uid }
 import { api } from './api';
 import { BookletState, sameBlocks } from './useBooklet';
 import { LibrarySearch } from './LibrarySearch';
+import { useAiReady } from './AIRestore';
 import type { LibraryHit } from './library';
 
 interface Props {
@@ -38,6 +39,7 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
   const { updateKalam, updateKalams, pin, unpin } = state;
   const fileInput = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const aiReady = useAiReady();
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [editingNo, setEditingNo] = useState<number | null>(null);
 
@@ -168,7 +170,9 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
                       <button title="Crop / erase marks" onClick={() => onEditImage(b)}>
                         ✎
                       </button>
-                      <button title="Restore blurry lettering with AI" onClick={() => onRestoreImage(b)}>AI</button>
+                      {/* Every screenshot is already printed in HD from its own pixels. An AI
+                          redraw can change a word or a dot, so it is offered only when set up. */}
+                      {aiReady && <button title="AI redraw (experimental): it can change words and dots, so compare every word before using it" onClick={() => onRestoreImage(b)}>AI</button>}
                     </>
                   )}
                   <button
@@ -246,7 +250,10 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
 export async function uploadInto(files: File[], append: (b: Block) => void, onProgress: (n: number) => void) {
   let left = files.length;
   onProgress(left);
-  for (const f of files) {
+  // Many screenshots at once go in the order they were taken (then by name,
+  // with numbers compared as numbers: "9.11 PM" before "10.02 PM").
+  const ordered = [...files].sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name, undefined, { numeric: true }));
+  for (const f of ordered) {
     try {
       const m = await api.upload(f);
       append(imageBlockFrom(m));

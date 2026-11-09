@@ -119,6 +119,16 @@ try {
   await page.locator('.verse-foot .ghost').click(); // whole kalam
   await page.locator('.kalam img.thumb:not([src*="/media/lib"])').first().waitFor({ timeout: 60_000 });
   step('a kalam from the added PDF went into the booklet');
+
+  // Another device (a fresh browser, nothing stored): the PDF added above is
+  // there, with the names given to its kalams, and searchable.
+  const phone = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+  await phone.goto(origin);
+  await phone.waitForSelector('.my-pdfs .pdf-row', { timeout: 60_000 });
+  assert.match(await phone.locator('.my-pdfs .pdf-row').first().innerText(), /named/, 'The added PDF reaches the other device with its kalam names.');
+  await phone.locator('.category .lib-search input').first().fill('mere baba test');
+  await phone.locator('.lib-results li', { hasText: 'Your PDF' }).first().waitFor({ timeout: 30_000 });
+  step('the added PDF is on another device too, named and searchable');
   assert.deepEqual(errors, [], `No page errors: ${errors.join('; ')}`);
   console.log('Library checks passed.');
 } finally {
