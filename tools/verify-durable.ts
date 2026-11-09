@@ -5,7 +5,7 @@ import { readFile, rm } from 'node:fs/promises';
 const store = new Map<string, Buffer>();
 const mock = createServer((req, res) => {
   const name = decodeURIComponent(req.url!.replace(/^\/storage\/v1\/object\/booklet\//, ''));
-  if (req.headers.authorization !== 'Bearer test-key') { res.statusCode = 401; return res.end(); }
+  if (req.headers.apikey !== 'test-key') { res.statusCode = 401; return res.end(); }
   if (req.method === 'POST') { const parts: Buffer[] = []; req.on('data', (c) => parts.push(c)); req.on('end', () => { store.set(name, Buffer.concat(parts)); res.end('{}'); }); return; }
   const v = store.get(name); if (!v) { res.statusCode = 400; return res.end('{"statusCode":"404"}'); } res.end(v);
 }).listen(23501);

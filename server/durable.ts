@@ -18,7 +18,9 @@ const BUCKET = process.env.SUPABASE_BUCKET ?? 'booklet';
 export const durable = !!(BASE && KEY);
 export const durableStatus = () => ({ durable, bucket: durable ? BUCKET : null, pending: latest.size, failures });
 
-const headers = () => ({ Authorization: `Bearer ${KEY}`, apikey: KEY });
+// A legacy key is a JWT and goes in both headers; a new secret key
+// (sb_secret_…) only in `apikey`.
+const headers = (): Record<string, string> => (KEY.startsWith('eyJ') ? { Authorization: `Bearer ${KEY}`, apikey: KEY } : { apikey: KEY });
 const objectUrl = (name: string) => `${BASE}/storage/v1/object/${BUCKET}/${name.split('/').map(encodeURIComponent).join('/')}`;
 let failures = 0;
 
