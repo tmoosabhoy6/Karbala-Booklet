@@ -20,7 +20,7 @@ import { closeRecognition } from './recognize';
 import { restorationJob, restorationStatus, startRestoration } from './restore';
 import { beforeOtherHeavyWork, heavyWaiting, heavyWork } from './resources';
 import { validScript } from './lettering';
-import { durableStatus, ensureLocal, flushDurable, mirror } from './durable';
+import { durableStatus, ensureLocal, flushDurable, mirror, startRepoSync } from './durable';
 import { closeLibrary, isLibraryMedia, libraryAvailable, libraryGeometry, libraryPlan, libraryPreview, librarySource } from './library';
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -515,6 +515,8 @@ if (PROD) {
 }
 
 await ensureFixedMedia();
+// The stored work (server/durable.ts) is here before the first visit.
+await startRepoSync(DATA);
 const http = app.listen(PORT, HOST, () => console.log(`server on http://${HOST}:${PORT}${PASSWORD ? ' (password on)' : ''}`));
 let closing = false;
 const shutdown = async () => {

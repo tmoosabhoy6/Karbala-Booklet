@@ -5,28 +5,31 @@ import { readdirSync } from 'node:fs';
 import { mkdir, readFile, rm } from 'node:fs/promises';
 import { createServer, type IncomingMessage } from 'node:http';
 
-// Durable storage (server/durable.ts) against stand-ins for the GitHub and
-// Supabase APIs: defaults, a screenshot and its files survive a wiped disk
-// (a free host's restart), and a device holding an older copy cannot
-// overwrite newer defaults.
+// The repository folder as the app's database (server/durable.ts), against a
+// stand-in for the GitHub API: defaults, a screenshot and its files survive a
+// wiped disk (a free host's restart), a device holding an older copy cannot
+// overwrite newer defaults, and a change made in the folder reaches the
+// running app by itself.
 await mkdir('work', { recursive: true });
 const body = (req: IncomingMessage) => new Promise<Buffer>((done) => { const parts: Buffer[] = []; req.on('data', (c) => parts.push(c)); req.on('end', () => done(Buffer.concat(parts))); });
 
 const files = new Map<string, Buffer>();
 let branch = false, commits = 0;
+const blob = (b: Buffer) => createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex');
 const github = createServer(async (req, res) => {
   const url = new URL(req.url!, 'http://x');
   const send = (status: number, value?: unknown) => { res.statusCode = status; res.end(value === undefined ? '' : JSON.stringify(value)); };
   if (req.headers.authorization !== 'Bearer gh-token') return send(401);
   const p = url.pathname.replace('/repos/owner/repo', '');
-  if (p === '/branches/storage') return branch ? send(200, {}) : send(404);
+  if (p === '/branches/storage') return branch ? send(200, { commit: { sha: `c${commits}` } }) : send(404);
+  if (p.startsWith('/git/trees/')) return send(200, { tree: [{ path: 'README.md', type: 'blob', sha: 'x' }, ...[...files].map(([name, data]) => ({ path: `storage/${name}`, type: 'blob', sha: blob(data) }))] });
   if (p === '') return send(200, { default_branch: 'main' });
   if (p === '/git/ref/heads/main') return send(200, { object: { sha: 'base' } });
   if (p === '/git/refs' && req.method === 'POST') { branch = true; return send(201, {}); }
   const m = /^\/contents\/storage\/(.+)$/.exec(p);
   if (!m) return send(404);
   const name = decodeURIComponent(m[1]);
-  const sha = (b: Buffer) => createHash('sha1').update(b).digest('hex');
+  const sha = blob;
   if (req.method === 'GET') {
     if (!branch || url.searchParams.get('ref') !== 'storage') return send(404);
     const file = files.get(name);
@@ -43,14 +46,6 @@ const github = createServer(async (req, res) => {
   files.set(name, data); commits++;
   return send(existing ? 200 : 201, { content: { sha: sha(data) } });
 }).listen(23501);
-
-const objects = new Map<string, Buffer>();
-const supabase = createServer(async (req, res) => {
-  const name = decodeURIComponent(req.url!.replace(/^\/storage\/v1\/object\/booklet\//, ''));
-  if (req.headers.apikey !== 'test-key') { res.statusCode = 401; return res.end(); }
-  if (req.method === 'POST') { objects.set(name, await body(req)); return res.end('{}'); }
-  const v = objects.get(name); if (!v) { res.statusCode = 400; return res.end('{"statusCode":"404"}'); } res.end(v);
-}).listen(23503);
 
 const data = 'work/durable-data', port = '23502', origin = `http://127.0.0.1:${port}`;
 let server: ChildProcess | undefined;
@@ -84,16 +79,28 @@ async function scenario(label: string, env: Record<string, string>) {
   assert((await fetch(`${origin}/api/media/${upload.id}/original`)).ok, `${label}: and its original`);
   assert.equal((await put({ old: true }, stamp - 1000)).status, 409, `${label}: a device with an older copy cannot overwrite newer defaults`);
   assert.equal((await put({ old: true }, stamp - 1000, true)).status, 409, `${label}: nor restore its older copy over them`);
-  assert((await put({ newer: true }, stamp2)).ok, `${label}: a save over the current copy goes through`);
+  const third = await put({ 'noha:xA': { category: 'noha', name: 'laptop pin 3', blocks: [] } }, stamp2);
+  assert(third.ok, `${label}: a save over the current copy goes through`);
+  // Another device's save, made straight in the repository folder.
+  await new Promise((r) => setTimeout(r, 6000)); // this server's own copy goes up first
+  const later = Number(third.headers.get('X-Saved-At')) + 5000;
+  files.set('defaults.json', Buffer.from(JSON.stringify({ 'noha:xB': { category: 'noha', name: 'phone pin', blocks: [] } })));
+  files.set('defaults.stamp.json', Buffer.from(JSON.stringify({ savedAt: later })));
+  commits++;
+  let seen = false;
+  for (let i = 0; i < 40 && !seen; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    const now = await fetch(origin + '/api/defaults');
+    seen = Number(now.headers.get('X-Saved-At')) === later && !!(await now.json())['noha:xB'];
+  }
+  assert(seen, `${label}: a change in the repository folder reaches the running app`);
   await stop();
-  const version = env.GITHUB_STORAGE_TOKEN ? 'GitHub' : 'Supabase';
-  console.log(`${label}: passed (${version === 'GitHub' ? `${files.size} files, ${commits} commits` : `${objects.size} objects`})`);
+  console.log(`${label}: passed (${files.size} files, ${commits} commits)`);
 }
 
 try {
-  await scenario('GitHub folder', { GITHUB_STORAGE_TOKEN: 'gh-token', GITHUB_STORAGE_REPO: 'owner/repo', GITHUB_API_URL: 'http://127.0.0.1:23501' });
+  await scenario('GitHub folder', { GITHUB_STORAGE_TOKEN: 'gh-token', GITHUB_STORAGE_REPO: 'owner/repo', GITHUB_API_URL: 'http://127.0.0.1:23501', GITHUB_STORAGE_SYNC_SECONDS: '5' });
   assert(branch, 'The storage branch is made the first time.');
   assert([...files.keys()].some((k) => k === 'defaults.json'), 'Files go into the storage folder by their data/ names.');
-  await scenario('Supabase bucket', { SUPABASE_URL: 'http://127.0.0.1:23503', SUPABASE_SERVICE_KEY: 'test-key' });
   console.log('durable storage checks passed');
-} finally { server?.kill(); github.close(); supabase.close(); }
+} finally { server?.kill(); github.close(); }

@@ -1,22 +1,25 @@
-// A durable copy of data/, for hosts whose disk is wiped on every restart
-// (Render's free plan). Every file the server writes under data/ is copied
-// there in the background; a file missing on disk (after a restart) is
-// fetched back the first time something asks for it. So pinned defaults, the
-// open booklets, every screenshot and every added kalam PDF are the same on
-// every device, whenever the server last restarted.
+// The app's database is a folder in its GitHub repository: every file the
+// server keeps under data/ (pinned defaults, the open booklets, screenshots,
+// added kalam PDFs) is committed there, and the server keeps itself in step
+// with that folder, so the free host's wiped disk (every restart) loses
+// nothing and every device sees the same work.
 //
-// Where (Render → Environment), the first one set:
-//  - GitHub: GITHUB_STORAGE_TOKEN, a fine-grained token with "Contents: read
-//    and write" on the repository. Files go into the folder GITHUB_STORAGE_DIR
-//    (default "storage") on the branch GITHUB_STORAGE_BRANCH (default
-//    "storage", made from the default branch the first time) of
-//    GITHUB_STORAGE_REPO (default: the repository Render deploys). Not main:
-//    every save would be a commit that redeploys and restarts the app.
-//    In a public repository the stored files are public too.
-//  - Supabase Storage: SUPABASE_URL and SUPABASE_SERVICE_KEY, bucket
-//    SUPABASE_BUCKET (default "booklet", private).
+//  - App → repo: a file written under data/ is committed a few seconds after
+//    it stops changing (one commit at a time; on shutdown, at once).
+//  - Repo → app: at start, and then every GITHUB_STORAGE_SYNC_SECONDS (60),
+//    files changed in the folder are brought down: the booklets, defaults and
+//    PDF lists always, screenshots and PDFs the server already holds when
+//    they change, and any other file the first time something asks for it.
+//
+// Set GITHUB_STORAGE_TOKEN (Render → Environment): a fine-grained token with
+// "Contents: read and write" on the repository. The folder is
+// GITHUB_STORAGE_DIR ("storage") on the branch GITHUB_STORAGE_BRANCH
+// ("storage", made from the default branch the first time) of
+// GITHUB_STORAGE_REPO (default: the repository Render deploys). Not main:
+// every save would be a commit that redeploys and restarts the app.
 import { existsSync } from 'node:fs';
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { readFile as readLocal, mkdir, rename, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 interface Backend {
@@ -24,6 +27,11 @@ interface Backend {
   /** The stored copy of `name`, or null when there is none. */
   get(name: string): Promise<Buffer | null>;
   put(name: string, data: Buffer): Promise<void>;
+  /** Every file in the folder with its git blob sha, or null when the folder
+   * has not changed since `since` (a commit). */
+  list(since: string | null): Promise<{ head: string; files: Map<string, string> } | null>;
+  /** Blob shas the backend knows (from its own commits). */
+  known: Map<string, string>;
   /** How long a file must stay unchanged before it is sent (ms). */
   quiet: number;
 }
@@ -71,6 +79,22 @@ function github(): Backend | null {
   };
   return {
     where: `github:${repo}@${branch}/${dir}`,
+    known: shas,
+    async list(since) {
+      await ensureBranch();
+      const res = await call(`/branches/${encodeURIComponent(branch)}`);
+      if (!res.ok) throw await failed(res);
+      const head = ((await res.json()) as { commit: { sha: string } }).commit.sha;
+      if (head === since) return null;
+      const tree = await call(`/git/trees/${head}?recursive=1`);
+      if (!tree.ok) throw await failed(tree);
+      const files = new Map<string, string>();
+      const prefix = dir ? `${dir}/` : '';
+      for (const entry of ((await tree.json()) as { tree: { path: string; type: string; sha: string }[] }).tree) {
+        if (entry.type === 'blob' && entry.path.startsWith(prefix)) files.set(entry.path.slice(prefix.length), entry.sha);
+      }
+      return { head, files };
+    },
     // Each save is a commit: an autosaved booklet goes once it has been
     // still for a few seconds, not on every keystroke.
     quiet: 4000,
@@ -95,35 +119,7 @@ function github(): Backend | null {
   };
 }
 
-// ---- Supabase Storage ----
-function supabase(): Backend | null {
-  const base = process.env.SUPABASE_URL?.replace(/\/+$/, '') ?? '';
-  const key = process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_KEY ?? '';
-  if (!base || !key) return null;
-  const bucket = process.env.SUPABASE_BUCKET ?? 'booklet';
-  // A legacy key is a JWT and goes in both headers; a new secret key
-  // (sb_secret_…) only in `apikey`.
-  const headers: Record<string, string> = key.startsWith('eyJ') ? { Authorization: `Bearer ${key}`, apikey: key } : { apikey: key };
-  const url = (name: string) => `${base}/storage/v1/object/${bucket}/${segments(name)}`;
-  return {
-    where: `supabase:${bucket}`,
-    quiet: 0,
-    async get(name) {
-      const res = await fetch(url(name), { headers, signal: AbortSignal.timeout(60_000) });
-      if (!res.ok) return null;
-      return Buffer.from(await res.arrayBuffer());
-    },
-    async put(name, data) {
-      const res = await fetch(url(name), {
-        method: 'POST', signal: AbortSignal.timeout(60_000), body: data,
-        headers: { ...headers, 'x-upsert': 'true', 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-cache' },
-      });
-      if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`.slice(0, 300));
-    },
-  };
-}
-
-const backend = github() ?? supabase();
+const backend = github();
 export const durable = !!backend;
 let failures = 0;
 export const durableStatus = () => ({ durable, where: backend?.where ?? null, pending: latest.size, failures });
@@ -198,4 +194,53 @@ export async function flushDurable(timeoutMs = 25_000) {
   if (!backend || !latest.size) return;
   flushing = true;
   await Promise.race([(async () => { while (latest.size) await work(); })(), new Promise((r) => setTimeout(r, timeoutMs))]);
+}
+
+// ---- repo → app ----
+/** Git's own id for some content: a file whose content is already here is
+ * never downloaded again. */
+const blobSha = (data: Buffer) => createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex');
+/** Files brought down whenever they change, held here or not: what the
+ * editor opens with (booklets, defaults, their stamps, the added PDFs list). */
+const always = (name: string) => /^[^/]+\.json$/.test(name) || /^pdfs\/[^/]+\.json$/.test(name);
+let head: string | null = null;
+let syncing: Promise<void> | null = null;
+
+/** Bring changes in the repository folder down to `root` (data/). */
+export function syncFromRepo(root: string): Promise<void> {
+  if (!backend) return Promise.resolve();
+  return syncing ??= (async () => {
+    const found = await backend.list(head);
+    if (!found) return;
+    let fetched = 0;
+    for (const [name, sha] of found.files) {
+      // This server's own newer copy is on its way up.
+      if (latest.has(name) || backend.known.get(name) === sha) continue;
+      const file = path.join(root, ...name.split('/'));
+      if (path.relative(root, file).startsWith('..')) continue;
+      const here = existsSync(file);
+      if (here && blobSha(await readLocal(file)) === sha) { backend.known.set(name, sha); continue; }
+      if (!here && !always(name)) continue; // fetched when first asked for
+      const data = await backend.get(name);
+      if (!data || latest.has(name)) continue;
+      await mkdir(path.dirname(file), { recursive: true });
+      const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+      await writeFile(tmp, data);
+      await rename(tmp, file);
+      backend.known.set(name, sha);
+      fetched++;
+    }
+    head = found.head;
+    if (fetched) console.log(`storage: ${fetched} file(s) brought down from ${backend.where}`);
+  })().catch((error) => console.error('Sync from the repository failed:', (error as Error).message)).finally(() => { syncing = null; });
+}
+
+/** Sync at start (waiting at most `wait` ms, so the first visit sees the
+ * stored work), then every GITHUB_STORAGE_SYNC_SECONDS. */
+export async function startRepoSync(root: string, wait = 20_000) {
+  if (!backend) return;
+  console.log(`storage: ${backend.where}`);
+  await Promise.race([syncFromRepo(root), new Promise((r) => setTimeout(r, wait))]);
+  const every = Math.max(5, Number(process.env.GITHUB_STORAGE_SYNC_SECONDS ?? 60)) * 1000;
+  setInterval(() => void syncFromRepo(root), every).unref();
 }

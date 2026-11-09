@@ -97,6 +97,7 @@ export function useBooklet(city: City) {
   const docAt = useRef(0);
   const defsAt = useRef(0);
   const docSaves = useRef<Promise<unknown>>(Promise.resolve());
+  const docInFlight = useRef(0);
   const defsSaves = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
@@ -185,6 +186,7 @@ export function useBooklet(city: City) {
   // when the editor closes (switching city) is saved straight away.
   const unsaved = useRef<Booklet | null>(null);
   const saveDoc = useCallback((d: Booklet) => {
+    docInFlight.current++;
     const job = docSaves.current.catch(() => undefined).then(async () => {
       let result = await api.saveBooklet(d, docAt.current);
       // Changed on another device since this one loaded it.
@@ -199,6 +201,7 @@ export function useBooklet(city: City) {
       return result.ok;
     });
     docSaves.current = job;
+    void job.finally(() => { docInFlight.current--; }).catch(() => undefined);
     return job;
   }, [city]);
   useEffect(() => {
@@ -215,6 +218,33 @@ export function useBooklet(city: City) {
   useEffect(() => () => {
     if (unsaved.current) void saveDoc(unsaved.current).catch(console.error);
   }, [saveDoc]);
+
+  // Changes saved from another device reach this one while it is open:
+  // checked when the app comes back into view and every minute. Newer
+  // defaults are taken at once; a newer booklet is loaded when nothing typed
+  // here is still waiting to be saved.
+  useEffect(() => {
+    let busy = false;
+    const check = async () => {
+      if (busy || document.visibilityState !== 'visible' || !current.current) return;
+      busy = true;
+      try {
+        const [defs, booklet] = await Promise.all([api.loadDefaultsStamped(city), api.loadBooklet(city)]);
+        if (defs.savedAt > defsAt.current) {
+          defsAt.current = defs.savedAt;
+          setOwn(defs.value ?? {});
+          await Promise.all([saveBackup(cityKey('defaults', city), defs.value ?? {}), saveBackup(cityKey('defaults-at', city), defs.savedAt)]);
+        }
+        if (booklet.value && booklet.savedAt > docAt.current && !unsaved.current && !docInFlight.current) {
+          await Promise.all([saveBackup(cityKey('booklet', city), booklet.value), saveBackup(cityKey('booklet-at', city), booklet.savedAt)]);
+          location.reload();
+        }
+      } catch { /* offline: next time */ } finally { busy = false; }
+    };
+    document.addEventListener('visibilitychange', check);
+    const timer = setInterval(check, 60_000);
+    return () => { document.removeEventListener('visibilitychange', check); clearInterval(timer); };
+  }, [city]);
 
   // History is kept outside React's updaters (which may run twice in dev).
   const current = useRef<Booklet | null>(null);
