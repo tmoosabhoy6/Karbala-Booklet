@@ -65,6 +65,22 @@ const errorText = async (res: Response) => {
   try { return (JSON.parse(text) as { error?: string }).error ?? text; } catch { return text || res.statusText; }
 };
 
+/** The server's copy and its stamp (0: saved before stamps, or never). */
+async function loadStamped<T>(name: 'booklet' | 'defaults', city: City): Promise<{ value: T; savedAt: number }> {
+  const res = await fetch(`/api/${name}?city=${city}`, { cache: 'no-store' });
+  const value = await json<T>(res);
+  return { value, savedAt: Number(res.headers.get('X-Saved-At')) || 0 };
+}
+/** `ok: false` (409): another device saved a newer copy since `basedOn`. */
+async function saveStamped(name: 'booklet' | 'defaults', city: City, value: unknown, basedOn: number, restore: boolean) {
+  const res = await fetch(`/api/${name}?city=${city}`, {
+    method: 'PUT', body: JSON.stringify(value),
+    headers: { 'Content-Type': 'application/json', 'X-Based-On': String(basedOn), ...(restore ? { 'X-Restore': '1' } : {}) },
+  });
+  if (res.status !== 409 && !res.ok) throw new Error(await errorText(res));
+  return { ok: res.ok, savedAt: Number(res.headers.get('X-Saved-At')) || 0 };
+}
+
 export const api = {
   aiStatus: () => fetch('/api/ai/status').then((r) => json<{ configured: boolean; model: string; referenceBank: { documents: number; pages: number } }>(r)),
   restore: (id: string, script = 'auto') => fetch(`/api/media/${id}/restore`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script }) }).then((r) => json<RestorationJob>(r)),
@@ -143,6 +159,11 @@ export const api = {
     if (!res.ok) throw new Error(await errorText(res));
     return ((await res.json()) as { url: string }).url;
   },
+  /** Ask the server to make this booklet's PDF ahead of a download. Quietly
+   * does nothing when it cannot (a lost image is handed back on Download). */
+  preparePdf: (request: ExportRequest) => {
+    void fetch('/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...request, prepare: true }) }).catch(() => undefined);
+  },
   /** A Zikre Husain verse: the server's copy when it has one; otherwise made
    * on this device and handed to the server finished (no work there);
    * otherwise made by the server. */
@@ -179,12 +200,16 @@ export const api = {
   /** The Zikre Husain library: which images make up a kalam (or chosen verses). */
   libraryPlan: (n: number, verses: number[] | null) =>
     fetch(`/api/library/${n}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses }) }).then((r) => json<{ ids: string[] }>(r)),
-  loadBooklet: (city: City) => fetch(`/api/booklet?city=${city}`).then((r) => json<Booklet | null>(r)),
-  saveBooklet: (doc: Booklet) => fetch(`/api/booklet?city=${cityOf(doc.venue)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc) }),
-  loadDefaults: (city: City) => fetch(`/api/defaults?city=${city}`).then((r) => json<Defaults>(r)),
-  saveDefaults: async (d: Defaults, city: City) => {
+  loadBooklet: (city: City) => loadStamped<Booklet | null>('booklet', city),
+  /** Saved over the copy stamped `basedOn`; `restore`: this is that copy. */
+  saveBooklet: (doc: Booklet, basedOn: number, restore = false) => saveStamped('booklet', cityOf(doc.venue), doc, basedOn, restore),
+  loadDefaults: (city: City) => loadStamped<Defaults>('defaults', city).then((r) => r.value ?? {}),
+  loadDefaultsStamped: (city: City) => loadStamped<Defaults>('defaults', city),
+  saveDefaults: async (d: Defaults, city: City, basedOn: number, restore = false) => {
     await saveBackup(cityKey('defaults', city), d);
-    return fetch(`/api/defaults?city=${city}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+    const result = await saveStamped('defaults', city, d, basedOn, restore);
+    if (result.ok) await saveBackup(cityKey('defaults-at', city), result.savedAt);
+    return result;
   },
 };
 

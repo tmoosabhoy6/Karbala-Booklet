@@ -49,6 +49,19 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
     [updateKalam],
   );
 
+  // The PDF is made ahead on the server once the booklet has sat unchanged
+  // for a little while (and nothing is uploading): Download is then instant.
+  // Any change, or other work on the server, drops the early copy.
+  const settled = !Object.values(uploads).some((n) => n > 0) && !Object.values(fetching).some((n) => n > 0);
+  useEffect(() => {
+    if (!doc || !settled || busy) return;
+    const t = setTimeout(() => {
+      const d = new Date(`${doc.date}T12:00:00`);
+      api.preparePdf({ doc, filename: `${raatTitleLatin(d)} Matam Majlis.pdf`, title: `${raatTitle(d)} – ماتم مجلس` });
+    }, 12_000);
+    return () => clearTimeout(t);
+  }, [doc, settled, busy]);
+
   // This device keeps its own copy of Zikre Husain, fetched once when idle.
   useEffect(() => prefetchZh(), []);
 

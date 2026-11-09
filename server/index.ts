@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Browser } from 'playwright';
 import sharp from 'sharp';
-import { addMedia, currentLibraryMedia, editMedia, ensureFixedMedia, getMedia, MEDIA, pngName, pngSize, readJson, reinstateMedia, storeLibraryMedia, writeJson, type MediaMeta } from './store';
+import { addMedia, currentLibraryMedia, DATA, editMedia, ensureFixedMedia, ensureMediaFile, getMedia, MEDIA, pngName, pngSize, readJson, reinstateMedia, storeLibraryMedia, writeJson, type MediaMeta } from './store';
 import type { ExportRequest, PrintPayload } from '../src/booklet/print';
 import { mediaSrc, openingSrc } from '../src/booklet/media';
 import { paginate } from '../src/booklet/paginate';
@@ -18,8 +18,9 @@ import { readFile, rename, writeFile } from 'node:fs/promises';
 import { PROCESSOR_VERSION, svgWrapper } from './ink';
 import { closeRecognition } from './recognize';
 import { restorationJob, restorationStatus, startRestoration } from './restore';
-import { heavyWork } from './resources';
+import { beforeOtherHeavyWork, heavyWaiting, heavyWork } from './resources';
 import { validScript } from './lettering';
+import { durableStatus, flushDurable, mirror } from './durable';
 import { closeLibrary, isLibraryMedia, libraryAvailable, libraryGeometry, libraryPlan, libraryPreview, librarySource } from './library';
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -40,7 +41,7 @@ sharp.concurrency(1);
 
 // For the host's uptime checks; the only route open without the password.
 app.get('/api/health', (_req, res) => res.send('ok'));
-app.get('/api/version', (_req, res) => res.json({ processorVersion: PROCESSOR_VERSION, revision: process.env.RENDER_GIT_COMMIT ?? 'local' }));
+app.get('/api/version', (_req, res) => res.json({ processorVersion: PROCESSOR_VERSION, revision: process.env.RENDER_GIT_COMMIT ?? 'local', storage: durableStatus() }));
 
 const passwordOk = (header = '') => {
   const [scheme, encoded = ''] = header.split(' ');
@@ -127,6 +128,7 @@ app.get(
   '/api/media/:id/original',
   route(async (req, res) => {
     if (!/^[\w-]+$/.test(req.params.id)) return res.status(400).end();
+    if (!(await ensureMediaFile(`${req.params.id}.orig`))) return res.status(404).end();
     const png = await sharp(path.join(MEDIA, `${req.params.id}.orig`)).rotate().png().toBuffer();
     res.type('png').send(png);
   }),
@@ -185,6 +187,12 @@ app.use('/media', (req, res, next) => {
   getMedia(match[1]).then(() => next(), next);
 });
 
+// A file a restart wiped comes back from durable storage (server/durable.ts).
+app.use('/media', (req, res, next) => {
+  const name = req.path.slice(1);
+  if (!/^[\w-]+\.\d+\.(png|opening\.png)$/.test(name) || existsSync(path.join(MEDIA, name))) return next();
+  ensureMediaFile(name).then(() => next(), next);
+});
 // Files are revisioned by ?v=rev, so they can be cached hard.
 app.use('/media', express.static(MEDIA, { maxAge: '1y', immutable: true }));
 // Very old booklet entries ask for `<id>.svg` or `<id>.<rev>.svg`; only the
@@ -192,6 +200,7 @@ app.use('/media', express.static(MEDIA, { maxAge: '1y', immutable: true }));
 async function legacySvg(id: string, rev?: number) {
   const meta = await getMedia(id);
   if (!meta) return null;
+  await ensureMediaFile(pngName(id, rev ?? meta.rev));
   const png = await readFile(path.join(MEDIA, pngName(id, rev ?? meta.rev))).catch(() => null);
   const size = png && pngSize(png);
   return size ? svgWrapper(png!, size.width, size.height) : null;
@@ -207,10 +216,41 @@ app.get(/^\/media\/([\w-]+?)(?:\.(\d+))?\.svg$/, route(async (req, res) => {
 // One of each per city: Karbala keeps the original file names, Najaf gets
 // its own (?city=najaf).
 const cityFile = (req: express.Request, name: string) => (req.query.city === 'najaf' ? `${name}-najaf.json` : `${name}.json`);
-app.get('/api/booklet', route(async (req, res) => res.json(await readJson(cityFile(req, 'booklet')))));
-app.put('/api/booklet', route(async (req, res) => res.json(await writeJson(cityFile(req, 'booklet'), req.body))));
-app.get('/api/defaults', route(async (req, res) => res.json((await readJson(cityFile(req, 'defaults'))) ?? {})));
-app.put('/api/defaults', route(async (req, res) => res.json(await writeJson(cityFile(req, 'defaults'), req.body))));
+// Every saved copy has a stamp (X-Saved-At). A save names the copy it
+// replaces: a phone still holding an older copy never overwrites the laptop's
+// newer defaults or booklet; it is told to take the newer copy instead (409).
+const stampFile = (file: string) => file.replace(/\.json$/, '.stamp.json');
+const savedAt = async (file: string) => (await readJson<{ savedAt: number }>(stampFile(file)))?.savedAt ?? 0;
+const saves = new Map<string, Promise<unknown>>();
+for (const [name, empty] of [['booklet', null], ['defaults', {}]] as const) {
+  app.get(`/api/${name}`, route(async (req, res) => {
+    const file = cityFile(req, name);
+    const [value, stamp] = await Promise.all([readJson(file), savedAt(file)]);
+    res.setHeader('X-Saved-At', String(stamp));
+    res.json(value ?? empty);
+  }));
+  app.put(`/api/${name}`, route(async (req, res) => {
+    const file = cityFile(req, name);
+    // One save per file at a time, so the stamp check and the write go together.
+    const turn = (saves.get(file) ?? Promise.resolve()).catch(() => undefined).then(async () => {
+      // X-Based-On: the saved copy this one replaces (a page from before
+      // stamps sends none and always saves). X-Restore: this is that copy
+      // itself, handed back after a restart, so it keeps its stamp.
+      const stored = await savedAt(file);
+      const based = Number(req.get('X-Based-On') ?? Infinity);
+      if (!(based >= stored)) return { stale: true, stored };
+      const stamp = req.get('X-Restore') === '1' && Number.isFinite(based) ? based : Math.max(Date.now(), stored + 1);
+      await writeJson(file, req.body);
+      await writeJson(stampFile(file), { savedAt: stamp });
+      return { stale: false, stored: stamp };
+    });
+    saves.set(file, turn);
+    const result = await turn;
+    res.setHeader('X-Saved-At', String(result.stored));
+    if (result.stale) return res.status(409).json({ error: 'A newer copy was saved from another device.', savedAt: result.stored });
+    res.json(null);
+  }));
+}
 
 // ---- PDF export ----
 const pending = new Map<string, unknown>();
@@ -220,23 +260,39 @@ app.get('/api/print/:id', (req, res) => {
   res.json(doc);
 });
 
-// Launch only while printing. Keeping Chromium resident alongside OCR can
-// exceed the free host's memory even when neither request is doing work.
-// The driver itself is loaded on the first download, not at every start.
+// Launched for the first download, then kept warm for a little while (a
+// second download after a small fix starts at once): closed after
+// BROWSER_IDLE, and straight away before any other heavy work (cleaning a
+// screenshot, OCR), since keeping Chromium resident alongside them can exceed
+// the free host's memory.
 let browser: Promise<Browser> | null = null;
-const getBrowser = () => (browser ??= import('playwright').then(({ chromium }) => chromium.launch()).then((b) => {
-  b.on('disconnected', () => { browser = null; });
-  return b;
-}).catch((e) => { browser = null; throw e; }));
+let browserIdle: NodeJS.Timeout | undefined;
+const BROWSER_IDLE = Number(process.env.BROWSER_IDLE_MS ?? 120_000);
+const getBrowser = () => {
+  clearTimeout(browserIdle);
+  return (browser ??= import('playwright').then(({ chromium }) => chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {})).then((b) => {
+    b.on('disconnected', () => { browser = null; });
+    return b;
+  }).catch((e) => { browser = null; throw e; }));
+};
+async function closeBrowser() {
+  clearTimeout(browserIdle);
+  const current = browser;
+  browser = null;
+  if (current) await (await current.catch(() => null))?.close().catch(() => undefined);
+}
+beforeOtherHeavyWork(closeBrowser);
 
 // Finished PDFs are fetched by a plain link, which phones download more
 // reliably than a script-made file. Each is kept for 15 minutes.
 const pdfs = new Map<string, Buffer>();
 /** Pages per Chromium print (see the export below). */
 const PRINT_CHUNK = Number(process.env.PRINT_CHUNK ?? 6);
+/** Pieces printed from one page before a fresh one. */
+const PAGE_REUSE = Number(process.env.PRINT_PAGE_REUSE ?? 4);
 const PDF_TTL = 15 * 60_000;
 const completed = new Map<string, { id: string; expires: number }>();
-const exporting = new Map<string, Promise<string>>();
+const exporting = new Map<string, ExportJob>();
 let printQueue = Promise.resolve();
 app.get('/api/pdf/:id/:filename', (req, res) => {
   const pdf = pdfs.get(req.params.id);
@@ -257,7 +313,7 @@ app.post(
     const match = PRINT_FILE.exec(String(req.query.src ?? ''));
     if (!match || !Buffer.isBuffer(req.body) || !pngSize(req.body)) return res.status(400).send('Not a verse image.');
     const file = path.join(MEDIA, `${match[1]}.${match[2]}.${match[3]}`);
-    if (!existsSync(file)) { await writeFile(`${file}.tmp`, req.body); await rename(`${file}.tmp`, file); }
+    if (!existsSync(file)) { await writeFile(`${file}.tmp`, req.body); await rename(`${file}.tmp`, file); mirror(DATA, file, req.body); }
     res.end();
   }),
 );
@@ -286,7 +342,7 @@ app.post(
           continue;
         }
         if (!/^\/media\/[\w-]+\.\d+\.(png|svg|opening\.png)$/.test(src)) return res.status(400).send('Invalid screenshot revision.');
-        if (isLibraryMedia(block.mediaId) && !existsSync(path.join(MEDIA, src.slice('/media/'.length)))) {
+        if (isLibraryMedia(block.mediaId) && !(await ensureMediaFile(src.slice('/media/'.length)))) {
           const meta = await getMedia(block.mediaId).catch(() => null);
           if (meta && meta.rev !== block.rev) outdated = true;
         }
@@ -294,7 +350,7 @@ app.post(
         // their revisioned name: inlined as data URLs they were copied into
         // the snapshot, its JSON and every page that shows a slice of them,
         // which ran a long booklet out of the free host's memory.
-        if (!existsSync(path.join(MEDIA, src.slice('/media/'.length)))) missing.push(src);
+        if (!(await ensureMediaFile(src.slice('/media/'.length)))) missing.push(src);
       }
     }
     if (outdated) return res.status(409).json({ missing, error: 'The Zikre Husain verses have been updated. Reload the page, then download again.' });
@@ -302,59 +358,94 @@ app.post(
     const key = createHash('sha256').update(JSON.stringify({ doc, assets, title })).digest('hex');
     const cached = completed.get(key);
     if (cached && cached.expires > Date.now() && pdfs.has(cached.id)) return res.json({ url: `/api/pdf/${cached.id}/${encodeURIComponent(filename)}` });
-    if (!exporting.has(key)) {
-      const job = printQueue.then(() => heavyWork(async () => {
-      await Promise.all([closeRecognition(), closeLibrary()]);
-      const id = randomUUID();
-      const context = await (await getBrowser()).newContext(PASSWORD ? { httpCredentials: { username: 'print', password: PASSWORD } } : {});
-      pending.set(id, { doc, assets });
-      try {
-      // A few pages at a time, each from a fresh page that holds only those
-      // pages: Chromium keeps every image a page loads, and a long booklet
-      // of library verses decodes to more than the free host's memory. The
-      // pieces are joined after.
-      const { PDFDocument } = await import('pdf-lib');
-      const pdf = await PDFDocument.create();
-      const count = paginate(doc).pages.length;
-      for (let from = 0; from < count; from += PRINT_CHUNK) {
-        const page = await context.newPage();
-        await page.goto(`${APP_URL}/?print=${id}&from=${from}&to=${Math.min(count, from + PRINT_CHUNK)}`);
-        await page.waitForFunction(() => window.__BOOKLET_READY__ === true || !!window.__BOOKLET_ERROR__, null, { timeout: 90_000 });
-        const error = await page.evaluate(() => window.__BOOKLET_ERROR__);
-        if (error) throw new Error(error);
-        const part = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true, printBackground: true }));
-        await page.close();
-        for (const p of await pdf.copyPages(part, part.getPageIndices())) pdf.addPage(p);
-      }
-      if (pdf.getPageCount() !== count) throw new Error(`The PDF came out with ${pdf.getPageCount()} pages instead of ${count}.`);
-      mergeDuplicateStreams(pdf);
-      pdf.setTitle(title, { showInWindowTitleBar: true });
-      pdf.setAuthor('Faiz-e-Husaini Society (Iraq)');
-      pdf.setCreator('Karbala Booklet');
-      pdf.setLanguage('ar');
-      pdfs.set(id, Buffer.from(await pdf.save()));
-      completed.set(key, { id, expires: Date.now() + PDF_TTL });
-      while (completed.size > 2) {
-        const oldest = completed.keys().next().value!;
-        pdfs.delete(completed.get(oldest)!.id); completed.delete(oldest);
-      }
-      setTimeout(() => pdfs.delete(id), PDF_TTL).unref();
-      return id;
-      } finally {
-        pending.delete(id);
-        const current = browser;
-        browser = null;
-        try { await context.close(); }
-        finally { if (current) await (await current).close(); }
-      }
-      }));
-      printQueue = job.then(() => undefined, () => undefined);
-      exporting.set(key, job.finally(() => exporting.delete(key)));
-    }
-    const id = await exporting.get(key)!;
+    const prepare = !!(req.body as { prepare?: boolean }).prepare;
+    const start = () => {
+      // A download asked for now outranks every PDF being made ahead.
+      const job: ExportJob = { wanted: !prepare, generation: ++latestPrepare, promise: null! };
+      job.promise = printQueue.then(() => heavyWork(() => printBooklet(job, doc, assets, title, key), { print: true }));
+      printQueue = job.promise.then(() => undefined, () => undefined);
+      exporting.set(key, job);
+      job.promise.finally(() => { if (exporting.get(key) === job) exporting.delete(key); }).catch(() => undefined);
+      return job;
+    };
+    const running = exporting.get(key) ?? start();
+    running.wanted ||= !prepare;
+    // Made ahead while the booklet sits unchanged (see Editor): no download.
+    if (prepare) return res.status(202).json(null);
+    const made = (job: ExportJob) => job.promise.catch((error) => { if (error instanceof Superseded) return null; throw error; });
+    const id = (await made(running)) ?? (await made(start()));
+    if (!id) throw new Error('The PDF could not be made. Try again.');
     res.json({ url: `/api/pdf/${id}/${encodeURIComponent(filename)}` });
   }),
 );
+
+/** A PDF made ahead of time is dropped when the booklet changes again, or
+ * when other work (a new screenshot) is waiting for the server. */
+interface ExportJob { wanted: boolean; generation: number; promise: Promise<string> }
+let latestPrepare = 0;
+class Superseded extends Error {}
+const superseded = (job: ExportJob) => !job.wanted && (job.generation !== latestPrepare || heavyWaiting() > 0 || [...exporting.values()].some((j) => j !== job && j.wanted));
+
+async function printBooklet(job: ExportJob, doc: ExportRequest['doc'], assets: Record<string, string>, title: string, key: string): Promise<string> {
+  if (superseded(job)) throw new Superseded('A newer booklet replaced this one.');
+  const started = Date.now();
+  await Promise.all([closeRecognition(), closeLibrary()]);
+  const id = randomUUID();
+  const context = await (await getBrowser()).newContext(PASSWORD ? { httpCredentials: { username: 'print', password: PASSWORD } } : {});
+  pending.set(id, { doc, assets });
+  try {
+    // A few pages at a time, the pieces joined after: Chromium keeps every
+    // image a page shows, and a long booklet of library verses decodes to
+    // more than the free host's memory. One print page serves several pieces
+    // (it is told which pages to show next); a fresh one every few pieces
+    // lets go of what the earlier ones loaded.
+    const { PDFDocument } = await import('pdf-lib');
+    const pdf = await PDFDocument.create();
+    const count = paginate(doc).pages.length;
+    let page: Awaited<ReturnType<typeof context.newPage>> | null = null;
+    let uses = 0;
+    for (let from = 0; from < count; from += PRINT_CHUNK) {
+      if (superseded(job)) throw new Superseded('A newer booklet replaced this one.');
+      const to = Math.min(count, from + PRINT_CHUNK);
+      if (page && uses >= PAGE_REUSE) { await page.close(); page = null; }
+      if (!page) {
+        page = await context.newPage();
+        uses = 0;
+        await page.goto(`${APP_URL}/?print=${id}&from=${from}&to=${to}`);
+      } else {
+        await page.evaluate(([a, b]) => window.__BOOKLET_RANGE__!(a, b), [from, to] as const);
+      }
+      uses++;
+      await page.waitForFunction(() => window.__BOOKLET_READY__ === true || !!window.__BOOKLET_ERROR__, null, { timeout: 120_000 });
+      const error = await page.evaluate(() => window.__BOOKLET_ERROR__);
+      if (error) throw new Error(error);
+      const part = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true, printBackground: true }));
+      for (const p of await pdf.copyPages(part, part.getPageIndices())) pdf.addPage(p);
+      console.log(`export: pages ${from}-${to} of ${count} printed by ${Date.now() - started}ms`);
+    }
+    if (pdf.getPageCount() !== count) throw new Error(`The PDF came out with ${pdf.getPageCount()} pages instead of ${count}.`);
+    mergeDuplicateStreams(pdf);
+    pdf.setTitle(title, { showInWindowTitleBar: true });
+    pdf.setAuthor('Faiz-e-Husaini Society (Iraq)');
+    pdf.setCreator('Karbala Booklet');
+    pdf.setLanguage('ar');
+    pdfs.set(id, Buffer.from(await pdf.save({ objectsPerTick: Infinity })));
+    console.log(`export: ${count} pages, ${(pdfs.get(id)!.length / 1e6).toFixed(1)} MB in ${Date.now() - started}ms${job.wanted ? '' : ' (made ahead)'}`);
+    completed.set(key, { id, expires: Date.now() + PDF_TTL });
+    while (completed.size > 2) {
+      const oldest = completed.keys().next().value!;
+      pdfs.delete(completed.get(oldest)!.id); completed.delete(oldest);
+    }
+    setTimeout(() => pdfs.delete(id), PDF_TTL).unref();
+    return id;
+  } finally {
+    pending.delete(id);
+    await context.close().catch(() => undefined);
+    clearTimeout(browserIdle);
+    browserIdle = setTimeout(() => void closeBrowser(), BROWSER_IDLE);
+    browserIdle.unref();
+  }
+}
 
 if (PROD) {
   // Built code and styles carry a content hash in their names (dist/app/), so
@@ -379,7 +470,7 @@ const shutdown = async () => {
   if (closing) return;
   closing = true;
   http.close();
-  await Promise.allSettled([browser?.then((b) => b.close()), closeRecognition(), closeLibrary()]);
+  await Promise.allSettled([closeBrowser(), closeRecognition(), closeLibrary(), flushDurable()]);
   process.exit(0);
 };
 process.on('SIGTERM', shutdown);

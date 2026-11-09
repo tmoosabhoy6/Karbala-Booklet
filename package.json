@@ -10,7 +10,8 @@
     "build": "tsc && vite build && node scripts/build-server.mjs",
     "start": "npm run build && NODE_ENV=production node build/server.js",
     "assets": "node tools/build-logos.mjs && python3 tools/optimize_assets.py",
-    "verify:lettering": "tsx tools/verify-lettering.ts"
+    "verify:lettering": "tsx tools/verify-lettering.ts",
+    "verify:durable": "npm run build && tsx tools/verify-durable.ts"
   },
   "dependencies": {
     "@tesseract.js-data/ara": "^1.0.0",

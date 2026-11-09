@@ -15,6 +15,11 @@ const STANZA_EXTRA = 0.55;
 /** Clear space above and below a stanza's ink inside its crop (pt). */
 const CROP_PAD = 3;
 const SEPARATOR_H = 28;
+/** A kalam's last lines this tall (pt) or less never go on to a page of
+ * their own: the stanza gaps on the page tighten to keep them (to no less
+ * than TIGHTEST of their size). */
+const TAIL_MAX = 150;
+const TIGHTEST = 0.6;
 const ORNAMENT_H = 68;
 const PAGE_ROOM = CONTENT.bottom - CONTENT.top;
 
@@ -251,6 +256,8 @@ export function paginate(doc: Booklet): Layout {
   let y = 0;
   // The stanza just placed on this page, which the next one is spaced from.
   let prevUnit: Unit | null = null;
+  // Stanza gaps of the kalam being placed, below 1 once its page tightened.
+  let leadScale = 1;
 
   const newPage = () => {
     pageNo += 1;
@@ -286,9 +293,29 @@ export function paginate(doc: Booklet): Layout {
 
   /** A stanza moves whole to the next page; only one taller than a page is
    * broken, between rows. */
-  const placeUnit = (u: Unit, plan: ReturnType<typeof kalamUnits>, anchor?: string, titleLink?: boolean) => {
+  /** Room for the kalam's last `tail` pt (this stanza on) by tightening the
+   * stanza gaps on this page and in the tail itself; false if they would
+   * have to shrink below TIGHTEST. */
+  const tighten = (lead: number, tail: number, tailLeads: number) => {
+    const page = cur!.items.filter((it): it is Extract<PlacedItem, { kind: 'block' }> => it.kind === 'block' && (it.lead ?? 0) > CROP_PAD);
+    const leads = page.reduce((sum, it) => sum + it.lead! - CROP_PAD, 0) + Math.max(0, lead - CROP_PAD) + tailLeads;
+    const need = lead + tail - room();
+    const k = leads > 0 ? 1 - need / leads : 0;
+    if (k < TIGHTEST) return false;
+    for (const it of page) {
+      const tighter = CROP_PAD + (it.lead! - CROP_PAD) * k;
+      y -= it.lead! - tighter;
+      it.lead = tighter;
+    }
+    leadScale *= k;
+    return true;
+  };
+  const scaledLead = (lead: number) => (lead > CROP_PAD ? CROP_PAD + (lead - CROP_PAD) * leadScale : lead);
+
+  const placeUnit = (u: Unit, plan: ReturnType<typeof kalamUnits>, anchor?: string, titleLink?: boolean, tail?: { height: number; leads: number }) => {
     if (!cur) newPage();
-    const lead = plan.lead(prevUnit, u);
+    let lead = scaledLead(plan.lead(prevUnit, u));
+    if (!fits(lead + unitHeight(u)) && tail && tail.height <= TAIL_MAX && cur!.items.length && tighten(lead, tail.height, tail.leads)) lead = scaledLead(plan.lead(prevUnit, u));
     if (fits(lead + unitHeight(u))) return emitUnit(u, lead, anchor, titleLink);
     if (unitHeight(u) <= PAGE_ROOM) {
       newPage();
@@ -374,10 +401,23 @@ export function paginate(doc: Booklet): Layout {
       anchorPage.set(anchor, pageNo);
     }
     prevUnit = null;
+    leadScale = 1;
+    // Each stanza's share of what is left of the kalam (all stanzas only:
+    // text and whole images break their own way).
+    const all = kalam.blocks.flatMap((b) => plan.units.get(b.id) ?? []);
+    const tails = new Map<Unit, { height: number; leads: number }>();
+    if (kalam.blocks.every((b) => plan.units.has(b.id))) {
+      let height = 0, leads = 0;
+      for (let j = all.length - 1; j >= 0; j--) {
+        height += unitHeight(all[j]);
+        tails.set(all[j], { height, leads });
+        if (j > 0) { const l = plan.lead(all[j - 1], all[j]); height += l; leads += Math.max(0, l - CROP_PAD); }
+      }
+    }
     kalam.blocks.forEach((block, i) => {
       const a = i === 0 && !withHeading ? anchor : undefined;
       const units = plan.units.get(block.id);
-      if (units) units.forEach((u, j) => placeUnit(u, plan, j === 0 ? a : undefined, j === 0 && selfTitled(kalam) && i === 0));
+      if (units) units.forEach((u, j) => placeUnit(u, plan, j === 0 ? a : undefined, j === 0 && selfTitled(kalam) && i === 0, tails.get(u)));
       else if (block.kind === 'image') placeImage(block, a, selfTitled(kalam) && i === 0);
       else {
         const lines = block.text.split('\n');

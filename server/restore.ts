@@ -36,7 +36,7 @@ export async function startRestoration(mediaId: string, script: LetteringScript 
     job.status = 'restoring';
     // Start with the untouched source and the user's crop/erase edits. Never
     // send an older threshold-traced SVG back to the model as its source.
-    const clean = await heavyWork(async () => cleanScreenshot(await readFile(path.join(MEDIA, `${mediaId}.orig`)), source.edits, { ocr: false }));
+    const clean = await heavyWork(async () => cleanScreenshot(await readFile(path.join(MEDIA, `${mediaId}.orig`)), source.edits, { ocr: false, enhance: false }));
     const prepared = await restorationInput(clean.png);
     const samples = await letteringReferences(script);
     const response = await fetch('https://api.openai.com/v1/images/edits', {

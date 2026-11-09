@@ -7,6 +7,7 @@ import path from 'node:path';
 import { cleanScreenshot, Edits, PROCESSOR_VERSION, Region } from './ink';
 import { heavyWork } from './resources';
 import { isLibraryMedia, libraryBuild, libraryContinues, libraryGeometry, libraryImage } from './library';
+import { ensureLocal, mirror } from './durable';
 
 export const DATA = path.resolve(process.env.DATA_DIR ?? 'data');
 export const MEDIA = path.join(DATA, 'media');
@@ -46,6 +47,8 @@ export interface MediaMeta {
   restoration?: { sourceId: string; sourceRev: number; model: string; referenceVersion: number };
   /** A library image whose first verse runs on from the image before it. */
   continues?: boolean;
+  /** The HD pass's enlargement of the cleaned source (server/ink.ts). */
+  scale?: number;
   /** The library build a library image was made from (library.ts libraryBuild). */
   library?: string;
 }
@@ -75,10 +78,20 @@ async function writeWhole(file: string, data: string | Buffer) {
     const tmp = `${file}.${randomUUID()}.tmp`;
     await writeFile(tmp, data);
     await rename(tmp, file);
+    mirror(DATA, file, data);
   });
   writing.set(file, turn);
   try { await turn; } finally { if (writing.get(file) === turn) writing.delete(file); }
 }
+
+/** A media file written (and copied to durable storage, server/durable.ts). */
+async function saveFile(file: string, data: Buffer) {
+  await writeFile(file, data);
+  mirror(DATA, file, data);
+}
+/** A media file (`<id>.json`, `<id>.<rev>.png`, …) on disk, fetched back from
+ * durable storage when a restart lost it. */
+export const ensureMediaFile = (name: string) => ensureLocal(DATA, path.join(MEDIA, name));
 
 function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration'], library?: string): Promise<MediaMeta> {
   return heavyWork(() => processImage(id, original, edits, rev, restoration, library));
@@ -87,7 +100,7 @@ function writeProcessed(id: string, original: Buffer, edits: Edits, rev: number,
 export async function cleanMedia(id: string, original: Buffer, edits: Edits, rev: number, restoration?: MediaMeta['restoration']) {
   // Built-in pages and library verses need no OCR: no page numbers to find,
   // and the fihrist shows their own opening words.
-  const { png, openingPng, ...geometry } = await cleanScreenshot(original, edits, { ocr: !id.startsWith('fixed-') && !isLibraryMedia(id) && !restoration, marks: !isLibraryMedia(id) });
+  const { png, openingPng, ...geometry } = await cleanScreenshot(original, edits, { ocr: !id.startsWith('fixed-') && !isLibraryMedia(id) && !restoration, marks: !isLibraryMedia(id), enhance: !isLibraryMedia(id) });
   // A 50% tracing threshold erased faint hairlines and small dots. Export the
   // antialiased ink itself, including high-resolution generated drafts.
   const meta: MediaMeta = { id, rev, ...geometry, edits, restoration, processorVersion: PROCESSOR_VERSION, format: 'png', openingImage: !!openingPng };
@@ -100,8 +113,8 @@ async function processImage(id: string, original: Buffer, edits: Edits, rev: num
   // Only the versioned PNG and the opening words are ever read; old SVG
   // entries are rebuilt on request (see svgWrapper).
   await Promise.all([
-    writeFile(path.join(MEDIA, pngName(id, rev)), png),
-    ...(openingPng ? [writeFile(path.join(MEDIA, openingName(id, rev)), openingPng)] : []),
+    saveFile(path.join(MEDIA, pngName(id, rev)), png),
+    ...(openingPng ? [saveFile(path.join(MEDIA, openingName(id, rev)), openingPng)] : []),
   ]);
   await writeWhole(metaPath(id), JSON.stringify(meta));
   return meta;
@@ -109,15 +122,16 @@ async function processImage(id: string, original: Buffer, edits: Edits, rev: num
 
 export async function addMedia(original: Buffer, id: string = randomUUID(), options: { edits?: Edits; restoration?: MediaMeta['restoration'] } = {}): Promise<MediaMeta> {
   safeId(id);
-  await writeFile(path.join(MEDIA, `${id}.orig`), original);
+  await (id.startsWith('fixed-') ? writeFile(path.join(MEDIA, `${id}.orig`), original) : saveFile(path.join(MEDIA, `${id}.orig`), original));
   return writeProcessed(id, original, options.edits ?? {}, Date.now(), options.restoration);
 }
 
 export async function editMedia(id: string, edits: Edits): Promise<MediaMeta> {
   safeId(id);
+  await Promise.all([ensureLocal(DATA, metaPath(id)), ensureMediaFile(`${id}.orig`)]);
   const prev: MediaMeta = JSON.parse(await readFile(metaPath(id), 'utf8'));
   // A library verse finished in the browser has no render here yet: make it.
-  if (isLibraryMedia(id) && !existsSync(path.join(MEDIA, `${id}.orig`))) await writeFile(path.join(MEDIA, `${id}.orig`), await heavyWork(() => libraryImage(id)));
+  if (isLibraryMedia(id) && !existsSync(path.join(MEDIA, `${id}.orig`))) await saveFile(path.join(MEDIA, `${id}.orig`), await heavyWork(() => libraryImage(id)));
   const original = await readFile(path.join(MEDIA, `${id}.orig`));
   // Timestamp revisions keep cached files (served immutable) from going stale.
   // A library verse keeps its build, so its crop and erase edits stay.
@@ -131,7 +145,7 @@ const processing = new Map<string, Promise<MediaMeta>>();
 function makeLibraryMedia(id: string): Promise<MediaMeta> {
   if (!processing.has(id)) processing.set(id, heavyWork(async () => {
     const png = await libraryImage(id);
-    await writeFile(path.join(MEDIA, `${id}.orig`), png);
+    await saveFile(path.join(MEDIA, `${id}.orig`), png);
     const build = libraryBuild();
     return processImage(id, png, {}, fixedRev(Buffer.from(`${id}:${build}`)), undefined, build);
   }).finally(() => processing.delete(id)));
@@ -142,9 +156,9 @@ function makeLibraryMedia(id: string): Promise<MediaMeta> {
  * otherwise (nothing is made). */
 export async function currentLibraryMedia(id: string): Promise<MediaMeta | null> {
   safeId(id);
-  if (!isLibraryMedia(id) || !existsSync(metaPath(id))) return null;
+  if (!isLibraryMedia(id) || !(await ensureLocal(DATA, metaPath(id)))) return null;
   const meta: MediaMeta = JSON.parse(await readFile(metaPath(id), 'utf8'));
-  return meta.processorVersion === PROCESSOR_VERSION && meta.library === libraryBuild() && existsSync(path.join(MEDIA, pngName(id, meta.rev))) ? meta : null;
+  return meta.processorVersion === PROCESSOR_VERSION && meta.library === libraryBuild() && (await ensureMediaFile(pngName(id, meta.rev))) ? meta : null;
 }
 
 /**
@@ -171,13 +185,14 @@ export async function storeLibraryMedia(id: string, build: string, given: Partia
     suggestedName: '', recognitionConfidence: 0, warnings: (given.warnings ?? []).filter((w) => typeof w === 'string').slice(0, 5), edits: {},
     processorVersion: PROCESSOR_VERSION, format: 'png', openingImage: true, library, ...(libraryContinues(id) ? { continues: true } : {}),
   };
-  await Promise.all([writeFile(path.join(MEDIA, pngName(id, rev)), png), writeFile(path.join(MEDIA, openingName(id, rev)), opening)]);
+  await Promise.all([saveFile(path.join(MEDIA, pngName(id, rev)), png), saveFile(path.join(MEDIA, openingName(id, rev)), opening)]);
   await writeWhole(metaPath(id), JSON.stringify(meta));
   return meta;
 }
 
 export async function getMedia(id: string): Promise<MediaMeta | null> {
   safeId(id);
+  if (!id.startsWith('fixed-')) await ensureLocal(DATA, metaPath(id));
   if (!existsSync(metaPath(id)) && isLibraryMedia(id)) return makeLibraryMedia(id);
   if (!existsSync(metaPath(id))) return null;
   const meta: MediaMeta = JSON.parse(await readFile(metaPath(id), 'utf8'));
@@ -185,14 +200,14 @@ export async function getMedia(id: string): Promise<MediaMeta | null> {
   // older render (which may lack lettering a newer build restores).
   if (isLibraryMedia(id)) return meta.processorVersion === PROCESSOR_VERSION && meta.library === libraryBuild() ? meta : makeLibraryMedia(id);
   if (meta.processorVersion === PROCESSOR_VERSION) return meta;
-  if (!processing.has(id)) processing.set(id, readFile(path.join(MEDIA, `${id}.orig`))
+  if (!processing.has(id)) processing.set(id, ensureMediaFile(`${id}.orig`).then(() => readFile(path.join(MEDIA, `${id}.orig`)))
     .then((original) => writeProcessed(id, original, meta.edits ?? {}, Math.max(Date.now(), meta.rev + 1), meta.restoration))
     .finally(() => processing.delete(id)));
   return processing.get(id)!;
 }
 
 /** Only fields the server itself writes are taken from a browser's copy. */
-const META_KEYS = ['rev', 'width', 'height', 'bands', 'lineHeight', 'edits', 'processorVersion', 'format', 'regions', 'suggestedName', 'recognitionConfidence', 'warnings', 'opening', 'openingImage', 'restoration', 'continues'] as const;
+const META_KEYS = ['rev', 'width', 'height', 'bands', 'lineHeight', 'edits', 'processorVersion', 'format', 'regions', 'suggestedName', 'recognitionConfidence', 'warnings', 'opening', 'openingImage', 'restoration', 'continues', 'scale'] as const;
 const positive = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) > 0;
 
 /**
@@ -209,7 +224,7 @@ export async function reinstateMedia(id: string, given: Partial<MediaMeta>, file
   if (!files.original.length) throw new Error('No image received.');
   const meta = { id, ...Object.fromEntries(META_KEYS.filter((k) => given[k] !== undefined).map((k) => [k, given[k]])) } as MediaMeta;
   if (!positive(meta.rev)) throw new Error('Invalid screenshot revision.');
-  await writeFile(path.join(MEDIA, `${id}.orig`), files.original);
+  await saveFile(path.join(MEDIA, `${id}.orig`), files.original);
   const size = files.png && pngSize(files.png);
   const opening = files.opening && pngSize(files.opening);
   const finished = meta.format === 'png' && size && positive(meta.width) && positive(meta.height) && size.width === meta.width && size.height === meta.height
@@ -219,8 +234,8 @@ export async function reinstateMedia(id: string, given: Partial<MediaMeta>, file
     return writeProcessed(id, files.original, meta.edits ?? {}, Math.max(Date.now(), meta.rev + 1), meta.restoration);
   }
   await Promise.all([
-    writeFile(path.join(MEDIA, pngName(id, meta.rev)), files.png!),
-    ...(meta.openingImage ? [writeFile(path.join(MEDIA, openingName(id, meta.rev)), files.opening!)] : []),
+    saveFile(path.join(MEDIA, pngName(id, meta.rev)), files.png!),
+    ...(meta.openingImage ? [saveFile(path.join(MEDIA, openingName(id, meta.rev)), files.opening!)] : []),
   ]);
   await writeWhole(metaPath(id), JSON.stringify(meta));
   // A copy from an older cleaner is brought up to date from its original.
@@ -269,6 +284,7 @@ export async function ensureFixedMedia(): Promise<void> {
 
 export async function readJson<T>(name: string): Promise<T | null> {
   const p = path.join(DATA, name);
+  await ensureLocal(DATA, p);
   return existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null;
 }
 

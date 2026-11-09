@@ -9,14 +9,24 @@ declare global {
   interface Window {
     __BOOKLET_READY__?: boolean;
     __BOOKLET_ERROR__?: string;
+    /** Print pages [from, to) next, without loading the page again. */
+    __BOOKLET_RANGE__?: (from: number, to: number) => void;
   }
 }
 
 /** Chromium loads `/?print=<id>&from=<page>&to=<page>` to render the booklet
  * alone for PDF export, a few pages at a time (laid out whole, so page
  * numbers and the fihrist stay right). */
-function PrintView({ id, range }: { id: string; range?: [number, number] }) {
+function PrintView({ id, range: first }: { id: string; range?: [number, number] }) {
   const [payload, setPayload] = useState<PrintPayload | null>(null);
+  // The server prints a long booklet a few pages at a time from this one
+  // page: loading the app, its fonts and the booklet again for every few
+  // pages took a third of the export time on the free host.
+  const [range, setRange] = useState(first);
+  useEffect(() => {
+    window.__BOOKLET_RANGE__ = (from, to) => { window.__BOOKLET_READY__ = false; setRange([from, to]); };
+    return () => { delete window.__BOOKLET_RANGE__; };
+  }, []);
   const doc = payload?.doc;
   useEffect(() => {
     window.__BOOKLET_READY__ = false;
@@ -46,7 +56,7 @@ function PrintView({ id, range }: { id: string; range?: [number, number] }) {
       }));
     }).catch(() => { if (!cancelled) window.__BOOKLET_ERROR__ = 'A verse image or font failed to load. Re-add the missing screenshot and retry.'; });
     return () => { cancelled = true; };
-  }, [layout]);
+  }, [layout, range]);
   return doc && layout ? <BookletView doc={doc} layout={layout} assets={payload?.assets} range={range} /> : null;
 }
 

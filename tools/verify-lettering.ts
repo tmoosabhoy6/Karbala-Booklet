@@ -19,6 +19,48 @@ try {
   const pixels = await sharp(dawat.png).raw().toBuffer();
   assert(pixels.some((v,i) => i%4 === 0 && v > 180 && pixels[i+1] < 100 && pixels[i+3] > 150), 'Keep the red refrain.');
 
+  // HD lettering (server/ink.ts enhance): small screenshot rows come out
+  // about 110 px tall, every row and region scaled with them, and not one
+  // dot or stroke lost or added: brought back to the source's size, the ink
+  // has the same separate pieces (letters, dots, vowel marks) as the source.
+  const pieces = (data: Uint8Array | Buffer, w: number, h: number, channels: number) => {
+    const on = (i: number) => data[i * channels + channels - 1] > 110;
+    const seen = new Uint8Array(w * h); let count = 0;
+    for (let i = 0; i < w * h; i++) {
+      if (seen[i] || !on(i)) continue;
+      count++; const stack = [i]; seen[i] = 1; let size = 0;
+      while (stack.length) { const p = stack.pop()!; size++; const x = p % w;
+        for (const q of [p - w, p + w, x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1]) if (q >= 0 && q < w * h && !seen[q] && on(q)) { seen[q] = 1; stack.push(q); } }
+      if (size < 3 * (w * h) / 300_000) count--;
+    }
+    return count;
+  };
+  for (const file of files.slice(4, 8)) {
+    const input = await readFile('tests/fixtures/lettering/' + file);
+    const plain = await cleanScreenshot(input, {}, { ocr: false, enhance: false });
+    const hd = await cleanScreenshot(input, {}, { ocr: false });
+    assert(hd.lineHeight >= 100 && hd.width > plain.width * 1.5, file + ': small rows must be brought up to print resolution');
+    assert.equal(hd.bands.length, plain.bands.length, file + ': HD keeps every row');
+    assert(hd.regions.every((r) => r.y >= 0 && r.y + r.h <= hd.height && r.x + r.w <= hd.width), file + ': HD regions inside the image');
+    const opening = await sharp(hd.openingPng!).metadata();
+    assert(opening.width === hd.opening.w && opening.height === hd.opening.h, file + ': opening image matches its rectangle');
+    // Counted at the HD size against a plain resize of the source: the
+    // sharpened edges must not join a dot to its letter, nor break a stroke.
+    const size = { width: hd.width, height: hd.height };
+    const [plainUp, sharp_] = await Promise.all([
+      sharp(plain.png).resize(size.width, size.height, { fit: 'fill', kernel: 'lanczos3' }).ensureAlpha().raw().toBuffer(),
+      sharp(hd.png).ensureAlpha().raw().toBuffer(),
+    ]);
+    const [a, b] = [pieces(plainUp, size.width, size.height, 4), pieces(sharp_, size.width, size.height, 4)];
+    assert(b >= a * 0.98 && b <= a * 1.08, `${file}: HD must keep every dot and stroke apart and whole (${a} pieces resized, ${b} in HD)`);
+  }
+  // Cropped tight above its first line, a row's dots touch the top edge as
+  // a separate sliver: they are that row's dots, not a cut-off line, and stay.
+  const tight = Buffer.from(`<svg width="400" height="120" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="120" fill="white"/>
+    <rect x="100" y="0" width="8" height="7" fill="black"/><rect x="200" y="0" width="8" height="7" fill="black"/>
+    <rect x="40" y="11" width="320" height="40" fill="black"/><rect x="40" y="75" width="320" height="40" fill="black"/></svg>`);
+  const tightClean = await cleanScreenshot(tight, {}, { ocr: false, enhance: false });
+  assert(tightClean.regions[0].top <= 2, 'Dots above a tightly cropped first line must not be erased.');
   // A hairline with only 35% coverage vanished under the former 50% tracer.
   // A detached dot, separated from the main body, must survive pagination too.
   const fixture = Buffer.from('<svg width="200" height="140"><rect width="200" height="140" fill="white"/><path d="M30 70H160V100H30Z" fill="black"/><path d="M50 70V40" stroke="#aaaaaa" stroke-width="1"/><rect x="80" y="18" width="3" height="3" fill="black"/></svg>');
@@ -41,7 +83,7 @@ try {
     <rect x="80" y="47" width="22" height="20" fill="black"/>
     <rect x="20" y="70" width="5" height="17" fill="black"/><rect x="30" y="70" width="8" height="17" fill="black"/>
     <path d="M30 213 Q42 205 46 216 Q42 228 30 224 Z" fill="#c0263a"/></svg>`);
-  const numbered = await cleanScreenshot(verse, {}, { ocr: false });
+  const numbered = await cleanScreenshot(verse, {}, { ocr: false, enhance: false });
   assert.equal(numbered.bands.length, 6, 'A number between two rows must never merge them.');
   assert(numbered.regions.every((r) => r.group === 0), 'Evenly spaced rows are one stanza; rows are never paired artificially.');
   const ink = await sharp(numbered.png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -59,7 +101,7 @@ try {
   const tail = Buffer.from(`<svg width="2000" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="2000" height="400" fill="white"/>
     ${[0, 1, 2].map((i) => Array.from({ length: 10 }, (_, j) => `<rect x="${200 + j * 160}" y="${40 + i * 120}" width="130" height="50" fill="black"/>`).join('')).join('')}
     <rect x="900" y="90" width="2" height="28" fill="black"/></svg>`);
-  const tailed = await cleanScreenshot(tail, {}, { ocr: false });
+  const tailed = await cleanScreenshot(tail, {}, { ocr: false, enhance: false });
   const [tailRow] = tailed.regions;
   assert(tailed.regions.length === 3 && tailRow.bottom - tailRow.top >= 50 + 28 - 1 && tailRow.lineHeight === 50, 'A thin tail stays inside its row; the lettering size ignores it.');
   // A refrain of one repeated word (حسين حسين … حسينا) across justified
@@ -69,7 +111,7 @@ try {
   const refrainRaw = await sharp(refrain).removeAlpha().raw().toBuffer();
   let rawInk = 0;
   for (let i = 0; i < refrainRaw.length; i += 3) if (255 - Math.min(refrainRaw[i], refrainRaw[i + 1], refrainRaw[i + 2]) > 100) rawInk++;
-  const refrainClean = await sharp((await cleanScreenshot(refrain, {}, { ocr: false })).png).ensureAlpha().raw().toBuffer();
+  const refrainClean = await sharp((await cleanScreenshot(refrain, {}, { ocr: false, enhance: false })).png).ensureAlpha().raw().toBuffer();
   let cleanInk = 0;
   for (let i = 3; i < refrainClean.length; i += 4) if (refrainClean[i] > 100) cleanInk++;
   assert(cleanInk >= rawInk * 0.98, `Refrain words at the margins must stay (${cleanInk} of ${rawInk} ink pixels).`);

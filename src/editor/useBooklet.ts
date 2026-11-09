@@ -64,7 +64,7 @@ export const sameBlocks = (a: Block[], b: Block[]) =>
  * over Karbala's). The copy is marked in the browser, so unpinning one in
  * Najaf later does not bring it back.
  */
-async function withKarbalaPins(city: City, own: Defaults): Promise<Defaults | null> {
+async function withKarbalaPins(city: City, own: Defaults, basedOn: number): Promise<{ merged: Defaults; savedAt: number } | null> {
   const marker = cityKey('pins-copied', city);
   if (city === 'karbala' || (await readBackup(marker))) return null;
   const [remote, local] = await Promise.all([api.loadDefaults('karbala'), loadDefaultsBackup('karbala')]);
@@ -74,9 +74,10 @@ async function withKarbalaPins(city: City, own: Defaults): Promise<Defaults | nu
   // Karbala's Matam, Dua and Salam Arz are its own; Najaf has its defaults.
   const shared = Object.fromEntries(Object.entries(karbala).filter(([slot, d]) => !d.off && !CITY_SLOTS.includes(slot)));
   const merged = { ...shared, ...own };
-  await api.saveDefaults(merged, city);
+  const saved = await api.saveDefaults(merged, city, basedOn);
+  if (!saved.ok) return null;
   await saveBackup(marker, true);
-  return merged;
+  return { merged, savedAt: saved.savedAt };
 }
 
 const replaceLine = (text: string, i: number, line: string) => text.split('\n').map((l, j) => (j === i ? line : l)).join('\n');
@@ -91,20 +92,46 @@ export function useBooklet(city: City) {
   const [loadError, setLoadError] = useState('');
   const past = useRef<Booklet[]>([]);
   const future = useRef<Booklet[]>([]);
+  // Stamps of the server copies this editor's booklet and defaults replace
+  // (server/index.ts). Saves go one at a time, each over the last one's stamp.
+  const docAt = useRef(0);
+  const defsAt = useRef(0);
+  const docSaves = useRef<Promise<unknown>>(Promise.resolve());
+  const defsSaves = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
     (async () => {
-      const [remoteDoc, remoteDefs, builtinMedia, localDoc, localDefs] = await Promise.all([
+      const [remoteDoc, remoteDefs, builtinMedia, localDoc, localDefs, localDocAt = 0, localDefsAt = 0] = await Promise.all([
         api.loadBooklet(city),
-        api.loadDefaults(city),
+        api.loadDefaultsStamped(city),
         Promise.all(BUILTIN_MEDIA[city].map(async (id) => [id, await api.media(id)] as const)),
         loadBookletBackup(city),
         loadDefaultsBackup(city),
+        readBackup<number>(cityKey('booklet-at', city)),
+        readBackup<number>(cityKey('defaults-at', city)),
       ]);
-      const kept = remoteDoc ?? localDoc;
-      const ownDefs = Object.keys(remoteDefs).length ? remoteDefs : localDefs ?? remoteDefs;
-      const copied = await withKarbalaPins(city, ownDefs);
-      let defs = copied ?? ownDefs;
+      // The newest copy wins: this device's, when the server lost its own (a
+      // restart on a free host) or holds an older one; else the server's,
+      // which another device may have changed since this one last opened.
+      const docLocal = !!localDoc && (localDocAt > remoteDoc.savedAt || !remoteDoc.value);
+      const kept = docLocal ? localDoc : remoteDoc.value;
+      docAt.current = docLocal ? localDocAt : remoteDoc.savedAt;
+      const remoteDefsValue = remoteDefs.value ?? {};
+      const defsLocal = !!localDefs && Object.keys(localDefs).length > 0 && (localDefsAt > remoteDefs.savedAt || (!remoteDefs.savedAt && !Object.keys(remoteDefsValue).length));
+      const ownDefs = defsLocal ? localDefs : remoteDefsValue;
+      defsAt.current = defsLocal ? localDefsAt : remoteDefs.savedAt;
+      if (defsLocal) {
+        // Hand the server back this device's newer copy, under its own stamp.
+        const restored = await api.saveDefaults(ownDefs, city, localDefsAt, localDefsAt > 0);
+        if (restored.ok) defsAt.current = restored.savedAt;
+      } else await Promise.all([saveBackup(cityKey('defaults', city), ownDefs), saveBackup(cityKey('defaults-at', city), defsAt.current)]);
+      if (docLocal && localDocAt > 0) {
+        const restored = await api.saveBooklet(localDoc, localDocAt, true).catch(() => null);
+        if (restored?.ok) docAt.current = restored.savedAt;
+      }
+      const copied = await withKarbalaPins(city, ownDefs, defsAt.current);
+      if (copied) defsAt.current = copied.savedAt;
+      let defs = copied?.merged ?? ownDefs;
       // A booklet with nothing added yet starts over with the copied pins in it.
       const stored = kept && cityOf(kept.venue) === city && !(copied && untouched(kept)) ? kept : null;
       const builtinDefs = builtinDefaults(city, Object.fromEntries(builtinMedia));
@@ -132,7 +159,10 @@ export function useBooklet(city: City) {
       });
       const refreshedDefaults = Object.fromEntries(Object.entries(defs).map(([key, value]) => [key, { ...value, blocks: refresh(value.blocks) }]));
       setOwn(refreshedDefaults);
-      if (JSON.stringify(ownDefs) !== JSON.stringify(refreshedDefaults)) await api.saveDefaults(refreshedDefaults, city);
+      if (JSON.stringify(ownDefs) !== JSON.stringify(refreshedDefaults)) {
+        const saved = await api.saveDefaults(refreshedDefaults, city, defsAt.current);
+        if (saved.ok) defsAt.current = saved.savedAt;
+      }
       // Each session starts on today's date; content carries over from last time.
       if (upgraded) {
         setDocState({ ...mapKalams(upgraded.doc, (k) => ({ ...k, blocks: refresh(k.blocks) })), date: todayIso() });
@@ -154,6 +184,23 @@ export function useBooklet(city: City) {
   // Autosave half a second after the last change. A change still waiting
   // when the editor closes (switching city) is saved straight away.
   const unsaved = useRef<Booklet | null>(null);
+  const saveDoc = useCallback((d: Booklet) => {
+    const job = docSaves.current.catch(() => undefined).then(async () => {
+      let result = await api.saveBooklet(d, docAt.current);
+      // Changed on another device since this one loaded it.
+      if (!result.ok && confirm('This booklet was changed on another device. Keep the version on this screen? (Cancel loads the other device\'s version.)')) {
+        result = await api.saveBooklet(d, result.savedAt);
+      } else if (!result.ok) {
+        location.reload();
+        return false;
+      }
+      docAt.current = result.savedAt;
+      await saveBackup(cityKey('booklet-at', city), result.savedAt);
+      return result.ok;
+    });
+    docSaves.current = job;
+    return job;
+  }, [city]);
   useEffect(() => {
     if (!doc) return;
     setSaved(false);
@@ -161,13 +208,13 @@ export function useBooklet(city: City) {
     void saveBookletBackup(doc);
     const t = setTimeout(() => {
       if (unsaved.current === doc) unsaved.current = null;
-      api.saveBooklet(doc).then((r) => { if (r.ok) setSaved(true); }).catch(console.error);
+      saveDoc(doc).then((ok) => { if (ok) setSaved(true); }).catch(console.error);
     }, 500);
     return () => clearTimeout(t);
-  }, [doc]);
+  }, [doc, saveDoc]);
   useEffect(() => () => {
-    if (unsaved.current) void api.saveBooklet(unsaved.current).catch(console.error);
-  }, []);
+    if (unsaved.current) void saveDoc(unsaved.current).catch(console.error);
+  }, [saveDoc]);
 
   // History is kept outside React's updaters (which may run twice in dev).
   const current = useRef<Booklet | null>(null);
@@ -214,7 +261,16 @@ export function useBooklet(city: City) {
 
   const persistDefaults = useCallback((next: Defaults) => {
     setOwn(next);
-    api.saveDefaults(next, city);
+    defsSaves.current = defsSaves.current.catch(() => undefined).then(async () => {
+      const saved = await api.saveDefaults(next, city, defsAt.current);
+      if (saved.ok) { defsAt.current = saved.savedAt; return; }
+      // Another device pinned since: take its defaults, then ask to pin again.
+      const remote = await api.loadDefaultsStamped(city);
+      defsAt.current = remote.savedAt;
+      setOwn(remote.value ?? {});
+      await Promise.all([saveBackup(cityKey('defaults', city), remote.value ?? {}), saveBackup(cityKey('defaults-at', city), remote.savedAt)]);
+      alert('Your defaults were changed on another device, so this screen now shows those. Pin or unpin again if needed.');
+    }).catch(console.error);
   }, [city]);
 
   /** ★: this kalam as it is now fills its slot in new booklets. Pinning a

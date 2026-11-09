@@ -4,7 +4,7 @@
 // screenshots with it (server/ink.ts), and the browser cleans the verses it
 // renders from a PDF (src/library/worker.ts), so both make the same image.
 
-export const PROCESSOR_VERSION = 10;
+export const PROCESSOR_VERSION = 11;
 /** Fihrist navy (#3a456a): opening words are delivered already coloured. */
 const NAVY = [58, 69, 106];
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -18,6 +18,8 @@ export interface InkGeometry {
   width: number; height: number; bands: [number, number][]; lineHeight: number;
   regions: Region[]; opening: Rect; suggestedName: string; recognitionConfidence: number;
   warnings: string[];
+  /** How much the server's HD pass enlarged the cleaned source (server/ink.ts). */
+  scale?: number;
 }
 /** The finished lettering and the fihrist's navy opening words, as RGBA. */
 export interface InkPixels extends InkGeometry { image: Pixels; openingImage: Pixels }
@@ -349,9 +351,17 @@ export async function cleanPixels(source: Pixels, edits: Edits = {}, options: { 
   if (edits.autoClean !== false) {
     const raw = findBands(alpha, W, H, false);
     const typical = median(raw.map(([a, b]) => b - a).filter((h) => h >= 10));
-    for (const [a, b] of raw) {
-      if ((a <= 1 || b >= H - 1) && b - a < typical * 0.55) erase(alpha, W, H, { x: 0, y: a, w: W, h: b - a });
-    }
+    // A sliver at the top or bottom edge is a neighbouring line the
+    // screenshot cut through, unless it hugs the row beside it: then it is
+    // that row's own dots and vowel marks (a screenshot cropped tight above
+    // its first line), which were erased before.
+    raw.forEach(([a, b], i) => {
+      if (!((a <= 1 || b >= H - 1) && b - a < typical * 0.55)) return;
+      const inward = a <= 1 ? raw[i + 1] : raw[i - 1];
+      const gap = inward ? (a <= 1 ? inward[0] - b : a - inward[1]) : Infinity;
+      if (raw.length > 1 && gap < typical * 0.2) return;
+      erase(alpha, W, H, { x: 0, y: a, w: W, h: b - a });
+    });
   }
   if (edits.autoClean !== false && options.marks !== false && W * H <= 12_000_000) removeMarginMarks(alpha, colors, W, H);
   const warnings: string[] = [];

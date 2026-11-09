@@ -22,7 +22,7 @@ const server = spawn(process.execPath, ['build/server.js'], {
 });
 let log = '';
 server.stdout.on('data', (b) => { log += b; }); server.stderr.on('data', (b) => { log += b; });
-const browser = await chromium.launch();
+const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 try {
   for (let i = 0; i < 100; i++) {
     if (await fetch(origin + '/api/health').then((r) => r.ok).catch(() => false)) break;
@@ -41,7 +41,8 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   assert.equal(uploaded.regions.length, 18, 'Only complete verse rows should survive; clipped scraps and the standalone number must disappear.');
   assert(uploaded.regions.every((r: { y: number }, i: number) => !i || r.y >= uploaded.regions[i - 1].y + uploaded.regions[i - 1].h), 'Adjacent row crops must never repeat the neighboring verse fragments.');
-  assert(uploaded.width < 600, 'The long black rule must not remain.');
+  assert(uploaded.width / (uploaded.scale ?? 1) < 600, 'The long black rule must not remain.');
+  assert(uploaded.scale > 2 && uploaded.lineHeight >= 100, 'A small screenshot is brought up to print resolution.');
   assert.equal(uploaded.format, 'png', 'Keep antialiased strokes instead of threshold tracing.');
   const lettering = Buffer.from(await fetch(origin + mediaSrc(imageBlockFrom(uploaded))).then((r) => r.arrayBuffer()));
   assert((await sharp(lettering).metadata()).hasAlpha, 'Print lettering must have a real transparent background.');
