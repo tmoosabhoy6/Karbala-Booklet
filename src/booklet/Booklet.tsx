@@ -45,7 +45,7 @@ function OpeningWords({ block }: { block: ImageBlock }) {
   const src = openingSrc(block);
   if (!r || !src) return null;
   const s = Math.min(218 / r.w, 24 / r.h);
-  return <img className="opening-words" src={assets[src] ?? src} style={{ width: `${r.w * s}pt`, height: `${r.h * s}pt` }} alt="Opening verse (click Edit text to replace its fihrist name)" />;
+  return <img className="opening-words" src={assets[src] ?? src} style={{ width: `calc(${r.w * s}pt * var(--fs, 1))`, height: `calc(${r.h * s}pt * var(--fs, 1))` }} alt="Opening verse (click Edit text to replace its fihrist name)" />;
 }
 
 function Logos({ karbalaWidth, faizHeight }: { karbalaWidth: number; faizHeight: number }) {
@@ -159,7 +159,7 @@ function Fihrist({ page }: { page: Extract<Page, { kind: 'fihrist' }> }) {
   return (
     <>
       <Background name="page-border" />
-      <div className="fihrist">
+      <div className="fihrist" style={page.scale && page.scale < 1 ? ({ '--fs': page.scale } as React.CSSProperties) : undefined}>
         {page.items.map((item, i) => (
           <FihristEntry key={i} item={item} />
         ))}

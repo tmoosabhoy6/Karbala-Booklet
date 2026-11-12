@@ -59,7 +59,8 @@ export type FihristItem =
 
 export type Page =
   | { kind: 'cover' }
-  | { kind: 'fihrist'; number: number; items: FihristItem[]; first: boolean }
+  /** `scale`: below 1 when the fihrist is shrunk to stay on its one page. */
+  | { kind: 'fihrist'; number: number; items: FihristItem[]; first: boolean; scale?: number }
   | { kind: 'content'; number: number; items: PlacedItem[] }
   | { kind: 'back' };
 
@@ -210,16 +211,16 @@ export function paginate(doc: Booklet): Layout {
     }))
     .filter((s) => s.entries.length);
 
-  // ---- fihrist pages (their count fixes where content numbering starts) ----
-  const fihristPages: FihristItem[][] = [[]];
-  let fy = FIHRIST_TOP;
+  // ---- fihrist: always exactly one page ----
+  // Every entry at the reference's sizes; when they would run past the
+  // bottom, the whole fihrist (rows, bars, lettering) is scaled down evenly
+  // until it fits, rather than spilling a row or the closing ornament onto a
+  // second, nearly blank page.
+  const fihristItems: FihristItem[] = [];
+  let fihristHeight = 0;
   const fpush = (item: FihristItem, h: number) => {
-    if (fy + h > FIHRIST_BOTTOM) {
-      fihristPages.push([]);
-      fy = FIHRIST_TOP;
-    }
-    fihristPages[fihristPages.length - 1].push(item);
-    fy += h;
+    fihristItems.push(item);
+    fihristHeight += h;
   };
   const groups: FihristGroup[] = [];
   fpush({ kind: 'head' }, F_HEAD);
@@ -227,31 +228,20 @@ export function paginate(doc: Booklet): Layout {
     fpush({ kind: 'section', title: s.title, index: si }, F_BAR);
     if (si === 0) fpush({ kind: 'cols' }, F_COLS);
     for (const e of s.entries) {
-      const rows = e.kalams.map((k) => ({ id: k.id, name: k.name, opening: !k.name.trim() && k.blocks[0]?.kind === 'image' ? k.blocks[0] : undefined, anchor: kalamAnchor(k), page: 0 }));
-      let first = true;
-      while (rows.length) {
-        const room = Math.floor((FIHRIST_BOTTOM - fy) / F_ROW);
-        if (room < 1) {
-          fihristPages.push([]);
-          fy = FIHRIST_TOP;
-          continue;
-        }
-        const chunk = rows.splice(0, room);
-        const group: FihristGroup = { category: e.category, anchor: chunk[0].anchor, first, kalams: chunk };
-        groups.push(group);
-        fpush({ kind: 'group', group }, chunk.length * F_ROW);
-        first = false;
-      }
+      const kalams = e.kalams.map((k) => ({ id: k.id, name: k.name, opening: !k.name.trim() && k.blocks[0]?.kind === 'image' ? k.blocks[0] : undefined, anchor: kalamAnchor(k), page: 0 }));
+      const group: FihristGroup = { category: e.category, anchor: kalams[0].anchor, first: true, kalams };
+      groups.push(group);
+      fpush({ kind: 'group', group }, kalams.length * F_ROW);
     }
   });
   fpush({ kind: 'end' }, F_END);
+  const fihristScale = Math.min(1, (FIHRIST_BOTTOM - FIHRIST_TOP) / fihristHeight);
 
-  const pages: Page[] = [{ kind: 'cover' }];
-  fihristPages.forEach((items, i) => pages.push({ kind: 'fihrist', number: i + 1, items, first: i === 0 }));
+  const pages: Page[] = [{ kind: 'cover' }, { kind: 'fihrist', number: 1, items: fihristItems, first: true, scale: fihristScale }];
 
   // ---- content pages ----
   const anchorPage = new Map<string, number>();
-  let pageNo = fihristPages.length;
+  let pageNo = 1;
   let cur: { kind: 'content'; number: number; items: PlacedItem[] } | null = null;
   let y = 0;
   // The stanza just placed on this page, which the next one is spaced from.
@@ -317,7 +307,10 @@ export function paginate(doc: Booklet): Layout {
     let lead = scaledLead(plan.lead(prevUnit, u));
     if (!fits(lead + unitHeight(u)) && tail && tail.height <= TAIL_MAX && cur!.items.length && tighten(lead, tail.height, tail.leads)) lead = scaledLead(plan.lead(prevUnit, u));
     if (fits(lead + unitHeight(u))) return emitUnit(u, lead, anchor, titleLink);
-    if (unitHeight(u) <= PAGE_ROOM) {
+    // A stanza moves whole to the next page, unless all this page has is
+    // its heading: then it starts here and breaks between rows, so the
+    // heading is never left alone on an otherwise empty page.
+    if (unitHeight(u) <= PAGE_ROOM && cur!.items.some((it) => it.kind === 'block')) {
       newPage();
       return emitUnit(u, 0, anchor, titleLink);
     }
@@ -457,8 +450,19 @@ export function paginate(doc: Booklet): Layout {
     }
   }
 
-  for (const g of groups) for (const k of g.kalams) k.page = anchorPage.get(k.anchor) ?? 0;
+  // A page left with nothing on it (no heading, no lettering) is never
+  // printed: it is dropped and the pages after it are numbered on.
+  const renumber = new Map<number, number>();
+  let printed = 1;
+  const kept = pages.filter((p) => {
+    if (p.kind !== 'content') return true;
+    if (!p.items.some((it) => it.kind === 'heading' || it.kind === 'block')) return false;
+    renumber.set(p.number, ++printed);
+    p.number = printed;
+    return true;
+  });
+  for (const g of groups) for (const k of g.kalams) k.page = renumber.get(anchorPage.get(k.anchor) ?? 0) ?? 0;
 
-  pages.push({ kind: 'back' });
-  return { pages };
+  kept.push({ kind: 'back' });
+  return { pages: kept };
 }

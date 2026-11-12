@@ -235,26 +235,27 @@
 
 /* ---------- fihrist ---------- */
 .fihrist {
+  /* --fs: below 1 when the fihrist is shrunk to fit its one page (paginate.ts). */
   position: absolute;
   left: 42pt;
   width: 512pt;
   top: 49pt;
-  font-size: 17pt;
+  font-size: calc(17pt * var(--fs, 1));
 }
 
 .fihrist .bar {
-  height: 36pt;
+  height: calc(36pt * var(--fs, 1));
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--maroon-deep);
-  font-size: 18pt;
+  font-size: calc(18pt * var(--fs, 1));
 }
 
 .fihrist .bar.head {
   background: var(--maroon-tint);
   border-bottom: 0.5pt solid var(--rule);
-  height: 41pt;
+  height: calc(41pt * var(--fs, 1));
 }
 
 .fihrist .bar.section {
@@ -264,10 +265,10 @@
 .fihrist .cols {
   display: grid;
   grid-template-columns: 118pt 1fr 92pt;
-  height: 50pt;
+  height: calc(50pt * var(--fs, 1));
   align-items: center;
   color: var(--gold);
-  font-size: 17pt;
+  font-size: calc(17pt * var(--fs, 1));
 }
 
 .fihrist .cols > * {
@@ -291,7 +292,7 @@
 .fihrist .row {
   display: grid;
   grid-template-columns: 1fr 92pt;
-  height: 34.7pt;
+  height: calc(34.7pt * var(--fs, 1));
   align-items: center;
   border-bottom: 0.5pt solid var(--rule);
   color: var(--navy);
@@ -300,7 +301,7 @@
 .fihrist .row .name {
   display: flex;
   align-items: center;
-  gap: 6pt;
+  gap: calc(6pt * var(--fs, 1));
   white-space: nowrap;
   overflow: hidden;
 }
@@ -317,8 +318,8 @@
 }
 
 .fihrist .row .name img {
-  width: 21pt;
-  height: 7.2pt;
+  width: calc(21pt * var(--fs, 1));
+  height: calc(7.2pt * var(--fs, 1));
   flex: none;
 }
 
@@ -327,14 +328,14 @@
 }
 
 .fihrist .end {
-  margin-top: 14pt;
+  margin-top: calc(14pt * var(--fs, 1));
   display: flex;
   justify-content: center;
 }
 
 .fihrist .end img {
-  width: 180pt;
-  height: 26pt;
+  width: calc(180pt * var(--fs, 1));
+  height: calc(26pt * var(--fs, 1));
 }
 
 /* ---------- back cover ---------- */
