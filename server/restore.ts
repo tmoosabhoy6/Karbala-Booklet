@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
-import { addMedia, getMedia, MEDIA, type MediaMeta } from './store';
+import { addMedia, ensureOriginal, getMedia, MEDIA, type MediaMeta } from './store';
 import { cleanScreenshot } from './ink';
 import { heavyWork } from './resources';
 import { letteringReferences, referenceBank, restorationInput, restorationPrompt, type LetteringScript } from './lettering';
@@ -21,7 +21,8 @@ let nextSlot = 0, day = '', used = 0;
 export async function startRestoration(mediaId: string, script: LetteringScript = 'auto'): Promise<Job> {
   if (!key) throw new Error('OpenAI image restoration is not connected yet.');
   const source = await getMedia(mediaId);
-  if (!source) throw new Error('The original screenshot is missing. Add it again before restoring.');
+  // The original may be only in durable storage after a restart.
+  if (!source || !(await ensureOriginal(mediaId))) throw new Error('The original screenshot is missing. Add it again before restoring.');
   const fingerprint = createHash('sha256').update(`${mediaId}:${source.rev}:${model}:${quality}:${script}:bank-${referenceBank.version}:pipeline-3`).digest('hex');
   const existing = cache.get(fingerprint);
   if (existing && jobs.get(existing)?.status !== 'failed') return jobs.get(existing)!;

@@ -52,6 +52,15 @@ export function recognize(png: Buffer): Promise<Recognition> {
   return job;
 }
 
+/** Stop OCR at once, even mid-recognition (a job that overran its time,
+ * server/resources.ts): the worker is terminated and the next one starts fresh. */
+export async function abortRecognition() {
+  const current = worker;
+  worker = undefined;
+  queue = Promise.resolve();
+  if (current) await (await current.catch(() => null))?.terminate().catch(() => undefined);
+}
+
 export async function closeRecognition() {
   const release = queue.then(async () => {
     const current = worker;

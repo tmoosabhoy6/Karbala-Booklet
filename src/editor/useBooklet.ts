@@ -1,9 +1,17 @@
 // Working-booklet state: load, autosave (debounced), undo/redo, and pinned defaults.
+//
+// Only a change made here is ever saved: opening the booklet, or taking in a
+// copy another device saved, saves nothing (each would otherwise count as a
+// newer copy and make every other open device reload). Every change is kept
+// in this browser at once, marked unsaved until a save goes through; a save
+// that fails is tried again, so nothing typed is lost to a closed tab or a
+// dropped connection (src/editor/sync.ts decides which copy opens).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TextEdits } from '../booklet/Editable';
 import {
   BUILTIN_MEDIA,
   Block,
+  BoxAnchor,
   Booklet,
   CITIES,
   CITY_SLOTS,
@@ -14,6 +22,7 @@ import {
   MediaMeta,
   TEXT_COLORS,
   Venue,
+  blockGeometry,
   builtinDefaults,
   cityOf,
   cloneBlocks,
@@ -28,8 +37,10 @@ import {
   uid,
   upgradeBooklet,
 } from '../booklet/model';
-import { api } from './api';
-import { cityKey, loadBookletBackup, loadDefaultsBackup, readBackup, saveBackup, saveBookletBackup } from './cache';
+import { anchorBoxes } from '../booklet/paginate';
+import { api, type StorageState } from './api';
+import { cityKey, loadBookletCopy, loadDefaultsBackup, readBackup, saveBackup, saveBookletCopy } from './cache';
+import { chooseCopy, retryDelay, sessionDate } from './sync';
 
 export const todayIso = () => {
   const d = new Date();
@@ -37,12 +48,13 @@ export const todayIso = () => {
 };
 
 const HISTORY = 60;
-const imageGeometry = (m: MediaMeta) => ({ mediaId: m.id, rev: m.rev, width: m.width, height: m.height, bands: m.bands, lineHeight: m.lineHeight, regions: m.regions, opening: m.opening, openingImage: m.openingImage, format: m.format, suggestedName: m.suggestedName, warnings: m.warnings, continues: m.continues });
+const imageGeometry = blockGeometry;
 
 const mapKalams = (d: Booklet, fn: (k: Kalam) => Kalam): Booklet => ({
   ...d,
   kalams: Object.fromEntries(Object.entries(d.kalams).map(([c, ks]) => [c, ks.map(fn)])) as Booklet['kalams'],
 });
+const blocksOf = (d: Booklet | undefined | null) => Object.values(d?.kalams ?? {}).flatMap((ks) => ks.flatMap((k) => k.blocks));
 
 /** Only default content: nothing added to the booklet yet. */
 const untouched = (d: Booklet) =>
@@ -80,7 +92,29 @@ async function withKarbalaPins(city: City, own: Defaults, basedOn: number): Prom
   return { merged, savedAt: saved.savedAt };
 }
 
+/** Screenshot details as the server has them now (a newer cleaner may have
+ * cleaned one again since); a screenshot the server lost is handed back
+ * from this browser's copy. Library verses are followed separately. */
+async function currentMedia(blocks: Block[]) {
+  const ids = [...new Set(blocks.flatMap((b) => (b.kind === 'image' && !isLibraryMedia(b.mediaId) ? [b.mediaId] : [])))];
+  return new Map(await Promise.all(ids.map(async (id) => {
+    let meta: MediaMeta | null = await api.media(id);
+    const block = blocks.find((b) => b.kind === 'image' && b.mediaId === id);
+    if (!meta && block?.kind === 'image') meta = await api.recover(block).catch(() => null);
+    return [id, meta] as const;
+  })));
+}
+const refreshWith = (media: Map<string, MediaMeta | null>) => (blocks: Block[]) => blocks.map((b): Block => {
+  if (b.kind !== 'image' || isLibraryMedia(b.mediaId)) return b;
+  const meta = media.get(b.mediaId);
+  return meta ? { ...b, ...imageGeometry(meta) } : { ...b, warnings: ['The original screenshot is missing. Please add it again.'] };
+});
+
 const replaceLine = (text: string, i: number, line: string) => text.split('\n').map((l, j) => (j === i ? line : l)).join('\n');
+
+/** The "Saved" label: `retrying` after a save failed (it is tried again),
+ * `pending`/`failing`: the server's copy to durable storage (server/durable.ts). */
+export interface SaveStatus extends StorageState { state: 'saved' | 'saving' | 'retrying'; error?: string }
 
 export function useBooklet(city: City) {
   const [doc, setDocState] = useState<Booklet | null>(null);
@@ -88,167 +122,271 @@ export function useBooklet(city: City) {
   const [own, setOwn] = useState<Defaults>({});
   const [builtin, setBuiltin] = useState<Defaults>({});
   const defaults = useMemo(() => effectiveDefaults(builtin, own), [builtin, own]);
-  const [saved, setSaved] = useState(true);
+  const [status, setStatus] = useState<SaveStatus>({ state: 'saved', pending: 0, failing: false });
   const [loadError, setLoadError] = useState('');
   const past = useRef<Booklet[]>([]);
   const future = useRef<Booklet[]>([]);
   // Stamps of the server copies this editor's booklet and defaults replace
-  // (server/index.ts). Saves go one at a time, each over the last one's stamp.
+  // (server/index.ts).
   const docAt = useRef(0);
   const defsAt = useRef(0);
-  const docSaves = useRef<Promise<unknown>>(Promise.resolve());
-  const docInFlight = useRef(0);
   const defsSaves = useRef<Promise<unknown>>(Promise.resolve());
+  // History is kept outside React's updaters (which may run twice in dev).
+  const current = useRef<Booklet | null>(null);
+  current.current = doc;
+  const builtinRef = useRef(builtin);
+  builtinRef.current = builtin;
+  const defaultsRef = useRef(defaults);
+  defaultsRef.current = defaults;
+  // A change made here that no save has confirmed yet.
+  const dirty = useRef(false);
+  const saving = useRef(false);
+  const again = useRef(false);
+  const failures = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
 
+  /** Show a booklet that is not a change made here (loaded, or saved on
+   * another device): nothing is saved, and undo starts over. */
+  const show = useCallback((next: Booklet) => {
+    past.current = [];
+    future.current = [];
+    current.current = next;
+    setDocState(next);
+  }, []);
+
+  /** A stored booklet as the editor shows it: brought to the current version,
+   * its screenshots' details refreshed, its text boxes anchored, on this
+   * session's date. Library verses made again since follow in the background. */
+  const finish = (d: Booklet, refresh: (blocks: Block[]) => Block[]): Booklet =>
+    anchorBoxes({ ...mapKalams(d, (k) => ({ ...k, blocks: refresh(k.blocks) })), date: sessionDate(d.date, todayIso()) });
+  const followLibrary = useCallback(async (blocks: Block[]) => {
+    const ids = [...new Set(blocks.flatMap((b) => (b.kind === 'image' && isLibraryMedia(b.mediaId) ? [b.mediaId] : [])))];
+    for (const id of ids) {
+      const meta = await api.libraryMedia(id).catch(() => null);
+      const block = blocks.find((b) => b.kind === 'image' && b.mediaId === id);
+      if (!meta || (block?.kind === 'image' && block.rev === meta.rev)) continue;
+      // Made again by a newer build: follow its files (not a change made here).
+      const patch = (b: Block): Block => (b.kind === 'image' && b.mediaId === id ? { ...b, ...imageGeometry(meta) } : b);
+      const d = current.current;
+      if (!d) continue;
+      const next = mapKalams(d, (k) => ({ ...k, blocks: k.blocks.map(patch) }));
+      current.current = next;
+      setDocState(next);
+    }
+  }, []);
+
+  /** Take in the server's copy (saved on another device), in place. */
+  const adopt = useCallback(async (value: Booklet, savedAt: number) => {
+    dirty.current = false;
+    docAt.current = savedAt;
+    await saveBookletCopy(city, { doc: value, basedOn: savedAt, dirty: false });
+    if (value.version !== 2 && value.version !== 3) return;
+    const upgraded = upgradeBooklet(value, defaultsRef.current, builtinRef.current).doc;
+    const blocks = blocksOf(upgraded);
+    show(finish(upgraded, refreshWith(await currentMedia(blocks))));
+    setStatus((s) => ({ ...s, state: 'saved', error: undefined }));
+    void followLibrary(blocks);
+  }, [city, show, followLibrary]);
+
+  // ---- saving ----
+  /** Save the booklet as it is now, if it holds a change no save has
+   * confirmed. One save at a time; a failed one is tried again with growing
+   * pauses, and whenever the page comes back online or into view. */
+  const flush = useCallback(async (): Promise<void> => {
+    clearTimeout(timer.current);
+    const d = current.current;
+    if (!dirty.current || !d) return;
+    if (saving.current) { again.current = true; return; }
+    saving.current = true;
+    setStatus((s) => (s.state === 'retrying' ? s : { ...s, state: 'saving' }));
+    try {
+      let result = await api.saveBooklet(d, docAt.current);
+      if (!result.ok) {
+        // Another device saved changes since this one's copy: a real conflict.
+        if (!confirm('This booklet was changed on another device. Keep the version on this screen? (Cancel opens the other device\'s version.)')) {
+          const remote = await api.loadBooklet(city);
+          if (remote.value) return void (await adopt(remote.value, remote.savedAt));
+        }
+        result = await api.saveBooklet(d, result.savedAt);
+        if (!result.ok) throw new Error('The booklet was changed on another device again.');
+      }
+      failures.current = 0;
+      docAt.current = result.savedAt;
+      // Changed again while saving: still unsaved, now over the new copy.
+      const done = current.current === d;
+      if (done) dirty.current = false;
+      await saveBookletCopy(city, { basedOn: result.savedAt, dirty: !done || dirty.current });
+      setStatus({ state: dirty.current ? 'saving' : 'saved', ...result.storage });
+      if (dirty.current) again.current = true;
+    } catch (error) {
+      failures.current++;
+      console.warn('Saving the booklet failed; trying again:', error);
+      setStatus((s) => ({ ...s, state: 'retrying', error: (error as Error).message }));
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => void flush(), retryDelay(failures.current));
+    } finally {
+      saving.current = false;
+      if (again.current) {
+        again.current = false;
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => void flush(), 500);
+      }
+    }
+  }, [city, adopt]);
+
+  /** A change made here: kept in this browser at once (marked unsaved), and
+   * saved half a second after the last one. */
+  const changed = useCallback((next: Booklet) => {
+    current.current = next;
+    setDocState(next);
+    dirty.current = true;
+    void saveBookletCopy(city, { doc: next, basedOn: docAt.current, dirty: true });
+    setStatus((s) => (s.state === 'retrying' ? s : { ...s, state: 'saving' }));
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => void flush(), 500);
+  }, [city, flush]);
+
+  // Unsaved changes go when the page goes: at once when it is hidden or
+  // closed (a phone switching apps), when the connection returns, and when
+  // the editor closes (switching city). A page being closed can only send a
+  // small booklet; a larger one stays marked unsaved in this browser and is
+  // saved when the booklet next opens.
   useEffect(() => {
+    const online = () => void flush();
+    const hidden = () => { if (document.visibilityState === 'hidden') void flush(); };
+    const leaving = () => {
+      const d = current.current;
+      if (dirty.current && d && !saving.current) void api.saveBooklet(d, docAt.current, false, true).catch(() => undefined);
+    };
+    window.addEventListener('online', online);
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', leaving);
+    return () => {
+      window.removeEventListener('online', online);
+      document.removeEventListener('visibilitychange', hidden);
+      window.removeEventListener('pagehide', leaving);
+      clearTimeout(timer.current);
+      void flush();
+    };
+  }, [flush]);
+
+  // ---- loading ----
+  useEffect(() => {
+    let alive = true;
     (async () => {
-      const [remoteDoc, remoteDefs, builtinMedia, localDoc, localDefs, localDocAt = 0, localDefsAt = 0] = await Promise.all([
+      const [remoteDoc, remoteDefs, builtinMedia, localDoc, localDefs, localDefsAt = 0] = await Promise.all([
         api.loadBooklet(city),
         api.loadDefaultsStamped(city),
         Promise.all(BUILTIN_MEDIA[city].map(async (id) => [id, await api.media(id)] as const)),
-        loadBookletBackup(city),
+        loadBookletCopy(city),
         loadDefaultsBackup(city),
-        readBackup<number>(cityKey('booklet-at', city)),
         readBackup<number>(cityKey('defaults-at', city)),
       ]);
-      // The newest copy wins: this device's, when the server lost its own (a
-      // restart on a free host) or holds an older one; else the server's,
-      // which another device may have changed since this one last opened.
-      const docLocal = !!localDoc && (localDocAt > remoteDoc.savedAt || !remoteDoc.value);
-      const kept = docLocal ? localDoc : remoteDoc.value;
-      docAt.current = docLocal ? localDocAt : remoteDoc.savedAt;
+      // Defaults: the newest copy wins; this device's goes back to a server
+      // that lost its own (one without durable storage).
       const remoteDefsValue = remoteDefs.value ?? {};
       const defsLocal = !!localDefs && Object.keys(localDefs).length > 0 && (localDefsAt > remoteDefs.savedAt || (!remoteDefs.savedAt && !Object.keys(remoteDefsValue).length));
       const ownDefs = defsLocal ? localDefs : remoteDefsValue;
       defsAt.current = defsLocal ? localDefsAt : remoteDefs.savedAt;
       if (defsLocal) {
-        // Hand the server back this device's newer copy, under its own stamp.
         const restored = await api.saveDefaults(ownDefs, city, localDefsAt, localDefsAt > 0);
         if (restored.ok) defsAt.current = restored.savedAt;
       } else await Promise.all([saveBackup(cityKey('defaults', city), ownDefs), saveBackup(cityKey('defaults-at', city), defsAt.current)]);
-      if (docLocal && localDocAt > 0) {
-        const restored = await api.saveBooklet(localDoc, localDocAt, true).catch(() => null);
-        if (restored?.ok) docAt.current = restored.savedAt;
-      }
+
+      // The booklet: which copy opens (src/editor/sync.ts).
+      const choice = chooseCopy(localDoc, remoteDoc);
+      let kept: Booklet | null = null;
+      let unsaved = false;
+      if (choice.use === 'ask') {
+        const keepMine = confirm('This device has changes to the booklet that were never saved, but the booklet was changed on another device since.\n\nOK keeps this device\'s version (it replaces the other one). Cancel opens the other device\'s version.');
+        if (keepMine) { kept = localDoc!.value; docAt.current = remoteDoc.savedAt; unsaved = true; }
+        else { kept = remoteDoc.value; docAt.current = remoteDoc.savedAt; await saveBookletCopy(city, { doc: remoteDoc.value!, basedOn: remoteDoc.savedAt, dirty: false }); }
+      } else if (choice.use === 'local') {
+        kept = localDoc!.value;
+        if (choice.save === 'restore') {
+          // Handed back under its own stamp, to a server that lost it.
+          docAt.current = localDoc!.basedOn;
+          const restored = await api.saveBooklet(kept, localDoc!.basedOn, true).catch(() => null);
+          if (restored?.ok) docAt.current = restored.savedAt;
+          else unsaved = true;
+        } else {
+          docAt.current = remoteDoc.savedAt;
+          unsaved = true;
+        }
+      } else if (choice.use === 'remote') {
+        kept = remoteDoc.value;
+        docAt.current = remoteDoc.savedAt;
+        await saveBookletCopy(city, { doc: remoteDoc.value!, basedOn: remoteDoc.savedAt, dirty: false });
+      } else docAt.current = remoteDoc.savedAt;
+      setStatus({ state: 'saved', ...remoteDoc.storage });
+
       const copied = await withKarbalaPins(city, ownDefs, defsAt.current);
       if (copied) defsAt.current = copied.savedAt;
       let defs = copied?.merged ?? ownDefs;
-      // A booklet with nothing added yet starts over with the copied pins in it.
-      const stored = kept && cityOf(kept.venue) === city && !(copied && untouched(kept)) ? kept : null;
+      // A booklet with nothing added yet starts over with the copied pins in it
+      // (and is saved, since the copy happens only once).
+      const restart = !!(copied && kept && untouched(kept));
+      if (restart) unsaved = true;
+      const stored = kept && cityOf(kept.venue) === city && !restart ? kept : null;
       const builtinDefs = builtinDefaults(city, Object.fromEntries(builtinMedia));
-      setBuiltin(builtinDefs);
       // An older booklet's fixed content becomes default content it owns.
       const upgraded = stored && (stored.version === 2 || stored.version === 3) ? upgradeBooklet(stored, effectiveDefaults(builtinDefs, defs), builtinDefs) : null;
       if (upgraded && Object.keys(upgraded.pins).length) defs = { ...defs, ...upgraded.pins };
-      const docBlocks = Object.values(upgraded?.doc.kalams ?? {}).flatMap((ks) => ks.flatMap((k) => k.blocks));
-      const allBlocks = [...docBlocks, ...Object.values(defs).flatMap((d) => d.blocks)];
-      const ids = new Set(allBlocks.flatMap((b) => (b.kind === 'image' ? [b.mediaId] : [])));
-      // Library verses are made again from the PDF when a page asks for them:
-      // they are checked in the background instead of holding up the editor.
-      const libraryIds = [...ids].filter(isLibraryMedia);
-      const media = new Map((await Promise.all([...ids].filter((id) => !isLibraryMedia(id)).map(async (id) => {
-        let meta: MediaMeta | null = await api.media(id);
-        const block = allBlocks.find((b) => b.kind === 'image' && b.mediaId === id);
-        if (!meta && block?.kind === 'image') meta = await api.recover(block).catch(() => null);
-        return [id, meta] as const;
-      }))));
-      const refresh = (blocks: Block[]) => blocks.map((b): Block => {
-        if (b.kind !== 'image') return b;
-        if (isLibraryMedia(b.mediaId)) return b;
-        const meta = media.get(b.mediaId);
-        return meta ? { ...b, ...imageGeometry(meta) } : { ...b, warnings: ['The original screenshot is missing. Please add it again.'] };
-      });
+      const allBlocks = [...blocksOf(upgraded?.doc), ...Object.values(defs).flatMap((d) => d.blocks)];
+      const refresh = refreshWith(await currentMedia(allBlocks));
       const refreshedDefaults = Object.fromEntries(Object.entries(defs).map(([key, value]) => [key, { ...value, blocks: refresh(value.blocks) }]));
+      if (!alive) return;
+      setBuiltin(builtinDefs);
       setOwn(refreshedDefaults);
       if (JSON.stringify(ownDefs) !== JSON.stringify(refreshedDefaults)) {
         const saved = await api.saveDefaults(refreshedDefaults, city, defsAt.current);
         if (saved.ok) defsAt.current = saved.savedAt;
       }
-      // Each session starts on today's date; content carries over from last time.
-      if (upgraded) {
-        setDocState({ ...mapKalams(upgraded.doc, (k) => ({ ...k, blocks: refresh(k.blocks) })), date: todayIso() });
-      } else {
+      let shown: Booklet;
+      if (upgraded) shown = finish(upgraded.doc, refresh);
+      else {
         const fresh = createBooklet(todayIso(), CITIES[city].venues[0], effectiveDefaults(builtinDefs, refreshedDefaults));
-        setDocState(copied && kept?.overrides ? { ...fresh, overrides: kept.overrides } : fresh);
+        shown = copied && kept?.overrides ? { ...fresh, overrides: kept.overrides } : fresh;
       }
-      for (const id of libraryIds) {
-        const meta = await api.libraryMedia(id).catch(() => null);
-        const block = allBlocks.find((b) => b.kind === 'image' && b.mediaId === id);
-        if (!meta || (block?.kind === 'image' && block.rev === meta.rev)) continue;
-        // Cleaned again by a newer cleaner: follow its files.
-        const patch = (b: Block): Block => (b.kind === 'image' && b.mediaId === id ? { ...b, ...imageGeometry(meta) } : b);
-        setDocState((d) => (d ? mapKalams(d, (k) => ({ ...k, blocks: k.blocks.map(patch) })) : d));
+      if (!alive) return;
+      show(shown);
+      if (unsaved) {
+        // This device's unsaved changes (or the one-time restart) go now.
+        dirty.current = true;
+        await saveBookletCopy(city, { doc: shown, basedOn: docAt.current, dirty: true });
+        void flush();
       }
+      void followLibrary(allBlocks);
     })().catch((error: Error) => setLoadError(error.message));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
-
-  // Autosave half a second after the last change. A change still waiting
-  // when the editor closes (switching city) is saved straight away.
-  const unsaved = useRef<Booklet | null>(null);
-  const saveDoc = useCallback((d: Booklet) => {
-    docInFlight.current++;
-    const job = docSaves.current.catch(() => undefined).then(async () => {
-      let result = await api.saveBooklet(d, docAt.current);
-      // Changed on another device since this one loaded it.
-      if (!result.ok && confirm('This booklet was changed on another device. Keep the version on this screen? (Cancel loads the other device\'s version.)')) {
-        result = await api.saveBooklet(d, result.savedAt);
-      } else if (!result.ok) {
-        location.reload();
-        return false;
-      }
-      docAt.current = result.savedAt;
-      await saveBackup(cityKey('booklet-at', city), result.savedAt);
-      return result.ok;
-    });
-    docSaves.current = job;
-    void job.finally(() => { docInFlight.current--; }).catch(() => undefined);
-    return job;
-  }, [city]);
-  useEffect(() => {
-    if (!doc) return;
-    setSaved(false);
-    unsaved.current = doc;
-    void saveBookletBackup(doc);
-    const t = setTimeout(() => {
-      if (unsaved.current === doc) unsaved.current = null;
-      saveDoc(doc).then((ok) => { if (ok) setSaved(true); }).catch(console.error);
-    }, 500);
-    return () => clearTimeout(t);
-  }, [doc, saveDoc]);
-  useEffect(() => () => {
-    if (unsaved.current) void saveDoc(unsaved.current).catch(console.error);
-  }, [saveDoc]);
 
   // Changes saved from another device reach this one while it is open:
   // checked when the app comes back into view and every minute. Newer
-  // defaults are taken at once; a newer booklet is loaded when nothing typed
-  // here is still waiting to be saved.
+  // defaults are taken at once; a newer booklet is taken in place when
+  // nothing changed here is waiting to be saved.
   useEffect(() => {
     let busy = false;
     const check = async () => {
       if (busy || document.visibilityState !== 'visible' || !current.current) return;
       busy = true;
       try {
+        if (dirty.current && !saving.current) void flush();
         const [defs, booklet] = await Promise.all([api.loadDefaultsStamped(city), api.loadBooklet(city)]);
         if (defs.savedAt > defsAt.current) {
           defsAt.current = defs.savedAt;
           setOwn(defs.value ?? {});
           await Promise.all([saveBackup(cityKey('defaults', city), defs.value ?? {}), saveBackup(cityKey('defaults-at', city), defs.savedAt)]);
         }
-        if (booklet.value && booklet.savedAt > docAt.current && !unsaved.current && !docInFlight.current) {
-          await Promise.all([saveBackup(cityKey('booklet', city), booklet.value), saveBackup(cityKey('booklet-at', city), booklet.savedAt)]);
-          location.reload();
-        }
-      } catch { /* offline: next time */ } finally { busy = false; }
+        if (booklet.value && booklet.savedAt > docAt.current && !dirty.current && !saving.current) await adopt(booklet.value, booklet.savedAt);
+        setStatus((s) => ({ ...s, ...booklet.storage }));
+      } catch { /* offline, or storage not reachable: next time */ } finally { busy = false; }
     };
     document.addEventListener('visibilitychange', check);
-    const timer = setInterval(check, 60_000);
-    return () => { document.removeEventListener('visibilitychange', check); clearInterval(timer); };
-  }, [city]);
-
-  // History is kept outside React's updaters (which may run twice in dev).
-  const current = useRef<Booklet | null>(null);
-  current.current = doc;
+    const t = setInterval(check, 60_000);
+    return () => { document.removeEventListener('visibilitychange', check); clearInterval(t); };
+  }, [city, adopt, flush]);
 
   const setDoc = useCallback((fn: (d: Booklet) => Booklet) => {
     const d = current.current;
@@ -257,27 +395,24 @@ export function useBooklet(city: City) {
     if (next === d) return;
     past.current = [...past.current.slice(-HISTORY + 1), d];
     future.current = [];
-    current.current = next;
-    setDocState(next);
-  }, []);
+    changed(next);
+  }, [changed]);
 
   const undo = useCallback(() => {
     const d = current.current;
     const prev = past.current.pop();
     if (!d || !prev) return;
     future.current.push(d);
-    current.current = prev;
-    setDocState(prev);
-  }, []);
+    changed(prev);
+  }, [changed]);
 
   const redo = useCallback(() => {
     const d = current.current;
     const next = future.current.pop();
     if (!d || !next) return;
     past.current.push(d);
-    current.current = next;
-    setDocState(next);
-  }, []);
+    changed(next);
+  }, [changed]);
 
   const updateKalams = useCallback(
     (category: Category, fn: (ks: Kalam[]) => Kalam[]) => setDoc((d) => ({ ...d, kalams: { ...d.kalams, [category]: fn(d.kalams[category]) } })),
@@ -396,17 +531,20 @@ export function useBooklet(city: City) {
     [setDoc],
   );
 
-  /** A new, empty text box centred on (x, y) of `page`; it opens for typing. */
+  /** A new, empty text box centred on (x, y) of `page`; it opens for typing.
+   * `place` says what it belongs to (paginate.ts anchorAt), and turns the
+   * box's top into the y it keeps. */
   const addTextBox = useCallback(
-    (page: number, x: number, y: number) => {
+    (page: number, x: number, y: number, place: (top: number) => { anchor?: BoxAnchor; y: number } = (top) => ({ y: top })) => {
       const sizePt = 24;
-      const box = { id: uid(), page, x, y: Math.max(0, Math.round(y - sizePt * 0.8)), text: '', sizePt, color: TEXT_COLORS[city][1] };
+      const at = place(Math.max(0, Math.round(y - sizePt * 0.8)));
+      const box = { id: uid(), page, x, y: at.y, ...(at.anchor ? { anchor: at.anchor } : {}), text: '', sizePt, color: TEXT_COLORS[city][1] };
       setDoc((d) => ({ ...d, textBoxes: [...(d.textBoxes ?? []), box] }));
     },
     [city, setDoc],
   );
 
-  return { doc, loadError, setDoc, defaults, builtin, saved, undo, redo, updateKalams, updateKalam, pin, unpin, restoreDefault, moveSection, replaceMedia, reset, textEdits, addTextBox };
+  return { doc, loadError, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, pin, unpin, restoreDefault, moveSection, replaceMedia, reset, textEdits, addTextBox };
 }
 
 export type BookletState = ReturnType<typeof useBooklet>;

@@ -45,25 +45,50 @@ async function digest(bytes: ArrayBuffer): Promise<string> {
 type Shared = { key: string; updated: number; deleted?: boolean };
 const enc = encodeURIComponent;
 const updatedAt = async (key: string) => (await readMeta<number>(`updated:${key}`).catch(() => undefined)) ?? 0;
-/** Send this device's copy of a PDF's details (and the file, the first time). */
+// Changes not yet on the server, kept until it has them: PDFs whose details
+// (names, splits) still have to go up, and PDFs removed here whose removal
+// still has to reach it. Each sync tries them again.
+const UNSHARED = 'user-pdfs-unshared';
+const REMOVED = 'user-pdfs-removed';
+const unsharedKeys = async () => (await readMeta<string[]>(UNSHARED).catch(() => undefined)) ?? [];
+const removedKeys = async () => (await readMeta<{ key: string; at: number }[]>(REMOVED).catch(() => undefined)) ?? [];
+const setUnshared = async (key: string, waiting: boolean) => {
+  const keys = (await unsharedKeys()).filter((k) => k !== key);
+  await writeMeta(UNSHARED, waiting ? [...keys, key] : keys);
+};
+
+/** Send this device's copy of a PDF's details (and the file, the first time).
+ * Its time stamp moves only once the server has it, and until then it stays
+ * marked to be sent again. */
 async function share(key: string, withFile = false) {
+  await setUnshared(key, true);
   try {
     const [list, lib, kalams] = await Promise.all([listUserPdfs(), readMeta<Library>(`lib:${key}`), userKalams(key)]);
     const pdf = list.find((p) => p.key === key);
-    if (!pdf || !lib) return;
+    if (!pdf || !lib) return void (await setUnshared(key, false));
     if (withFile) {
       const blob = await readFile(key);
-      if (!blob) return;
+      if (!blob) return void (await setUnshared(key, false));
       const sent = await fetch(`/api/pdfs/${enc(key)}/file`, { method: 'PUT', body: blob });
       if (!sent.ok) throw new Error(await sent.text());
     }
     const updated = Date.now();
-    await writeMeta(`updated:${key}`, updated);
     const res = await fetch(`/api/pdfs/${enc(key)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pdf, lib, kalams, updated }) });
     if (!res.ok && res.status !== 409) throw new Error(await res.text());
+    // 409: another device saved newer details, which the next sync brings here.
+    if (res.ok) await writeMeta(`updated:${key}`, updated);
+    await setUnshared(key, false);
   } catch (error) {
     console.warn('This PDF could not be shared with your other devices yet:', error);
   }
+}
+
+/** Tell the server a PDF was removed here; true once it knows. */
+async function sendRemoval(key: string, at: number) {
+  const res = await fetch(`/api/pdfs/${enc(key)}?updated=${at}`, { method: 'DELETE' }).catch(() => null);
+  if (!res?.ok) return false;
+  await writeMeta(REMOVED, (await removedKeys()).filter((r) => r.key !== key));
+  return true;
 }
 
 let syncing: Promise<void> | null = null;
@@ -74,10 +99,19 @@ export function syncUserPdfs(): Promise<void> {
   return syncing ??= (async () => {
     const res = await fetch('/api/pdfs', { cache: 'no-store' }).catch(() => null);
     if (!res?.ok) return;
-    const remote = (await res.json()) as Shared[];
+    let remote = (await res.json()) as Shared[];
+    // This device's own changes the server has not had yet go first: removals
+    // (a PDF removed here never comes back), then details (names).
+    const removed = await removedKeys();
+    for (const r of removed) {
+      if (await sendRemoval(r.key, r.at)) remote = [...remote.filter((x) => x.key !== r.key), { key: r.key, updated: r.at, deleted: true }];
+    }
+    const gone = new Set(removed.map((r) => r.key));
+    for (const key of await unsharedKeys()) if (!gone.has(key)) await share(key);
     let list = await listUserPdfs();
     let touched = false;
     for (const r of remote) {
+      if (gone.has(r.key)) continue;
       const have = list.some((p) => p.key === r.key);
       const mine = await updatedAt(r.key);
       if (r.deleted) {
@@ -130,6 +164,8 @@ export async function addUserPdf(file: File, progress: (done: number, total: num
     await writeMeta(`kalams:${key}`, found.map((f) => ({ ...f, title: '' })));
     const pdf: UserPdf = { key, name, size: file.size, added: Date.now(), pages: Math.max(...found.map((f) => f.pages[1])) + 1 };
     await writeMeta(LIST, [...list, pdf]);
+    // Added again after being removed: no longer a removal to send.
+    await writeMeta(REMOVED, (await removedKeys()).filter((r) => r.key !== key));
     void navigator.storage?.persist?.().catch(() => undefined);
     changed();
     void share(key, true);
@@ -141,9 +177,13 @@ export async function addUserPdf(file: File, progress: (done: number, total: num
 }
 
 export async function removeUserPdf(key: string) {
+  const at = Date.now();
+  // Remembered until the server knows, so a sync never brings it back.
+  await writeMeta(REMOVED, [...(await removedKeys()).filter((r) => r.key !== key), { key, at }]);
+  await setUnshared(key, false);
   await dropLocal(key);
   changed();
-  void fetch(`/api/pdfs/${enc(key)}?updated=${Date.now()}`, { method: 'DELETE' }).catch(() => undefined);
+  void sendRemoval(key, at);
 }
 
 export async function renameUserPdf(key: string, name: string) {

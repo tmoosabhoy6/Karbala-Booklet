@@ -1,4 +1,5 @@
 // Booklet document model, the two cities and their venue templates.
+import { LIBRARY_ID } from '../library/geometry';
 //
 // Content is stored per category, not per section: the venue only decides
 // which sections exist and in what order (the booklet can reorder them), so
@@ -80,12 +81,22 @@ export interface TextOverride {
   scale?: number;
 }
 
+/** What a text box belongs to: a kalam (on the `part`-th page the kalam is
+ * printed on, 0 = where it starts), or one of the booklet's own pages. */
+export type BoxAnchor = { kalam: string; part: number } | { page: 'cover' | 'fihrist' | 'back' };
+
 /** A free text box placed on a page. */
 export interface TextBox {
   id: string;
-  /** Index into the laid-out pages (0 = cover). */
+  /** Index into the laid-out pages (0 = cover) when it was placed. Boxes
+   * from before anchors are shown on this page. */
   page: number;
-  /** Centre of the box's top edge, in pt from the page's top-left corner. */
+  /** What it annotates: it moves with that kalam when pages before it change
+   * (see paginate.ts placeBoxes). */
+  anchor?: BoxAnchor;
+  /** Centre of the box's top edge, in pt: `x` from the page's left edge, `y`
+   * from the top of the page, or with a kalam anchor from where the kalam
+   * starts on that page. */
   x: number;
   y: number;
   /** Lines separated by \n; same markup as typed text. */
@@ -289,8 +300,9 @@ export const BUILTIN_MEDIA: Record<City, string[]> = {
   najaf: ['fixed-matam-najaf', 'fixed-sawari', 'fixed-qasida', 'fixed-manqabat', 'fixed-salam-arz-najaf'],
 };
 export const isBuiltinMedia = (id: string) => id.startsWith('fixed-');
-/** Verses from the Zikre Husain library (server/library.ts). */
-export const isLibraryMedia = (id: string) => /^lib\d+-/.test(id);
+/** Verses from the Zikre Husain library (server/library.ts): the one id
+ * pattern the server and the browser share. */
+export const isLibraryMedia = (id: string) => LIBRARY_ID.test(id);
 
 /** Slots of the built-in defaults, in the order they fill a new booklet. */
 export const BUILTIN_SLOTS = ['marathi:1', 'marathi:2', 'marathi:3', 'marathi:sawari', 'qasida', 'manqabat', 'matam', 'dua', 'salamArz'];
@@ -344,22 +356,21 @@ export interface MediaMeta {
   continues?: boolean;
 }
 
+/** The fields of a screenshot's metadata that an image block carries (and
+ * takes again when the screenshot is cleaned anew). The server keeps these
+ * and a few of its own (server/store.ts META_KEYS). */
+export const BLOCK_GEOMETRY = ['rev', 'width', 'height', 'bands', 'lineHeight', 'format', 'regions', 'suggestedName', 'warnings', 'opening', 'openingImage', 'continues'] as const;
+export type BlockGeometry = Pick<ImageBlock, 'mediaId' | (typeof BLOCK_GEOMETRY)[number]>;
+export function blockGeometry(m: MediaMeta): BlockGeometry {
+  const out: Record<string, unknown> = { mediaId: m.id };
+  for (const key of BLOCK_GEOMETRY) out[key] = m[key];
+  return out as BlockGeometry;
+}
+
 export const imageBlockFrom = (m: MediaMeta, extra: Partial<ImageBlock> = {}): ImageBlock => ({
   kind: 'image',
   id: uid(),
-  mediaId: m.id,
-  rev: m.rev,
-  width: m.width,
-  height: m.height,
-  bands: m.bands,
-  lineHeight: m.lineHeight,
-  format: m.format,
-  regions: m.regions,
-  suggestedName: m.suggestedName,
-  warnings: m.warnings,
-  opening: m.opening,
-  openingImage: m.openingImage,
-  continues: m.continues,
+  ...blockGeometry(m),
   scale: 1,
   ...extra,
 });

@@ -1,5 +1,5 @@
 // Lays the booklet's content out onto A4 pages. All units are PDF points.
-import { Block, Booklet, CATEGORY_FLOW, CATEGORY_LABEL, Category, ImageBlock, Kalam, sectionsOf } from './model';
+import { Block, Booklet, BoxAnchor, CATEGORY_FLOW, CATEGORY_LABEL, Category, ImageBlock, Kalam, TextBox, sectionsOf } from './model';
 
 export const PAGE = { width: 595.32, height: 841.92 };
 export const CONTENT = { left: 72, right: 523.32, top: 66, bottom: 780 };
@@ -61,7 +61,8 @@ export type Page =
   | { kind: 'cover' }
   /** `scale`: below 1 when the fihrist is shrunk to stay on its one page. */
   | { kind: 'fihrist'; number: number; items: FihristItem[]; first: boolean; scale?: number }
-  | { kind: 'content'; number: number; items: PlacedItem[] }
+  /** `kalams`: each kalam printed on the page, with where it starts on it (pt). */
+  | { kind: 'content'; number: number; items: PlacedItem[]; kalams: { id: string; top: number }[] }
   | { kind: 'back' };
 
 export interface Layout {
@@ -242,8 +243,13 @@ export function paginate(doc: Booklet): Layout {
   // ---- content pages ----
   const anchorPage = new Map<string, number>();
   let pageNo = 1;
-  let cur: { kind: 'content'; number: number; items: PlacedItem[] } | null = null;
+  let cur: Extract<Page, { kind: 'content' }> | null = null;
   let y = 0;
+  // The kalam being placed: each page lists the kalams on it (text boxes follow them).
+  let kalamId: string | null = null;
+  const mark = () => {
+    if (cur && kalamId && !cur.kalams.some((k) => k.id === kalamId)) cur.kalams.push({ id: kalamId, top: y });
+  };
   // The stanza just placed on this page, which the next one is spaced from.
   let prevUnit: Unit | null = null;
   // Stanza gaps of the kalam being placed, below 1 once its page tightened.
@@ -251,7 +257,7 @@ export function paginate(doc: Booklet): Layout {
 
   const newPage = () => {
     pageNo += 1;
-    cur = { kind: 'content', number: pageNo, items: [] };
+    cur = { kind: 'content', number: pageNo, items: [], kalams: [] };
     pages.push(cur);
     y = CONTENT.top;
     prevUnit = null;
@@ -260,6 +266,7 @@ export function paginate(doc: Booklet): Layout {
   const fits = (h: number) => h <= room();
   const place = (item: PlacedItem, h: number) => {
     if (!fits(h)) newPage();
+    mark();
     cur!.items.push(item);
     y += h;
     prevUnit = null;
@@ -275,6 +282,7 @@ export function paginate(doc: Booklet): Layout {
     // The source's baseline spacing and column positions are kept: the whole
     // stanza is one crop at the kalam's scale, so no row is resized alone.
     const imageRect = { x: 0, y: u.top, w: u.block.width, h: u.bottom - u.top, group: u.rows[0].group };
+    mark();
     cur!.items.push({ kind: 'block', block: u.block, height: h, imageRect, imageScale: u.s, gap: 0, lead, anchor, titleLink });
     y += lead + h;
     if (anchor) anchorPage.set(anchor, pageNo);
@@ -387,6 +395,7 @@ export function paginate(doc: Booklet): Layout {
 
   const placeKalam = (category: Category, kalam: Kalam, withHeading: boolean, plan = kalamUnits(kalam)) => {
     const anchor = kalamAnchor(kalam);
+    kalamId = kalam.id;
     if (withHeading) {
       // Keep the heading with the first stanza.
       if (!fits(HEADING_H + openingHeight(kalam, plan)) && cur?.items.length) newPage();
@@ -432,6 +441,7 @@ export function paginate(doc: Booklet): Layout {
     for (const e of s.entries) {
       const flow = CATEGORY_FLOW[e.category] === 'flow';
       e.kalams.forEach((kalam, i) => {
+        kalamId = kalam.id;
         if (flow && i > 0) {
           // A kalam that fits on one page is never split: it moves whole to
           // the next page instead. A longer one starts where it is.
@@ -465,4 +475,65 @@ export function paginate(doc: Booklet): Layout {
 
   kept.push({ kind: 'back' });
   return { pages: kept };
+}
+
+// ---- text boxes ----
+
+/** Each kalam's pages: the page index and where it starts on that page. */
+function kalamPages(layout: Layout) {
+  const out = new Map<string, { index: number; top: number }[]>();
+  layout.pages.forEach((p, index) => {
+    if (p.kind !== 'content') return;
+    for (const k of p.kalams) out.set(k.id, [...(out.get(k.id) ?? []), { index, top: k.top }]);
+  });
+  return out;
+}
+
+const fixedPage = (layout: Layout, page: 'cover' | 'fihrist' | 'back') =>
+  page === 'cover' ? 0 : page === 'back' ? layout.pages.length - 1 : layout.pages.findIndex((p) => p.kind === 'fihrist');
+
+/**
+ * Where each text box shows: with the kalam it annotates (on the same page
+ * of that kalam, the same distance below where the kalam starts there), or
+ * on its own page (cover, fihrist, back). `orphans`: boxes whose kalam is no
+ * longer printed (removed, or emptied), which show nowhere until it is back.
+ */
+export function placeBoxes(boxes: TextBox[] | undefined, layout: Layout) {
+  const byPage = new Map<number, { box: TextBox; offset: number }[]>();
+  const orphans: TextBox[] = [];
+  const pages = kalamPages(layout);
+  for (const box of boxes ?? []) {
+    let index: number, offset = 0;
+    if (box.anchor && 'kalam' in box.anchor) {
+      const list = pages.get(box.anchor.kalam);
+      if (!list) { orphans.push(box); continue; }
+      const at = list[Math.min(box.anchor.part, list.length - 1)];
+      index = at.index;
+      offset = at.top;
+    } else if (box.anchor) index = fixedPage(layout, box.anchor.page);
+    else index = box.page;
+    if (index < 0 || index >= layout.pages.length) { orphans.push(box); continue; }
+    byPage.set(index, [...(byPage.get(index) ?? []), { box, offset }]);
+  }
+  return { byPage, orphans };
+}
+
+/** What a box placed at `y` (pt from the page's top) on page `index`
+ * belongs to, and the y it then keeps (from where its kalam starts). */
+export function anchorAt(layout: Layout, index: number, y: number): { anchor?: BoxAnchor; y: number } {
+  const page = layout.pages[index];
+  if (!page) return { y };
+  if (page.kind !== 'content') return { anchor: { page: page.kind }, y };
+  const on = page.kalams;
+  if (!on.length) return { y };
+  const kalam = [...on].reverse().find((k) => k.top <= y) ?? on[0];
+  const part = (kalamPages(layout).get(kalam.id) ?? []).findIndex((p) => p.index === index);
+  return { anchor: { kalam: kalam.id, part: Math.max(0, part) }, y: +(y - kalam.top).toFixed(1) };
+}
+
+/** Boxes from before anchors were kept get one, from where they show now. */
+export function anchorBoxes(doc: Booklet): Booklet {
+  if (!doc.textBoxes?.some((b) => !b.anchor)) return doc;
+  const layout = paginate(doc);
+  return { ...doc, textBoxes: doc.textBoxes.map((b) => (b.anchor ? b : { ...b, ...anchorAt(layout, b.page, b.y) })) };
 }

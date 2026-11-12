@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookletView } from '../booklet/Booklet';
 import { stripMarkup } from '../booklet/RichText';
 import { Block, CATEGORY_HINT, CATEGORY_LABEL, CITIES, Category, City, ImageBlock, VENUES, imageBlockFrom, sectionsOf, uid } from '../booklet/model';
-import { paginate } from '../booklet/paginate';
+import { anchorAt, paginate, placeBoxes } from '../booklet/paginate';
 import { dateLine, raatTitle, raatTitleLatin } from '../lib/hijri';
 import { ImageEditor } from './ImageEditor';
 import { KalamCard, uploadInto } from './KalamCard';
@@ -18,7 +18,7 @@ import './editor.css';
 
 export function Editor({ city, onCity }: { city: City; onCity: (city: City) => void }) {
   const state = useBooklet(city);
-  const { doc, setDoc, defaults, builtin, saved, undo, redo, updateKalams, updateKalam, restoreDefault, moveSection, replaceMedia, reset, textEdits, addTextBox } = state;
+  const { doc, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, restoreDefault, moveSection, replaceMedia, reset, textEdits, addTextBox } = state;
   const [active, setActive] = useState<{ category: Category; id: string } | null>(null);
   const [uploads, setUploads] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<ImageBlock | null>(null);
@@ -37,7 +37,21 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
   // On a phone the finished PDF is offered as a link to tap (see exportPdf).
   const [ready, setReady] = useState<{ url: string; filename: string } | null>(null);
 
-  const layout = useMemo(() => (doc ? paginate(doc) : null), [doc]);
+  // A layout that fails (a very old booklet entry) is reported in the
+  // preview; the kalams stay editable, so the entry can be removed.
+  const laid = useMemo(() => {
+    if (!doc) return null;
+    try {
+      return { layout: paginate(doc), error: '' };
+    } catch (e) {
+      console.error(e);
+      return { layout: null, error: (e as Error).message };
+    }
+  }, [doc]);
+  const layout = laid?.layout ?? null;
+  const phone = useMemo(() => matchMedia('(pointer: coarse)').matches, []);
+  // A finished PDF's Save link is for the booklet it was made from.
+  useEffect(() => setReady(null), [doc]);
 
   const upload = useCallback(
     (category: Category, kalamId: string, files: File[]) =>
@@ -50,17 +64,20 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
   );
 
   // The PDF is made ahead on the server once the booklet has sat unchanged
-  // for a little while (and nothing is uploading): Download is then instant.
-  // Any change, or other work on the server, drops the early copy.
+  // for a good while (and nothing is uploading), or on a phone once its
+  // preview is opened: Download is then instant. Making it shuts down the
+  // screenshot cleaner's OCR, so it waits for a real pause, not every lull
+  // between two screenshots. Any change, or other work on the server, drops
+  // the early copy.
   const settled = !Object.values(uploads).some((n) => n > 0) && !Object.values(fetching).some((n) => n > 0);
   useEffect(() => {
-    if (!doc || !settled || busy) return;
+    if (!doc || !layout || !settled || busy || (phone && pane !== 'preview')) return;
     const t = setTimeout(() => {
       const d = new Date(`${doc.date}T12:00:00`);
       api.preparePdf({ doc, filename: `${raatTitleLatin(d)} Matam Majlis.pdf`, title: `${raatTitle(d)} – ماتم مجلس` });
-    }, 12_000);
+    }, phone ? 3000 : 60_000);
     return () => clearTimeout(t);
-  }, [doc, settled, busy]);
+  }, [doc, layout, settled, busy, phone, pane]);
 
   // This device keeps its own copy of Zikre Husain, fetched once when idle.
   useEffect(() => prefetchZh(), []);
@@ -141,9 +158,21 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
     };
   }, [active, upload, undo, redo]);
 
-  if (!doc || !layout) return <div className="loading" role={state.loadError ? 'alert' : 'status'}>{state.loadError ? <>Could not load the booklet: {state.loadError} <button onClick={() => location.reload()}>Try again</button></> : 'Loading…'}</div>;
+  if (!doc) return <div className="loading" role={state.loadError ? 'alert' : 'status'}>{state.loadError ? <>Could not load the booklet: {state.loadError} <button onClick={() => location.reload()}>Try again</button></> : 'Loading…'}</div>;
   const d = new Date(`${doc.date}T12:00:00`);
-  const pageCount = layout.pages.length;
+  const pageCount = layout?.pages.length ?? 0;
+  // Text boxes whose kalam is no longer printed show nowhere: listed here.
+  const hiddenBoxes = layout ? placeBoxes(doc.textBoxes, layout).orphans : [];
+  const savedLabel =
+    status.state === 'saving' ? 'Saving…'
+    : status.state === 'retrying' ? 'Not saved yet · retrying'
+    : status.failing ? 'Saved · storage retrying'
+    : 'Saved';
+  const savedTitle =
+    status.state === 'retrying' ? `The last save did not go through (${status.error ?? 'no connection'}). Your changes are kept on this device and saved as soon as the server answers.`
+    : status.failing ? `The server has your changes, but ${status.pending} file(s) could not yet be copied to its storage. It keeps trying; do not redeploy the app until this clears.`
+    : status.pending ? `${status.pending} file(s) on their way to storage.`
+    : 'Everything is saved.';
   const sections = sectionsOf(doc);
 
   const activate = (category: Category, id: string) => {
@@ -158,6 +187,7 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
   };
 
   const exportPdf = async () => {
+    if (!layout) return alert(`The booklet cannot be laid out: ${laid?.error}`);
     const missing = Object.values(doc.kalams)
       .flat()
       .filter((k) => k.blocks.length && !stripMarkup(k.name) && !(k.blocks[0].kind === 'image' && k.blocks[0].opening));
@@ -200,7 +230,9 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
           </div>
           <div className="row">
             <h1>Matam Majlis Booklet</h1>
-            <span className={`saved${saved ? '' : ' saving'}`}>{saved ? 'Saved' : 'Saving…'}</span>
+            <span className={`saved${status.state === 'saved' && !status.failing ? '' : ' saving'}`} title={savedTitle} role="status">
+              {savedLabel}
+            </span>
           </div>
           <div className="row two">
             <label>
@@ -303,6 +335,21 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
             </button>
             <span className="hint">Kalams with no screenshots are left out of the PDF.</span>
           </div>
+          {hiddenBoxes.length > 0 && (
+            <div className="hidden-boxes" role="status">
+              <p>
+                {hiddenBoxes.length === 1 ? 'A text box belongs' : `${hiddenBoxes.length} text boxes belong`} to a kalam that is no longer in the booklet, so {hiddenBoxes.length === 1 ? 'it is' : 'they are'} not printed. {hiddenBoxes.length === 1 ? 'It comes' : 'They come'} back if the kalam does (Undo).
+              </p>
+              {hiddenBoxes.map((b) => (
+                <div key={b.id} className="hidden-box">
+                  <bdi>{stripMarkup(b.text).split('\n')[0].slice(0, 60) || '(empty)'}</bdi>
+                  <button className="ghost" onClick={() => textEdits.box(b.id, null)}>
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -349,22 +396,31 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
             </button>
           </div>
         )}
-        <div className="pages" style={{ zoom }}>
-          <BookletView
-            doc={doc}
-            layout={layout}
-            pageWidthPx={794 * zoom}
-            edits={typing ? textEdits : undefined}
-            onPlace={
-              placing
-                ? (page, x, y) => {
-                    addTextBox(page, x, y);
-                    setPlacing(false);
-                  }
-                : undefined
-            }
-          />
-        </div>
+        {layout ? (
+          <div className="pages" style={{ zoom }}>
+            <BookletView
+              doc={doc}
+              layout={layout}
+              pageWidthPx={794 * zoom}
+              edits={typing ? textEdits : undefined}
+              onPlace={
+                placing
+                  ? (page, x, y) => {
+                      // The box goes with the kalam it was placed beside.
+                      addTextBox(page, x, y, (top) => anchorAt(layout, page, top));
+                      setPlacing(false);
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        ) : (
+          <div className="layout-error" role="alert">
+            The pages could not be laid out: {laid?.error}
+            <br />
+            Undo the last change, or remove or crop the screenshot it names, and the preview comes back.
+          </div>
+        )}
       </main>
 
       {editing && <ImageEditor block={editing} onClose={() => setEditing(null)} onApplied={replaceMedia} />}

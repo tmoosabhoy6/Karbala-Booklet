@@ -419,6 +419,8 @@ export async function cleanPixels(source: Pixels, edits: Edits = {}, options: { 
   // A band split at an empty valley can keep no ink of its own: not a row.
   const finalBands = bands.map(([a, b]) => [Math.max(0, a - t.y), Math.min(t.h, b - t.y)] as [number, number])
     .filter(([a, b]) => b > a && box(alpha, W, H, a + t.y, b + t.y));
+  // Ink too thin for any row (a lone hairline): nothing that prints as a verse.
+  if (!finalBands.length) throw new Error('No complete text found. Try a screenshot containing a complete verse.');
   // Stanza breaks come only from the source's own spacing: a baseline pitch
   // clearly above the screenshot's normal line pitch. Uniformly spaced rows
   // stay one group; rows are never paired up artificially.

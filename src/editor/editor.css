@@ -475,6 +475,36 @@ button:disabled {
   color: var(--ui-maroon);
 }
 
+.hidden-boxes {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.hidden-boxes p {
+  margin: 0 0 6px;
+  color: var(--ui-muted);
+}
+
+.hidden-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.layout-error {
+  margin: 24px;
+  padding: 16px;
+  border: 1px solid var(--ui-maroon);
+  border-radius: 8px;
+  color: var(--ui-maroon);
+  line-height: 1.5;
+}
+
 .footer-tools {
   display: flex;
   align-items: center;

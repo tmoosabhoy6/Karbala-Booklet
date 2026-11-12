@@ -9,19 +9,19 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Browser } from 'playwright';
 import sharp from 'sharp';
-import { addMedia, currentLibraryMedia, DATA, editMedia, ensureFixedMedia, ensureMediaFile, getMedia, MEDIA, pngName, pngSize, readJson, reinstateMedia, storeLibraryMedia, writeJson, type MediaMeta } from './store';
+import { addMedia, cleanUp, currentLibraryMedia, DATA, editMedia, ensureFixedMedia, ensureMediaFile, ensureOriginal, getMedia, MEDIA, pngName, pngSize, readJson, reinstateMedia, removeFile, storeLibraryMedia, writeJson, type MediaMeta } from './store';
 import type { ExportRequest, PrintPayload } from '../src/booklet/print';
 import { mediaSrc, openingSrc } from '../src/booklet/media';
 import { paginate } from '../src/booklet/paginate';
 import { mergeDuplicateStreams } from './pdf';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { PROCESSOR_VERSION, svgWrapper } from './ink';
-import { closeRecognition } from './recognize';
+import { abortRecognition, closeRecognition } from './recognize';
 import { restorationJob, restorationStatus, startRestoration } from './restore';
-import { beforeOtherHeavyWork, heavyWaiting, heavyWork } from './resources';
+import { beforeOtherHeavyWork, heavyWaiting, heavyWork, whenHeavyWorkIsStuck } from './resources';
 import { validScript } from './lettering';
-import { durableStatus, ensureLocal, flushDurable, mirror, startRepoSync } from './durable';
-import { closeLibrary, isLibraryMedia, libraryAvailable, libraryGeometry, libraryPlan, libraryPreview, librarySource } from './library';
+import { durableStatus, ensureLocal, flushDurable, mirror, requireStorage, settled, squashHistory, startRepoSync, StorageUnavailable } from './durable';
+import { abortLibrary, closeLibrary, isLibraryMedia, libraryAvailable, libraryGeometry, libraryPlan, libraryPreview, librarySource } from './library';
 
 const PORT = Number(process.env.PORT ?? 3001);
 // 0.0.0.0 when hosted (or to reach it from a phone on the same Wi-Fi).
@@ -67,6 +67,8 @@ const route =
   (fn: (req: express.Request, res: express.Response) => Promise<unknown>) =>
   (req: express.Request, res: express.Response) =>
     fn(req, res).catch((e: Error) => {
+      // Storage that could not be checked: try again later (the editor says so).
+      if (e instanceof StorageUnavailable) return res.status(503).send(e.message);
       console.error(e);
       res.status(500).send(e.message);
     });
@@ -128,7 +130,8 @@ app.get(
   '/api/media/:id/original',
   route(async (req, res) => {
     if (!/^[\w-]+$/.test(req.params.id)) return res.status(400).end();
-    if (!(await ensureMediaFile(`${req.params.id}.orig`))) return res.status(404).end();
+    // A library verse made in the browser has no original yet: rendered here.
+    if (!(await ensureOriginal(req.params.id))) return res.status(404).end();
     const png = await sharp(path.join(MEDIA, `${req.params.id}.orig`)).rotate().png().toBuffer();
     res.type('png').send(png);
   }),
@@ -222,14 +225,27 @@ const cityFile = (req: express.Request, name: string) => (req.query.city === 'na
 const stampFile = (file: string) => file.replace(/\.json$/, '.stamp.json');
 const savedAt = async (file: string) => (await readJson<{ savedAt: number }>(stampFile(file)))?.savedAt ?? 0;
 const saves = new Map<string, Promise<unknown>>();
+// How the copy to durable storage is doing, for the editor's "Saved" label.
+const storageHeaders = (res: express.Response) => {
+  const s = durableStatus();
+  res.setHeader('X-Storage-Pending', String(s.pending));
+  if (s.retrying) res.setHeader('X-Storage-Failing', '1');
+};
 for (const [name, empty] of [['booklet', null], ['defaults', {}]] as const) {
   app.get(`/api/${name}`, route(async (req, res) => {
+    // Until the stored copy is known (the first sync after a wake-up), there
+    // is nothing to answer: an empty booklet here would be taken for the
+    // real one and saved over it.
+    requireStorage();
     const file = cityFile(req, name);
     const [value, stamp] = await Promise.all([readJson(file), savedAt(file)]);
     res.setHeader('X-Saved-At', String(stamp));
+    res.setHeader('Cache-Control', 'no-store');
+    storageHeaders(res);
     res.json(value ?? empty);
   }));
   app.put(`/api/${name}`, route(async (req, res) => {
+    requireStorage();
     const file = cityFile(req, name);
     // One save per file at a time, so the stamp check and the write go together.
     const turn = (saves.get(file) ?? Promise.resolve()).catch(() => undefined).then(async () => {
@@ -239,6 +255,10 @@ for (const [name, empty] of [['booklet', null], ['defaults', {}]] as const) {
       const stored = await savedAt(file);
       const based = Number(req.get('X-Based-On') ?? Infinity);
       if (!(based >= stored)) return { stale: true, stored };
+      // The very copy already saved: nothing changed, so the stamp stays and
+      // no other device is told of a newer copy.
+      const body = JSON.stringify(req.body);
+      if (stored && (await readFile(path.join(DATA, file), 'utf8').catch(() => null)) === body) return { stale: false, stored };
       const stamp = req.get('X-Restore') === '1' && Number.isFinite(based) ? based : Math.max(Date.now(), stored + 1);
       await writeJson(file, req.body);
       await writeJson(stampFile(file), { savedAt: stamp });
@@ -247,6 +267,7 @@ for (const [name, empty] of [['booklet', null], ['defaults', {}]] as const) {
     saves.set(file, turn);
     const result = await turn;
     res.setHeader('X-Saved-At', String(result.stored));
+    storageHeaders(res);
     if (result.stale) return res.status(409).json({ error: 'A newer copy was saved from another device.', savedAt: result.stored });
     res.json(null);
   }));
@@ -267,7 +288,7 @@ const updateIndex = (entry: SharedPdf) => (pdfTurn = pdfTurn.catch(() => undefin
   const list = (await pdfIndex()).filter((p) => p.key !== entry.key);
   await writeJson('pdfs/index.json', [...list, entry]);
 }));
-app.get('/api/pdfs', route(async (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json(await pdfIndex()); }));
+app.get('/api/pdfs', route(async (_req, res) => { requireStorage(); res.setHeader('Cache-Control', 'no-store'); res.json(await pdfIndex()); }));
 app.get('/api/pdfs/:key', route(async (req, res) => {
   const file = pdfFile(req.params.key, 'json');
   if (!file || !(await ensureLocal(DATA, file))) return res.status(404).end();
@@ -290,6 +311,7 @@ app.put('/api/pdfs/:key', route(async (req, res) => {
   const file = pdfFile(req.params.key, 'json');
   const updated = Number(req.body?.updated);
   if (!file || !req.body?.pdf || !req.body?.lib || !Array.isArray(req.body?.kalams) || !Number.isFinite(updated)) return res.status(400).send('Incomplete PDF details.');
+  requireStorage();
   const known = (await pdfIndex()).find((p) => p.key === req.params.key);
   if (known && known.updated > updated) return res.status(409).json(known);
   await mkdir(PDFS, { recursive: true });
@@ -299,7 +321,12 @@ app.put('/api/pdfs/:key', route(async (req, res) => {
 }));
 app.delete('/api/pdfs/:key', route(async (req, res) => {
   if (!pdfFile(req.params.key, 'json')) return res.status(400).end();
+  requireStorage();
   await updateIndex({ key: req.params.key, updated: Number(req.query.updated) || Date.now(), deleted: true });
+  // The index keeps the removal (so other devices drop it too); the PDF and
+  // its details go from the folder at once, rather than staying public.
+  const key = req.params.key.slice(2);
+  await Promise.all([removeFile(`pdfs/${key}.pdf`), removeFile(`pdfs/${key}.json`)]);
   res.json(null);
 }));
 
@@ -333,6 +360,9 @@ async function closeBrowser() {
   if (current) await (await current.catch(() => null))?.close().catch(() => undefined);
 }
 beforeOtherHeavyWork(closeBrowser);
+whenHeavyWorkIsStuck(closeBrowser);
+whenHeavyWorkIsStuck(abortRecognition);
+whenHeavyWorkIsStuck(abortLibrary);
 
 // Finished PDFs are fetched by a plain link, which phones download more
 // reliably than a script-made file. Each is kept for 15 minutes.
@@ -514,9 +544,32 @@ if (PROD) {
   app.use(express.static(path.join(ROOT, 'dist')));
 }
 
+// A file a restart wiped and storage could not be asked for: try again later.
+app.use((error: Error, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) return next(error);
+  if (error instanceof StorageUnavailable) return res.status(503).send(error.message);
+  console.error(error);
+  res.status(500).send('Something went wrong on the server.');
+});
+
 await ensureFixedMedia();
 // The stored work (server/durable.ts) is here before the first visit.
 await startRepoSync(DATA);
+// Files nothing uses any more go, after a grace period (store.ts cleanUp);
+// the storage branch's history is dropped when it has grown long.
+const CLEANUP_DELAY = Number(process.env.STORAGE_CLEANUP_DELAY_SECONDS ?? 600) * 1000;
+const cleaning = async () => {
+  try {
+    if (!durableStatus().ready) return;
+    const { removed, waiting } = await cleanUp();
+    if (removed || waiting) console.log(`storage: ${removed} unused file(s) removed, ${waiting} unused and waiting`);
+    // Once the removals are in, the history (which still holds them) can go.
+    if (await settled()) await squashHistory();
+  } catch (error) {
+    console.error('Cleaning up storage failed:', (error as Error).message);
+  }
+};
+setTimeout(() => { void cleaning(); setInterval(() => void cleaning(), 6 * 3600_000).unref(); }, CLEANUP_DELAY).unref();
 const http = app.listen(PORT, HOST, () => console.log(`server on http://${HOST}:${PORT}${PASSWORD ? ' (password on)' : ''}`));
 let closing = false;
 const shutdown = async () => {

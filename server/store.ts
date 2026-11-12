@@ -2,13 +2,14 @@
 // working booklet, and pinned defaults.
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
-import { copyFile, readFile, rename, writeFile } from 'node:fs/promises';
+import { copyFile, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { cleanScreenshot, Edits, PROCESSOR_VERSION, Region } from './ink';
 import type { Recognized } from '../src/library/ink';
 import { heavyWork } from './resources';
 import { isLibraryMedia, libraryBuild, libraryContinues, libraryGeometry, libraryImage } from './library';
-import { ensureLocal, mirror } from './durable';
+import { ensureLocal, forget, mirror, storedNames } from './durable';
+import { BLOCK_GEOMETRY, type Block, type Booklet, type Defaults, type MediaMeta as BrowserMediaMeta } from '../src/booklet/model';
 
 export const DATA = path.resolve(process.env.DATA_DIR ?? 'data');
 export const MEDIA = path.join(DATA, 'media');
@@ -28,26 +29,13 @@ const FIXED: [string, string, Edits?][] = [
   ['fixed-salam-arz-najaf', 'public/fixed/salam-arz-najaf.png'],
 ];
 
-export interface MediaMeta {
-  id: string;
-  rev: number;
-  width: number;
-  height: number;
-  bands: [number, number][];
-  lineHeight: number;
+/** A screenshot's metadata: what the browser sees (src/booklet/model.ts)
+ * and what only the server keeps. */
+export interface MediaMeta extends BrowserMediaMeta {
+  regions?: Region[];
   edits: Edits;
   processorVersion?: number;
-  format?: 'png' | 'svg';
-  regions?: Region[];
-  suggestedName?: string;
-  recognitionConfidence?: number;
-  warnings?: string[];
-  opening?: { x: number; y: number; w: number; h: number };
-  /** `<id>.<rev>.opening.png` holds the opening words, already navy. */
-  openingImage?: boolean;
   restoration?: { sourceId: string; sourceRev: number; model: string; referenceVersion: number };
-  /** A library image whose first verse runs on from the image before it. */
-  continues?: boolean;
   /** The HD pass's enlargement of the cleaned source (server/ink.ts). */
   scale?: number;
   /** OCR of the original, reused by every later clean of it. */
@@ -129,12 +117,31 @@ export async function addMedia(original: Buffer, id: string = randomUUID(), opti
   return writeProcessed(id, original, options.edits ?? {}, Date.now(), options.restoration);
 }
 
+const makingOriginal = new Map<string, Promise<boolean>>();
+/**
+ * The untouched source of a screenshot on disk (`<id>.orig`), fetched back
+ * from durable storage when a restart lost it. A library verse finished in
+ * the browser never had one here: it is rendered from the PDF, as the server
+ * would have. False when there is none to be had.
+ */
+export function ensureOriginal(id: string): Promise<boolean> {
+  safeId(id);
+  const file = path.join(MEDIA, `${id}.orig`);
+  if (!makingOriginal.has(id)) makingOriginal.set(id, (async () => {
+    if (await ensureMediaFile(`${id}.orig`)) return true;
+    if (!isLibraryMedia(id)) return false;
+    const png = await heavyWork(() => libraryImage(id));
+    if (!existsSync(file)) await saveFile(file, png);
+    return true;
+  })().finally(() => makingOriginal.delete(id)));
+  return makingOriginal.get(id)!;
+}
+
 export async function editMedia(id: string, edits: Edits): Promise<MediaMeta> {
   safeId(id);
-  await Promise.all([ensureLocal(DATA, metaPath(id)), ensureMediaFile(`${id}.orig`)]);
+  if (!(await ensureLocal(DATA, metaPath(id)))) throw new Error('This screenshot is no longer on the server. Add it again.');
   const prev: MediaMeta = JSON.parse(await readFile(metaPath(id), 'utf8'));
-  // A library verse finished in the browser has no render here yet: make it.
-  if (isLibraryMedia(id) && !existsSync(path.join(MEDIA, `${id}.orig`))) await saveFile(path.join(MEDIA, `${id}.orig`), await heavyWork(() => libraryImage(id)));
+  if (!(await ensureOriginal(id))) throw new Error('The original screenshot is missing. Add it again.');
   const original = await readFile(path.join(MEDIA, `${id}.orig`));
   // Timestamp revisions keep cached files (served immutable) from going stale.
   // A library verse keeps its build, so its crop and erase edits stay.
@@ -218,7 +225,7 @@ export async function getMedia(id: string, options: { wait?: boolean } = {}): Pr
 }
 
 /** Only fields the server itself writes are taken from a browser's copy. */
-const META_KEYS = ['rev', 'width', 'height', 'bands', 'lineHeight', 'edits', 'processorVersion', 'format', 'regions', 'suggestedName', 'recognitionConfidence', 'warnings', 'opening', 'openingImage', 'restoration', 'continues', 'scale', 'ocr'] as const;
+const META_KEYS = [...BLOCK_GEOMETRY, 'edits', 'processorVersion', 'recognitionConfidence', 'restoration', 'scale', 'ocr'] as const;
 const positive = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) > 0;
 
 /**
@@ -293,12 +300,77 @@ export async function ensureFixedMedia(): Promise<void> {
   }
 }
 
+/** A JSON file under data/, or null when there is none. Throws
+ * StorageUnavailable (server/durable.ts) when that could not be checked:
+ * unknown is never taken for absent. */
 export async function readJson<T>(name: string): Promise<T | null> {
   const p = path.join(DATA, name);
-  await ensureLocal(DATA, p);
-  return existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null;
+  if (!(await ensureLocal(DATA, p))) return null;
+  return JSON.parse(await readFile(p, 'utf8'));
 }
 
 export async function writeJson(name: string, value: unknown): Promise<void> {
   await writeWhole(path.join(DATA, name), JSON.stringify(value));
+}
+
+/** Remove a file under data/, here and in durable storage. */
+export async function removeFile(name: string) {
+  const file = path.join(DATA, name);
+  if (path.relative(DATA, file).startsWith('..')) throw new Error('bad name');
+  await unlink(file).catch(() => undefined);
+  forget(DATA, file);
+}
+
+// ---- cleaning up ----
+// Every crop, every newer cleaner and every library build writes new files,
+// and a removed PDF stays in the folder: none of it is ever read again.
+// Files no booklet or default (either city) uses are listed in
+// cleanup.json when first found unused, and removed once they have stayed
+// unused for STORAGE_CLEANUP_GRACE_DAYS (14): long enough for a device that
+// was away to come back and hand in its own copy.
+const BOOKLET_FILES = ['booklet.json', 'booklet-najaf.json', 'defaults.json', 'defaults-najaf.json'];
+const GRACE = Number(process.env.STORAGE_CLEANUP_GRACE_DAYS ?? 14) * 86_400_000;
+const MEDIA_FILE = /^media\/([\w-]+?)(?:\.(\d+)\.(png|opening\.png|svg)|\.(json|orig))$/;
+export async function cleanUp(): Promise<{ removed: number; waiting: number }> {
+  // What the booklets and defaults use: each screenshot, and each revision.
+  const used = new Set<string>();
+  const blocks: Block[] = [];
+  for (const name of BOOKLET_FILES) {
+    const value = await readJson<Booklet | Defaults>(name);
+    if (!value) continue;
+    if ('kalams' in value && value.kalams) blocks.push(...Object.values(value.kalams).flatMap((ks) => (ks as { blocks: Block[] }[]).flatMap((k) => k.blocks)));
+    else blocks.push(...Object.values(value as Defaults).flatMap((d) => d.blocks ?? []));
+  }
+  for (const b of blocks) if (b.kind === 'image') { used.add(b.mediaId); used.add(`${b.mediaId}.${b.rev}`); }
+  // A used screenshot's current revision is what the server serves.
+  for (const id of [...used].filter((u) => !u.includes('.'))) {
+    if (id.startsWith('fixed-')) continue;
+    const meta = await ensureLocal(DATA, metaPath(id)).then((ok) => (ok ? readFile(metaPath(id), 'utf8') : null)).catch(() => null);
+    if (meta) used.add(`${id}.${(JSON.parse(meta) as MediaMeta).rev}`);
+    else used.add(`${id}.*`); // unknown: keep every revision
+  }
+  const local = (await readdir(MEDIA).catch(() => [] as string[])).filter((f) => !f.endsWith('.tmp')).map((f) => `media/${f}`);
+  const pdfIndex = (await readJson<{ key: string; deleted?: boolean }[]>('pdfs/index.json')) ?? [];
+  const removedPdfs = new Set(pdfIndex.filter((p) => p.deleted).map((p) => p.key.slice(2)));
+  const unused = new Set<string>();
+  for (const name of new Set([...storedNames(), ...local])) {
+    const pdf = /^pdfs\/([0-9a-f]{16})\.(pdf|json)$/.exec(name);
+    if (pdf) { if (removedPdfs.has(pdf[1])) unused.add(name); continue; }
+    const m = MEDIA_FILE.exec(name);
+    if (!m || m[1].startsWith('fixed-')) continue;
+    const [, id, rev] = m;
+    if (!used.has(id)) unused.add(name);
+    else if (rev && !used.has(`${id}.${rev}`) && !used.has(`${id}.*`)) unused.add(name);
+  }
+  const now = Date.now();
+  const seen = (await readJson<Record<string, number>>('cleanup.json')) ?? {};
+  const next: Record<string, number> = {};
+  let removed = 0;
+  for (const name of unused) {
+    const since = seen[name] ?? now;
+    if (now - since >= GRACE) { await removeFile(name); removed++; }
+    else next[name] = since;
+  }
+  if (JSON.stringify(next) !== JSON.stringify(seen)) await writeJson('cleanup.json', next);
+  return { removed, waiting: Object.keys(next).length };
 }

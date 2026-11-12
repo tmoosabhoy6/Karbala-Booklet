@@ -65,20 +65,28 @@ const errorText = async (res: Response) => {
   try { return (JSON.parse(text) as { error?: string }).error ?? text; } catch { return text || res.statusText; }
 };
 
-/** The server's copy and its stamp (0: saved before stamps, or never). */
-async function loadStamped<T>(name: 'booklet' | 'defaults', city: City): Promise<{ value: T; savedAt: number }> {
+/** How the server's copy to durable storage is doing (server/durable.ts):
+ * files waiting to go up, and whether it is failing and retrying. */
+export interface StorageState { pending: number; failing: boolean }
+const storageOf = (res: Response): StorageState => ({ pending: Number(res.headers.get('X-Storage-Pending')) || 0, failing: res.headers.get('X-Storage-Failing') === '1' });
+
+/** The server's copy and its stamp (0: saved before stamps, or never).
+ * Throws when the server cannot say (503: its storage is not reachable yet). */
+async function loadStamped<T>(name: 'booklet' | 'defaults', city: City): Promise<{ value: T; savedAt: number; storage: StorageState }> {
   const res = await fetch(`/api/${name}?city=${city}`, { cache: 'no-store' });
   const value = await json<T>(res);
-  return { value, savedAt: Number(res.headers.get('X-Saved-At')) || 0 };
+  return { value, savedAt: Number(res.headers.get('X-Saved-At')) || 0, storage: storageOf(res) };
 }
-/** `ok: false` (409): another device saved a newer copy since `basedOn`. */
-async function saveStamped(name: 'booklet' | 'defaults', city: City, value: unknown, basedOn: number, restore: boolean) {
+/** `ok: false` (409): another device saved a newer copy since `basedOn`.
+ * `keepalive`: sent as the page closes (small bodies only). */
+async function saveStamped(name: 'booklet' | 'defaults', city: City, value: unknown, basedOn: number, restore: boolean, keepalive = false) {
+  const body = JSON.stringify(value);
   const res = await fetch(`/api/${name}?city=${city}`, {
-    method: 'PUT', body: JSON.stringify(value),
+    method: 'PUT', body, keepalive: keepalive && body.length < 60_000,
     headers: { 'Content-Type': 'application/json', 'X-Based-On': String(basedOn), ...(restore ? { 'X-Restore': '1' } : {}) },
   });
   if (res.status !== 409 && !res.ok) throw new Error(await errorText(res));
-  return { ok: res.ok, savedAt: Number(res.headers.get('X-Saved-At')) || 0 };
+  return { ok: res.ok, savedAt: Number(res.headers.get('X-Saved-At')) || 0, storage: storageOf(res) };
 }
 
 export const api = {
@@ -202,7 +210,7 @@ export const api = {
     fetch(`/api/library/${n}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verses }) }).then((r) => json<{ ids: string[] }>(r)),
   loadBooklet: (city: City) => loadStamped<Booklet | null>('booklet', city),
   /** Saved over the copy stamped `basedOn`; `restore`: this is that copy. */
-  saveBooklet: (doc: Booklet, basedOn: number, restore = false) => saveStamped('booklet', cityOf(doc.venue), doc, basedOn, restore),
+  saveBooklet: (doc: Booklet, basedOn: number, restore = false, keepalive = false) => saveStamped('booklet', cityOf(doc.venue), doc, basedOn, restore, keepalive),
   loadDefaults: (city: City) => loadStamped<Defaults>('defaults', city).then((r) => r.value ?? {}),
   loadDefaultsStamped: (city: City) => loadStamped<Defaults>('defaults', city),
   saveDefaults: async (d: Defaults, city: City, basedOn: number, restore = false) => {

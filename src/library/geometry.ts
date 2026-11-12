@@ -40,12 +40,18 @@ export const encodeVerses = (verses: number[] | null, count: number) => {
   }
   return out.join('_');
 };
+/** The verses an id's selection names. Every range is checked against the
+ * kalam's `count` verses before anything is made of it: an id is a URL
+ * anyone can type, and `0t999999999` would otherwise be a billion numbers. */
 export const decodeVerses = (sel: string, count: number): number[] => {
   if (sel === 'all') return Array.from({ length: count }, (_, i) => i);
-  return sel.split('_').flatMap((r) => {
-    const [a, b = a] = r.split('t').map(Number);
-    return Array.from({ length: b - a + 1 }, (_, i) => a + i);
+  const ranges = sel.split('_').map((r) => {
+    const parts = r.split('t');
+    const [a, b = a] = parts.map(Number);
+    if (parts.length > 2 || !Number.isSafeInteger(a) || !Number.isSafeInteger(b) || a < 0 || a > b || b >= count) throw new Error('No such verses in this kalam.');
+    return [a, b] as const;
   });
+  return ranges.flatMap(([a, b]) => Array.from({ length: b - a + 1 }, (_, i) => a + i));
 };
 
 /** Render scale: the kalam's verse rows come out about 128 px tall, around

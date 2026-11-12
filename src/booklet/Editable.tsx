@@ -207,8 +207,9 @@ export function Editable({ id, text, plain, onCommit, fallback }: EditableProps)
 
 const SIZE_STEP = 1;
 
-/** A free text box: click to type, drag to move. */
-export function TextBoxView({ box }: { box: TextBox }) {
+/** A free text box: click to type, drag to move. `offset`: where the kalam
+ * it belongs to starts on this page (its `y` counts from there). */
+export function TextBoxView({ box, offset = 0 }: { box: TextBox; offset?: number }) {
   const { edits, colors } = useContext(EditContext);
   const [editing, setEditing] = useState(!box.text && !!edits);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
@@ -222,7 +223,7 @@ export function TextBoxView({ box }: { box: TextBox }) {
   }, [editing, box.text, box.id, edits]);
 
   const x = drag?.x ?? box.x;
-  const y = drag?.y ?? box.y;
+  const y = drag?.y ?? box.y + offset;
   const style: CSSProperties = { left: `${x}pt`, top: `${y}pt`, fontSize: `${box.sizePt}pt`, color: box.color };
   const lines = box.text.split('\n').map((l, i) => (
     <div key={i}>
@@ -295,12 +296,12 @@ export function TextBoxView({ box }: { box: TextBox }) {
         const dy = e.clientY - s.cy;
         if (!s.moved && Math.hypot(dx, dy) < 3) return;
         s.moved = true;
-        setDrag({ x: +(box.x + dx * s.k).toFixed(1), y: +(box.y + dy * s.k).toFixed(1) });
+        setDrag({ x: +(box.x + dx * s.k).toFixed(1), y: +(box.y + offset + dy * s.k).toFixed(1) });
       }}
       onPointerUp={() => {
         const s = start.current;
         start.current = null;
-        if (s?.moved && drag) edits.box(box.id, drag);
+        if (s?.moved && drag) edits.box(box.id, { x: drag.x, y: +(drag.y - offset).toFixed(1) });
         else if (!s?.moved) setEditing(true);
         setDrag(null);
       }}

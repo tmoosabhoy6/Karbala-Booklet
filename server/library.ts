@@ -106,6 +106,14 @@ export async function closeLibrary() {
   else if (w) worker = w;
 }
 
+/** Stop the renderer at once, mid-render too (a job that overran its time). */
+export async function abortLibrary() {
+  clearTimeout(idleTimer);
+  const w = worker;
+  worker = null;
+  await w?.terminate();
+}
+
 async function render(request: RenderRequest) {
   clearTimeout(idleTimer);
   const id = nextJob++;

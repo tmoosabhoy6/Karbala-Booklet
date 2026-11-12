@@ -1,8 +1,8 @@
 import { arabicNumber, dateLine, raatTitle } from '../lib/hijri';
 import { createContext, useContext, useMemo } from 'react';
 import { EditContext, Editable, TextBoxView, TextEdits } from './Editable';
-import { Booklet as Doc, CATEGORY_LABEL, City, ImageBlock, TEXT_COLORS, TextBox, VENUES, cityOf } from './model';
-import { FihristItem, Layout, PAGE, Page, PlacedItem, imageWidthPt, ptPerPx } from './paginate';
+import { Booklet as Doc, CATEGORY_LABEL, City, ImageBlock, TEXT_COLORS, VENUES, cityOf } from './model';
+import { FihristItem, Layout, PAGE, Page, PlacedItem, imageWidthPt, placeBoxes, ptPerPx } from './paginate';
 import './booklet.css';
 import { mediaSrc, openingSrc } from './media';
 export { mediaSrc } from './media';
@@ -274,11 +274,8 @@ interface ViewProps {
 export function BookletView({ doc, layout, edits, onPlace, assets = {}, pageWidthPx, range }: ViewProps) {
   const city = cityOf(doc.venue);
   const ctx = useMemo(() => ({ overrides: doc.overrides ?? {}, edits, colors: TEXT_COLORS[city] }), [doc.overrides, edits, city]);
-  const boxes = useMemo(() => {
-    const byPage = new Map<number, TextBox[]>();
-    for (const b of doc.textBoxes ?? []) byPage.set(b.page, [...(byPage.get(b.page) ?? []), b]);
-    return byPage;
-  }, [doc.textBoxes]);
+  // Each box goes with what it annotates (paginate.ts placeBoxes).
+  const boxes = useMemo(() => placeBoxes(doc.textBoxes, layout).byPage, [doc.textBoxes, layout]);
 
   const place = (index: number) => (e: React.MouseEvent<HTMLElement>) => {
     if (!onPlace) return;
@@ -305,7 +302,7 @@ export function BookletView({ doc, layout, edits, onPlace, assets = {}, pageWidt
             onClickCapture={onPlace && place(i)}
           >
             <PageBody page={page} doc={doc} />
-            {boxes.get(i)?.map((b) => <TextBoxView key={b.id} box={b} />)}
+            {boxes.get(i)?.map(({ box, offset }) => <TextBoxView key={box.id} box={box} offset={offset} />)}
           </section>
         ))}
       </div>

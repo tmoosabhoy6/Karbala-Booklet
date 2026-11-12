@@ -30,8 +30,9 @@ export function ImageEditor({ block, onClose, onApplied }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // Screen ↔ original-pixel conversion.
-  const toPx = (e: React.MouseEvent) => {
+  // Screen ↔ original-pixel conversion. Pointer events: a mouse, a finger
+  // or a pen all draw boxes.
+  const toPx = (e: React.PointerEvent) => {
     const r = img.current!.getBoundingClientRect();
     const k = natural!.w / r.width;
     return { x: Math.max(0, Math.min(natural!.w, (e.clientX - r.left) * k)), y: Math.max(0, Math.min(natural!.h, (e.clientY - r.top) * k)) };
@@ -39,13 +40,14 @@ export function ImageEditor({ block, onClose, onApplied }: Props) {
   const pct = (r: Rect) =>
     natural && { left: `${(r.x / natural.w) * 100}%`, top: `${(r.y / natural.h) * 100}%`, width: `${(r.w / natural.w) * 100}%`, height: `${(r.h / natural.h) * 100}%` };
 
-  const down = (e: React.MouseEvent) => {
-    if (!natural) return;
+  const down = (e: React.PointerEvent) => {
+    if (!natural || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
     start.current = toPx(e);
     setDraft({ ...start.current, w: 0, h: 0 });
   };
-  const moveMouse = (e: React.MouseEvent) => {
+  const move = (e: React.PointerEvent) => {
     if (!start.current) return;
     const p = toPx(e);
     const s = start.current;
@@ -89,7 +91,7 @@ export function ImageEditor({ block, onClose, onApplied }: Props) {
           </button>
         </div>
         <div className="canvas">
-          <div className="stage" onMouseDown={down} onMouseMove={moveMouse} onMouseUp={up} onMouseLeave={up}>
+          <div className="stage" style={{ touchAction: 'none' }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
             <img
               ref={img}
               src={`/api/media/${block.mediaId}/original`}
@@ -101,7 +103,7 @@ export function ImageEditor({ block, onClose, onApplied }: Props) {
             {edits.erase?.map((r, i) => (
               <div className="box erase" key={i} style={pct(r)!}>
                 <button
-                  onMouseDown={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => setEdits((ed) => ({ ...ed, erase: ed.erase!.filter((_, j) => j !== i) }))}
                 >
                   ✕
