@@ -3,8 +3,9 @@
 import type { Part } from './geometry';
 
 /** One row of lettering, in PDF points: top, bottom, ink centre, left and
- * right ink edges, the share of coloured ink, and its page. */
-export interface Row { t: number; b: number; c: number; x0: number; x1: number; col: number; page: number }
+ * right ink edges, the share of coloured ink, its page, and (PDFs added in
+ * the editor) its stroke thickness. */
+export interface Row { t: number; b: number; c: number; x0: number; x1: number; col: number; page: number; sw?: number }
 
 const median = (a: number[]) => [...a].sort((p, q) => p - q)[a.length >> 1] ?? 0;
 

@@ -5,8 +5,15 @@
 // print. Verses follow the same rules as the Zikre Husain library
 // (src/library/plan.ts). The result has the library's own geometry format,
 // so the same code lays out and renders it.
-import type { Library, LibraryKalam, Marks } from './geometry';
+import type { Library, LibraryKalam, Marks, Part } from './geometry';
 import { joinParts, rowCrops, stanzasOf, staggered, versePlan, type Row } from './plan';
+
+/** Raise whenever a change here reads PDFs differently: PDFs already added
+ * are read again with it (src/library/user.ts), keeping their kalam names.
+ * 2: stanza badges beside the lettering; a short refrain is not a change of
+ * size; page numbers a little above the footer; upright rules between
+ * half-lines. */
+export const ANALYZER = 2;
 
 /** Analysis raster, px per point. */
 const S = 1.5;
@@ -14,7 +21,10 @@ const S = 1.5;
 export interface FoundKalam { v: number; r: number; c?: number; pages: [number, number] }
 export interface Analysis { library: Library; found: FoundKalam[] }
 
-interface PageRows { rows: (Row & { kind: 'verse' | 'title' | 'ornament' | 'heading' })[]; width: number; height: number; boxes: number[][] }
+/** A stanza badge or other mark set beside the lettering, or (`rule` 1) an
+ * upright rule between half-lines: [top, bottom, left, right] in points. */
+export type SideMark = [number, number, number, number, rule?: 1];
+interface PageRows { rows: (Row & { kind: 'verse' | 'title' | 'ornament' | 'heading' })[]; width: number; height: number; boxes: number[][]; side: SideMark[] }
 
 /** A decorative page border (booklets made in Word): columns and rows near
  * the edges with ink down most of their length are blanked, leaving the
@@ -72,9 +82,10 @@ function bandsOf(raw: [number, number][]): [number, number][] {
   const typical = typicalOf(raw);
   const main = raw.filter(([t, b]) => b - t >= typical * 0.4).map(([t, b]) => [t, b] as [number, number]);
   if (!main.length) return raw;
+  const gapTo = (l: [number, number], t: number, b: number) => Math.max(0, t - l[1], l[0] - b);
   for (const [t, b] of raw) {
     if (b - t >= typical * 0.4) continue;
-    const nearest = main.reduce((best, l) => (Math.max(0, t - l[1], l[0] - b) < Math.max(0, t - best[1], best[0] - b) ? l : best));
+    const nearest = main.reduce((best, l) => (gapTo(l, t, b) < gapTo(best, t, b) ? l : best));
     nearest[0] = Math.min(nearest[0], t);
     nearest[1] = Math.max(nearest[1], b);
   }
@@ -88,8 +99,94 @@ function bandsOf(raw: [number, number][]): [number, number][] {
   return merged;
 }
 
+const inkedAt = (px: Uint8ClampedArray | Uint8Array, o: number) => 255 - Math.min(px[o], px[o + 1], px[o + 2]) > 55;
+
+/** Stanza badges (a numbered star or circle beside each stanza) and other
+ * marks set to one side of the lettering. Rows are found across the whole
+ * width, so a badge between two lines would join them into one tall row, or
+ * make one row taller than the rest: the stanza then came apart into pieces
+ * spaced unlike the original, and the odd row heights split one kalam into
+ * many. A badge is a narrow cluster of ink, off the page's centre, standing
+ * clear of the lettering beside it and taller than a line. It is blanked
+ * here, so rows are read from the lettering alone, and returned so the
+ * verse around it is cropped tall and wide enough to keep it. */
+function liftSideMarks(px: Uint8ClampedArray | Uint8Array, w: number, h: number, stride: number, oy: number, ox: number): SideMark[] {
+  const raw = rawBands(px, w, h, stride);
+  const typical = typicalOf(raw);
+  const marks: SideMark[] = [];
+  const clear = Math.max(6 * S, typical * 0.75); // gap that sets a mark apart from the words beside it
+  const narrow = w * 0.16;
+  for (const [t, b] of raw) {
+    // Upright rules (bars between the two halves of each line): ink running
+    // straight down far longer than any letter, a few points wide. Measured
+    // in points, since rows joined by a rule also throw off the typical row.
+    const tall = Math.round(60 * S);
+    let rule = -1;
+    if (b - t >= tall) for (let x = 0; x <= w; x++) {
+      let longest = 0, run = 0;
+      if (x < w) for (let y = t; y < b; y++) { run = inkedAt(px, y * stride + x * 3) ? run + 1 : 0; longest = Math.max(longest, run); }
+      const upright = longest >= tall;
+      if (upright && rule < 0) rule = x;
+      if (!upright && rule >= 0) {
+        if (x - rule <= 4 * S) {
+          let top = b, bottom = t;
+          for (let rx = rule; rx < x; rx++) for (let y = t; y < b; y++) if (inkedAt(px, y * stride + rx * 3)) { top = Math.min(top, y); bottom = Math.max(bottom, y + 1); }
+          for (let y = top; y < bottom; y++) px.fill(255, y * stride + Math.max(0, rule - 1) * 3, y * stride + Math.min(w, x + 1) * 3);
+          marks.push([oy + top / S, oy + bottom / S, ox + rule / S, ox + x / S, 1]);
+        }
+        rule = -1;
+      }
+    }
+    if (b - t < typical * 1.25) continue;
+    const cols = new Uint16Array(w);
+    for (let y = t; y < b; y++) for (let x = 0; x < w; x++) if (inkedAt(px, y * stride + x * 3)) cols[x]++;
+    // Columns with ink, joined across gaps narrower than `clear`.
+    const clusters: [number, number][] = [];
+    for (let x = 0; x < w; x++) {
+      if (!cols[x]) continue;
+      const last = clusters.at(-1);
+      if (last && x - last[1] <= clear) last[1] = x + 1;
+      else clusters.push([x, x + 1]);
+    }
+    for (const [x0, x1] of clusters) {
+      if (x1 - x0 > narrow || Math.abs((x0 + x1) / 2 - w / 2) < w * 0.08) continue;
+      let top = -1, bottom = -1;
+      const rest: boolean[] = [];
+      for (let y = t; y < b; y++) {
+        let mine = false, other = 0;
+        for (let x = 0; x < w; x++) {
+          if (!inkedAt(px, y * stride + x * 3)) continue;
+          if (x >= x0 && x < x1) mine = true; else other++;
+        }
+        if (mine) { if (top < 0) top = y; bottom = y + 1; }
+        rest.push(other >= 3);
+      }
+      if (bottom - top < typical * 1.3) continue;
+      // Without it, the band is shorter or falls apart into separate rows.
+      const first = rest.indexOf(true), last = rest.lastIndexOf(true);
+      let pieces = 0;
+      rest.forEach((on, i) => { if (on && (i === 0 || !rest[i - 1])) pieces++; });
+      if (first >= 0 && pieces < 2 && last - first > (b - t) - typical * 0.25) continue;
+      for (let y = top; y < bottom; y++) px.fill(255, y * stride + x0 * 3, y * stride + x1 * 3);
+      marks.push([oy + top / S, oy + bottom / S, ox + x0 / S, ox + x1 / S]);
+    }
+  }
+  return marks;
+}
+
 function rowOf(px: Uint8ClampedArray | Uint8Array, w: number, stride: number, t: number, b: number, page: number, oy: number, ox: number): Row {
   let ink = 0, colored = 0, mass = 0, moment = 0, x0 = w, x1 = -1;
+  // Stroke thickness: the mean height of dark ink down each column, leaving
+  // out runs longer than a third of the row (upright letters).
+  let runs = 0, runPx = 0;
+  for (let x = 0; x < w; x++) {
+    let run = 0;
+    for (let y = t; y <= b; y++) {
+      const dark = y < b && 255 - Math.min(px[y * stride + x * 3], px[y * stride + x * 3 + 1], px[y * stride + x * 3 + 2]) > 100;
+      if (dark) run++;
+      else if (run) { if (run < (b - t) / 3) { runs++; runPx += run; } run = 0; }
+    }
+  }
   for (let y = t; y < b; y++) {
     let rowMass = 0;
     for (let x = 0; x < w; x++) {
@@ -103,7 +200,7 @@ function rowOf(px: Uint8ClampedArray | Uint8Array, w: number, stride: number, t:
     moment += rowMass * (y - t);
   }
   const centre = t + moment / Math.max(1, mass);
-  return { t: oy + t / S, b: oy + b / S, c: oy + centre / S, x0: ox + Math.max(0, x0) / S, x1: ox + Math.max(0, x1) / S, col: colored / Math.max(1, ink), page };
+  return { t: oy + t / S, b: oy + b / S, c: oy + centre / S, x0: ox + Math.max(0, x0) / S, x1: ox + Math.max(0, x1) / S, col: colored / Math.max(1, ink), page, ...(runs ? { sw: runPx / runs / S } : {}) };
 }
 
 const rgbOf = (c: number[]) => (c.length === 1 ? [c[0], c[0], c[0]] : c.length === 4 ? [0, 1, 2].map((i) => (1 - c[i]) * (1 - c[3])) : c);
@@ -136,6 +233,21 @@ export function readPage(mupdf: any, doc: any, i: number): PageRows {
     const raw = rawBands(px, w, h, stride);
     const typical = typicalOf(raw);
     const markers: PageRows['rows'] = [];
+    // A page number can sit a little above the footer zone, and print as
+    // more than one piece of ink: the small marks at the very bottom (or
+    // top), together less than a row tall and narrow, standing apart.
+    for (const end of [raw.length - 1, 0]) {
+      const dir = end ? -1 : 1;
+      let k = end;
+      while (k >= 0 && k < raw.length && raw[k][1] - raw[k][0] < typical && Math.abs(raw[k][0] - raw[end][0]) < typical * 1.5) k += dir;
+      const piece = end ? raw.slice(k + 1) : raw.slice(0, k);
+      if (!piece.length || piece.length === raw.length) continue;
+      const t = piece[0][0], b = piece.at(-1)![1];
+      const apart = end ? t - raw[k][1] : raw[k][0] - b;
+      const r = rowOf(px, w, stride, t, b, i, by0, bx0);
+      const near = end ? r.t - by0 > height * 0.85 : r.b - by0 < height * 0.12;
+      if (near && apart > typical * 0.5 && r.x1 - r.x0 < width * 0.1) for (let y = t; y < b; y++) px.fill(255, y * stride, y * stride + w * 3);
+    }
     raw.forEach(([t, b], j) => {
       // Dots and vowel marks sit a few pixels from their row; these stand apart.
       const gap = Math.min(j ? t - raw[j - 1][1] : Infinity, j + 1 < raw.length ? raw[j + 1][0] - b : Infinity);
@@ -148,9 +260,10 @@ export function readPage(mupdf: any, doc: any, i: number): PageRows {
       if (ornament && !furniture) markers.push({ ...r, kind: 'ornament' });
       for (let y = t; y < b; y++) px.fill(255, y * stride, y * stride + w * 3);
     });
+    const side = liftSideMarks(px, w, h, stride, by0, bx0);
     const rows = bandsOf(rawBands(px, w, h, stride)).map(([t, b]) => rowOf(px, w, stride, t, b, i, by0, bx0)).filter((r) => r.b - r.t >= 3);
     pix.destroy();
-    return { width, height, boxes, rows: [...rows.map((r) => ({ ...r, kind: 'verse' as const })), ...markers].sort((a, b) => a.t - b.t) };
+    return { width, height, boxes, side, rows: [...rows.map((r) => ({ ...r, kind: 'verse' as const })), ...markers].sort((a, b) => a.t - b.t) };
   } finally {
     page.destroy();
   }
@@ -194,11 +307,38 @@ export function analyzePdf(mupdf: any, doc: any, name: string, sha: string, prog
     for (let k = j; k >= 0 && k < flow.length && hs.length < 3; k += dir) if (flow[k].kind === 'verse') hs.push(flow[k].b - flow[k].t);
     return hs.length === 3 ? median(hs) : 0;
   };
+  // Ink height alone can mislead: lines without tall letters or dots below
+  // (a short refrain) are a third shorter in the same lettering. A change of
+  // size is kept unless everything else says the lettering is the same: the
+  // strokes as thick, the lines as far apart, and the shorter side a mix of
+  // short and full lines rather than three alike.
+  const around = (j: number, dir: 1 | -1, of: (r: Row) => number | undefined) => {
+    const vs: number[] = [];
+    for (let k = j; k >= 0 && k < flow.length && vs.length < 3; k += dir) { const v = flow[k].kind === 'verse' ? of(flow[k]) : undefined; if (v) vs.push(v); }
+    return vs;
+  };
+  const pitchAround = (j: number, dir: 1 | -1) => {
+    const ps: number[] = [];
+    for (let k = j; k >= 0 && k + dir >= 0 && k + dir < flow.length && ps.length < 2; k += dir) {
+      const a = flow[k], b = flow[k + dir];
+      if (a.kind !== 'verse' || b.kind !== 'verse' || a.page !== b.page) break;
+      const d = Math.abs(b.c - a.c);
+      if (d > 2.2 * Math.max(a.b - a.t, b.b - b.t)) break; // a stanza gap, not line spacing
+      ps.push(d);
+    }
+    return ps.length ? median(ps) : 0;
+  };
+  const near = (a: number, b: number, by: number) => !!a && !!b && Math.abs(a - b) / Math.min(a, b) < by;
+  const sameLettering = (j: number) => {
+    const sb = around(j - 1, -1, (r) => r.sw), sa = around(j, 1, (r) => r.sw);
+    if (sb.length < 3 || sa.length < 3 || !near(median(sb), median(sa), 0.1)) return false;
+    return near(pitchAround(j - 1, -1), pitchAround(j, 1), 0.08);
+  };
   const resized = new Set<Row>();
   flow.forEach((r, j) => {
     if (r.kind !== 'verse') return;
     const before = heightAround(j - 1, -1), after = heightAround(j, 1);
-    if (before && after && Math.abs(after - before) / Math.min(after, before) > 0.33) resized.add(r);
+    if (before && after && Math.abs(after - before) / Math.min(after, before) > 0.33 && !sameLettering(j)) resized.add(r);
   });
   // Only the first row of each change of size counts.
   for (const r of [...resized]) { const j = flow.indexOf(r as (typeof flow)[number]); if (j > 0 && resized.has(flow[j - 1])) resized.delete(r); }
@@ -219,11 +359,10 @@ export function analyzePdf(mupdf: any, doc: any, name: string, sha: string, prog
     }
   }
   const verses = all.filter((r) => r.kind === 'verse');
+  // Badges beside a verse, which its image must reach over.
+  const sides: SideMark[] = [];
   const pad = 10;
   const maxWidth = Math.max(...pages.map((p) => p.width), 1);
-  const x: [number, number] = verses.length
-    ? [Math.max(0, Math.min(...verses.map((r) => r.x0)) - pad), Math.min(maxWidth, Math.max(...verses.map((r) => r.x1)) + pad)]
-    : [0, maxWidth];
   const out: LibraryKalam[] = [];
   const found: FoundKalam[] = [];
   for (const k of kalams) {
@@ -232,7 +371,12 @@ export function analyzePdf(mupdf: any, doc: any, name: string, sha: string, prog
     const rows = stanzas.flat();
     const crops = rowCrops(rows, () => 0, (p) => pages[p].height);
     const plan = versePlan(stanzas);
-    const st = plan.map(([a, b]) => joinParts(crops.slice(a, b)));
+    // A verse's crop reaches over any badge beside it, so the badge prints
+    // whole. A rule runs down many verses: each prints its own stretch.
+    const st = plan.map(([a, b]) => joinParts(crops.slice(a, b)).map(([p, y0, y1, c0, c1]) => {
+      for (const m of pages[p].side) if (!m[4] && m[0] < y1 && m[1] > y0) { y0 = Math.min(y0, m[0] - 3); y1 = Math.max(y1, m[1] + 3); sides.push(m); }
+      return [p, +y0.toFixed(1), +y1.toFixed(1), c0, c1] as Part;
+    }));
     const t = k.title ?? rows[0];
     const couplets = stanzas.length === 1 && plan.every(([a, b]) => b - a === 1) && staggered(rows);
     // Print groups (tools/build_library.py print_groups): single rows of one
@@ -247,5 +391,8 @@ export function analyzePdf(mupdf: any, doc: any, name: string, sha: string, prog
     out.push({ st, g, lh: +kh.toFixed(1), pitch: +kp.toFixed(1), tr: [t.page, +Math.max(0, t.x0 - 6).toFixed(1), +(t.t - 3).toFixed(1), +(t.x1 + 6).toFixed(1), +(t.b + 3).toFixed(1)] });
     found.push({ v: st.length, r: rows.length, ...(couplets ? { c: 2 } : {}), pages: [rows[0].page, rows.at(-1)!.page] });
   }
-  return { library: { v: 1, source: name, sha, x, kalams: out, marks }, found };
+  const x: [number, number] = verses.length
+    ? [Math.max(0, Math.min(...verses.map((r) => r.x0), ...sides.map((m) => m[2])) - pad), Math.min(maxWidth, Math.max(...verses.map((r) => r.x1), ...sides.map((m) => m[3])) + pad)]
+    : [0, maxWidth];
+  return { library: { v: 1, source: name, sha, x, kalams: out, marks, an: ANALYZER }, found };
 }

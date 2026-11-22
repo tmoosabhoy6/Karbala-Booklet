@@ -4,7 +4,7 @@
 // Each is also kept on the server (server/index.ts /api/pdfs), so a PDF added
 // on the laptop is on the phone too (syncUserPdfs).
 import { analyzeUserPdf, closeUser } from './client';
-import type { FoundKalam } from './analyze';
+import { ANALYZER, type FoundKalam } from './analyze';
 import type { Library } from './geometry';
 import { deleteFile, deleteMeta, readFile, readMeta, writeFile, writeMeta } from './store';
 import { responseError } from '../lib/http';
@@ -138,8 +138,34 @@ export function syncUserPdfs(): Promise<void> {
       }
     }
     for (const p of list) if (!remote.some((r) => r.key === p.key)) await share(p.key, true);
+    // Read with an older analyzer: read again, so a fix to how PDFs are read
+    // reaches the PDFs already added, not only new ones.
+    for (const p of list) {
+      try { if (await reanalyze(p.key)) touched = true; } catch (error) { console.warn(`“${p.name}” could not be read again:`, error); }
+    }
     if (touched) changed();
   })().catch((error) => console.warn('PDF sync failed:', error));
+}
+
+/** Read a PDF again when an older analyzer read it. Each new kalam keeps the
+ * name of the first named old kalam that started on one of its pages. True
+ * when it was read again. */
+async function reanalyze(key: string): Promise<boolean> {
+  const [lib, old, pdf] = await Promise.all([readMeta<Library>(`lib:${key}`), userKalams(key), listUserPdfs().then((l) => l.find((p) => p.key === key))]);
+  if (!lib || !pdf || (lib.an ?? 1) >= ANALYZER || !(await readFile(key))) return false;
+  closeUser(key);
+  const { library, found } = await analyzeUserPdf(key, pdf.name, key.slice(2), () => undefined);
+  if (!found.length) return false;
+  const used = new Set<number>();
+  const kalams = found.map((f) => {
+    const i = old.findIndex((k, j) => !used.has(j) && k.title && k.pages[0] >= f.pages[0] && k.pages[0] <= f.pages[1]);
+    if (i >= 0) used.add(i);
+    return { ...f, title: i >= 0 ? old[i].title : '' };
+  });
+  await Promise.all([writeMeta(`lib:${key}`, library), writeMeta(`kalams:${key}`, kalams)]);
+  closeUser(key); // the worker opens the new reading next time
+  await share(key);
+  return true;
 }
 
 async function dropLocal(key: string) {

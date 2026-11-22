@@ -21,8 +21,10 @@ export interface LibraryKalam extends Verses { lh: number; pitch: number; tr: [n
  * pink and frame are left out (the heading line in them prints). */
 export interface Marks { w?: number[][]; z?: number[][]; t?: [number, number, number, number, number[]][]; d?: number[][]; b?: number[][] }
 /** `build`: this geometry's own digest (tools/build_library.py finalize).
- * `x`: the horizontal span every verse image covers, in points. */
-export interface Library { v: number; source: string; sha: string; build?: string; x?: [number, number]; kalams: LibraryKalam[]; marks: Record<string, Marks> }
+ * `x`: the horizontal span every verse image covers, in points.
+ * `an`: for a PDF added in the editor, the version of src/library/analyze.ts
+ * that read it (an older reading is read again). */
+export interface Library { v: number; source: string; sha: string; build?: string; x?: [number, number]; kalams: LibraryKalam[]; marks: Record<string, Marks>; an?: number }
 
 /** Library media ids: lib<version>-<kalam>-<verses>-<block>, e.g. lib3-0-0t9_12-0.
  * Everything about the image follows from the id, so a server that lost the
