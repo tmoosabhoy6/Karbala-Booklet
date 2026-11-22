@@ -571,6 +571,11 @@ const cleaning = async () => {
 };
 setTimeout(() => { void cleaning(); setInterval(() => void cleaning(), 6 * 3600_000).unref(); }, CLEANUP_DELAY).unref();
 const http = app.listen(PORT, HOST, () => console.log(`server on http://${HOST}:${PORT}${PASSWORD ? ' (password on)' : ''}`));
+// Node closes an idle kept-alive connection after 5 s, while the host's proxy
+// keeps reusing it longer: a request sent down a connection Node has just
+// closed came back as a Cloudflare 520 page. Outlast the proxy instead.
+http.keepAliveTimeout = 120_000;
+http.headersTimeout = 125_000;
 let closing = false;
 const shutdown = async () => {
   if (closing) return;

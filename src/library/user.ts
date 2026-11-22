@@ -7,6 +7,7 @@ import { analyzeUserPdf, closeUser } from './client';
 import type { FoundKalam } from './analyze';
 import type { Library } from './geometry';
 import { deleteFile, deleteMeta, readFile, readMeta, writeFile, writeMeta } from './store';
+import { responseError } from '../lib/http';
 
 export interface UserPdf { key: string; name: string; size: number; added: number; pages: number }
 /** One kalam of an added PDF: its name (typed by you) and what it holds. */
@@ -70,11 +71,11 @@ async function share(key: string, withFile = false) {
       const blob = await readFile(key);
       if (!blob) return void (await setUnshared(key, false));
       const sent = await fetch(`/api/pdfs/${enc(key)}/file`, { method: 'PUT', body: blob });
-      if (!sent.ok) throw new Error(await sent.text());
+      if (!sent.ok) throw new Error(await responseError(sent));
     }
     const updated = Date.now();
     const res = await fetch(`/api/pdfs/${enc(key)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pdf, lib, kalams, updated }) });
-    if (!res.ok && res.status !== 409) throw new Error(await res.text());
+    if (!res.ok && res.status !== 409) throw new Error(await responseError(res));
     // 409: another device saved newer details, which the next sync brings here.
     if (res.ok) await writeMeta(`updated:${key}`, updated);
     await setUnshared(key, false);

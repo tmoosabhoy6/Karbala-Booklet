@@ -5,9 +5,10 @@ import type { ExportRequest } from '../booklet/print';
 import { cityKey, readBackup, saveBackup, type MediaBackup } from './cache';
 import { zhBuild, zhVerse, type MadeVerse } from '../library/client';
 import { PROCESSOR_VERSION } from '../library/ink';
+import { responseError } from '../lib/http';
 
 async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  if (!res.ok) throw new Error(await responseError(res));
   return res.json();
 }
 
@@ -60,10 +61,7 @@ async function finishedCopy(src: string): Promise<Blob | null> {
   return cached?.ok ? cached.blob() : null;
 }
 
-const errorText = async (res: Response) => {
-  const text = await res.text();
-  try { return (JSON.parse(text) as { error?: string }).error ?? text; } catch { return text || res.statusText; }
-};
+const errorText = responseError;
 
 /** How the server's copy to durable storage is doing (server/durable.ts):
  * files waiting to go up, and whether it is failing and retrying. */
