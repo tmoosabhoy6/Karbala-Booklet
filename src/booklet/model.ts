@@ -135,7 +135,8 @@ export const TEXT_COLORS: Record<City, string[]> = {
  * Salam Arz keeps its edits by being pinned (★).
  */
 export const templateOverrides = (o: Booklet['overrides'] = {}) =>
-  Object.fromEntries(Object.entries(o).filter(([k]) => /^(cover|fihrist)\./.test(k)));
+  // A fihrist bar emptied to hide it is one night's choice: the new booklet shows it again.
+  Object.fromEntries(Object.entries(o).filter(([k, v]) => /^(cover|fihrist)\./.test(k) && !(k.startsWith('fihrist.section.') && !v.text.trim())));
 
 /** A pinned default: what a slot is pre-filled with in every new booklet.
  * `off` unpins a built-in default (see effectiveDefaults). */
