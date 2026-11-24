@@ -1294,3 +1294,232 @@ img.failed { animation: none; background: #f6eeee; }
   object-fit: contain;
   mix-blend-mode: multiply;
 }
+
+/* ---------- Zikre Husain browser: the PDF's own index ---------- */
+.lib-browse {
+  flex: none;
+  margin-left: 6px;
+  padding: 7px 11px;
+  border: 1px solid var(--ui-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ui-maroon);
+  font-weight: 600;
+}
+
+.lib-browse:hover {
+  border-color: var(--ui-maroon);
+  background: var(--ui-maroon-soft);
+}
+
+.browse-sheet {
+  width: min(760px, 100vw);
+}
+
+.browse-head h2 {
+  white-space: nowrap;
+}
+
+.browse-head small {
+  display: block;
+}
+
+.verse-head > .browse-seg {
+  flex: none;
+  display: inline-flex;
+  border: 1px solid var(--ui-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.browse-seg button {
+  border: 0;
+  white-space: nowrap;
+  padding: 6px 10px;
+  background: #fff;
+  color: var(--ui-muted);
+}
+
+.browse-seg button.on {
+  background: var(--ui-maroon);
+  color: #fff;
+}
+
+.browse-tools {
+  gap: 6px;
+}
+
+.browse-tools button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.browse-tools .browse-where {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browse-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  background: #faf7f7;
+  overscroll-behavior: contain;
+}
+
+.browse-page {
+  position: relative;
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 2px 14px rgba(60, 20, 25, 0.16);
+  overflow: hidden;
+}
+
+.browse-page img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+.browse-page.loading img {
+  opacity: 0;
+}
+
+.browse-wait {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--ui-muted);
+  text-align: center;
+}
+
+.browse-link {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+
+.browse-link:hover,
+.browse-link:focus-visible {
+  outline: none;
+  background: rgba(30, 90, 200, 0.1);
+  box-shadow: inset 0 0 0 2px rgba(30, 90, 200, 0.55);
+}
+
+.browse-link.kalam:hover,
+.browse-link.kalam:focus-visible {
+  background: rgba(140, 26, 36, 0.1);
+  box-shadow: inset 0 0 0 2px var(--ui-maroon);
+}
+
+.browse-link:active {
+  background: rgba(140, 26, 36, 0.2);
+}
+
+.browse-unlisted {
+  max-width: 700px;
+  margin: 16px auto 0;
+}
+
+.browse-unlisted h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-muted);
+}
+
+.browse-groups,
+.browse-table {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.browse-groups li + li,
+.browse-table li + li {
+  border-top: 1px solid var(--ui-line);
+}
+
+.browse-groups button,
+.browse-table button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+}
+
+.browse-groups button:hover,
+.browse-table button:hover {
+  background: var(--ui-maroon-soft);
+}
+
+.browse-groups b {
+  flex: 1;
+  font-weight: 600;
+}
+
+.browse-groups small {
+  color: var(--ui-muted);
+}
+
+.browse-groups span {
+  color: var(--ui-muted);
+  font-size: 18px;
+}
+
+.browse-no {
+  flex: none;
+  width: 30px;
+  color: var(--ui-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.browse-filter {
+  flex: none;
+  width: 140px;
+  border: 1px solid var(--ui-line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font: inherit;
+}
+
+.browse-empty {
+  padding: 24px 16px;
+  color: var(--ui-muted);
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .browse-head { flex-wrap: wrap; }
+  .browse-head > div:first-child { flex-basis: calc(100% - 50px); }
+  .browse-seg { order: 3; width: 100%; }
+  .browse-seg button { flex: 1; }
+  .browse-scroll { padding: 6px; }
+  .browse-filter { width: 90px; }
+}

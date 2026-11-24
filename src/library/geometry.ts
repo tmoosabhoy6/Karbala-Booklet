@@ -186,6 +186,11 @@ export function previewRequest(lib: Library, n: number, what: 'title' | [number,
   return blockRequest(lib, k, block, zoom);
 }
 
+/** A whole page as the PDF prints it (the index pages of the library browser). */
+export function pageRequest(page: number, width = 612, height = 792, zoom = 2): RenderRequest {
+  return { jobs: [{ page, x0: 0, y0: 0, x1: width, y1: height, dy: 0, marks: {} }], width: Math.ceil(width * zoom), height: Math.ceil(height * zoom), zoom };
+}
+
 /** Bounds of what is not paper in an RGB image (`threshold`: how far from
  * white counts), like sharp's trim. */
 export function inkBounds(rgb: Uint8Array, width: number, height: number, threshold: number) {

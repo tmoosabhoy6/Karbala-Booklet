@@ -141,6 +141,23 @@ export function previewUrl(source: string, n: number, what: 'title' | [number, n
   return source === 'zh' ? made.catch(() => serverPreview(n, what)) : made;
 }
 
+// ---- index pages (the library browser) ----
+
+const pages = new Map<number, Promise<string>>();
+/** An image URL for one of the PDF's index pages: made on this device when
+ * its copy is ready, from the server until then. */
+export async function pageUrl(page: number, width: number, height: number): Promise<string> {
+  const kept = pages.get(page);
+  if (kept) return kept;
+  const { build } = await libraryInfo();
+  const server = `/api/library/page-${page}.png?v=${build}`;
+  if (!zhLocal()) return server;
+  const made = call<Blob>({ type: 'page', source: 'zh', page, width, height }).then((blob) => URL.createObjectURL(blob));
+  made.catch(() => pages.delete(page));
+  pages.set(page, made);
+  return made.catch(() => server);
+}
+
 // ---- verse images ----
 
 /** Whether verses can be made on this device now: its copy is open, or

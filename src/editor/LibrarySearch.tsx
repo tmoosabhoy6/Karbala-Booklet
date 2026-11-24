@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Category } from '../booklet/model';
 import { KIND_LABEL, LibraryHit, searchLibrary } from './library';
 import { LibImage } from './LibImage';
+import { LibraryBrowser } from './LibraryBrowser';
 import { onUserChange } from '../library/user';
 
 interface Props {
@@ -19,6 +20,8 @@ export function LibrarySearch({ category, placeholder, onPick }: Props) {
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState(0);
   const [error, setError] = useState('');
+  // Zikre Husain's own index, to find a kalam without knowing its words.
+  const [browsing, setBrowsing] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   // Search again when a PDF is added or its kalams are named.
   const [revision, setRevision] = useState(0);
@@ -69,6 +72,10 @@ export function LibrarySearch({ category, placeholder, onPick }: Props) {
           else if (e.key === 'Escape') { setOpen(false); (e.target as HTMLInputElement).blur(); }
         }}
       />
+      <button type="button" className="lib-browse" title="Browse Zikre Husain by its own index, section by section" onClick={() => { setOpen(false); setBrowsing(true); }}>
+        Browse
+      </button>
+      {browsing && <LibraryBrowser onClose={() => setBrowsing(false)} onPick={(hit) => { setBrowsing(false); pick(hit); }} />}
       {showing && (
         <ul className="lib-results" role="listbox">
           {error && <li className="lib-empty">{error}</li>}

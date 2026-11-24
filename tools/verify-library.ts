@@ -129,6 +129,24 @@ try {
   await phone.locator('.category .lib-search input').first().fill('mere baba test');
   await phone.locator('.lib-results li', { hasText: 'Your PDF' }).first().waitFor({ timeout: 30_000 });
   step('the added PDF is on another device too, named and searchable');
+
+  // Browse: the PDF's own index. The master menu's Dars cell turns to the
+  // Dars ni Majlis index, whose Yaseen row (a title cell too narrow for the
+  // old index reading) opens Yaseen in the verse picker. Search finds it too.
+  await phone.locator('.category .lib-browse').first().click();
+  const pageShown = () => phone.waitForFunction(() => { const i = document.querySelector<HTMLImageElement>('.browse-page img'); return !!i && i.complete && i.naturalWidth > 0 && !document.querySelector('.browse-page.loading'); }, null, { timeout: 60_000 });
+  await pageShown();
+  await phone.locator('.browse-link[aria-label="Open page 1173"]').first().click();
+  await pageShown();
+  assert.match(await phone.locator('.browse-where').innerText(), /Dars ni Majlis/);
+  await phone.locator('.browse-link.kalam[aria-label^="Yaseen"]').click();
+  await phone.waitForSelector('.verse-list li');
+  assert.equal(await phone.locator('.verse-head h2').innerText(), 'Yaseen');
+  await phone.keyboard.press('Escape');
+  await phone.locator('.verse-backdrop').waitFor({ state: 'detached' });
+  await phone.locator('.category .lib-search input').first().fill('yaseen');
+  await phone.locator('.lib-results li', { hasText: 'Yaseen' }).first().waitFor({ timeout: 30_000 });
+  step('browse: master menu → Dars ni Majlis → Yaseen opens; search finds Yaseen');
   assert.deepEqual(errors, [], `No page errors: ${errors.join('; ')}`);
   console.log('Library checks passed.');
 } finally {

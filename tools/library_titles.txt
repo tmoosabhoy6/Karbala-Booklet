@@ -1945,3 +1945,6 @@
 1941|Khuda ne tumko makaasir kiya mubaarakbaad
 1942|Maazooniyat ko zeb hai ek mah jabeen se
 1943|Hikmat se apni hilm-o-tahammul ke baab mein
+# Added after the rest (build_library.py --extras), so earlier ids never move.
+1944|Yaseen|Ya Seen|Yasin|Yaaseen|Surat Yaseen|Surah Yasin|Sura Yaseen
+1945|Fasubhaan Allahi heena tumsoon wa heena tusbihoon|Dua (Dars ni Majlis)|Dua Fasubhanallahi|Tarbiyat dua

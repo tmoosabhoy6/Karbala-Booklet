@@ -11,8 +11,10 @@ Output:
   server/library/analysis.json  every kalam found (intermediate)
   server/library/library.json   geometry the server renders from
   public/library/index.json     search index (transliterated titles, kinds)
+  public/library/contents.json  the index pages' links, for the app's browser
 
-Needs PyMuPDF, numpy and Pillow:  python3 tools/build_library.py
+`--extras` adds, after every other kalam, any the index points to that no
+kalam covers (Yaseen), then finalizes. Needs PyMuPDF, numpy and Pillow:  python3 tools/build_library.py
 Transliterated titles come from tools/library_titles.txt (one per kalam, in
 PDF order). `--finalize` rebuilds only the two app files from analysis.json.
 """
@@ -1050,6 +1052,138 @@ def main():
     print('wrote', tmp, file=sys.stderr)
 
 
+def link_rows(book):
+    """Every page link on the section indexes (not the master menu or the two
+    verse indexes): narrow title cells (یٰس) too, which index_rows leaves out."""
+    rows = []
+    for i in sorted(book.index):
+        if i == 0 or i + 1 in VERSE_INDEX:
+            continue
+        for l in book.doc[i].get_links():
+            to = l.get('to')
+            if l['kind'] == 1 and 0 <= l['page'] < book.n and l['page'] not in book.index:
+                rows.append({'ip': i, 'rect': list(l['from']), 't': l['page'], 'y': to.y if to else 0})
+    return rows
+
+
+def covers(k, t, y):
+    """Whether analysed kalam k starts at (t, y) or runs through page t."""
+    if k['p'] == t and (abs(k['y'] - y) < 80 or (y < 60 and k['y'] < 160)):
+        return True
+    return k['p'] <= t <= (max(k['pages']) if k['pages'] else k['p'])
+
+
+def extras():
+    """Kalams the index links to that no analysed kalam covers (Yaseen and the
+    Dua after it in Dars ni Majlis: their title cells are too narrow for
+    index_rows). They are added after every other kalam, so the kalam numbers
+    booklets already use never change. Titles: tools/library_titles.txt."""
+    book = Book(SRC)
+    path = os.path.join(OUT_SERVER, 'analysis.json')
+    with open(path) as f:
+        A = json.load(f)
+    ks = A['kalams']
+    missing = {}
+    for r in link_rows(book):
+        if any(covers(k, r['t'], r['y']) for k in ks):
+            continue
+        missing.setdefault((r['t'], round(r['y'])), r)
+    if not missing:
+        print('no index entry is missing a kalam', file=sys.stderr)
+        return
+    # Where each one ends: where the next kalam (analysed or missing) starts.
+    starts = sorted([(k['p'], k['y']) for k in ks] + [(t, r['y']) for (t, _), r in missing.items()])
+    n = max(k['n'] for k in ks) + 1
+    for (t, _), r in sorted(missing.items()):
+        y = r['y'] if r['y'] > 60 else 0
+        later = [s for s in starts if s > (t, r['y'])]
+        nxt = {'p': later[0][0], 'y': later[0][1]} if later else None
+        # A sura closes with its ayat count in red ﴾٨٣﴿ between ornaments,
+        # drawn in a font the ٭٭٭٭٭ test cannot read: it ends the kalam there.
+        for p in range(t, (nxt['p'] if nxt else book.n - 1) + 1):
+            if p in book.index:
+                break
+            count = [s['bbox'][1] for s in book.spans(p) if '﴾' in s['text'] and s['color'] == 0xff0000 and (p > t or s['bbox'][1] > r['y'])]
+            if count:
+                nxt = {'p': p, 'y': max(61, min(count) - 2)}
+                break
+        k = {'p': t, 'y': y, 'box': None, 'row': r, 'group': group_of(r['ip'] + 1)}
+        _, result, marks = analyse_one((n, k, nxt))
+        if not result:
+            print(f'  page {t + 1}: no verses found', file=sys.stderr)
+            continue
+        ks.append({**result, 'aliases': [], 'extra': True})
+        A['whiteouts'].update({str(p): m for p, m in marks.items()})
+        print(f'  kalam {n} (entry {len(ks) - 1}) added: page {t + 1}, {len(result["stanzas"])} verses', file=sys.stderr)
+        n += 1
+    with open(path, 'w') as f:
+        json.dump(A, f)
+
+
+def contents(book, index_kalams):
+    """The PDF's own index pages as a menu (public/library/contents.json): each
+    page's links, to another index page or to the library kalam at that place,
+    so the app can show the index as the PDF has it and open any kalam from
+    it. `kalams`: analysis entries in library order."""
+    def kalam_at(t, y):
+        best = None
+        for n, k in enumerate(index_kalams):
+            if k['p'] == t:
+                d = abs(k['y'] - y) if y > 60 else (0 if k['y'] < 160 else k['y'])
+                if d < 80 and (best is None or d < best[0]):
+                    best = (d, n)
+        if best:
+            return best[1]
+        # A link into a kalam (a verse index, or a start that became an alias):
+        # the kalam running through that page, the latest that starts above.
+        inside = [n for n, k in enumerate(index_kalams) if k['p'] <= t <= max(k['pages'] or [k['p']]) and (k['p'] < t or k['y'] <= y + 80)]
+        return max(inside, key=lambda n: (index_kalams[n]['p'], index_kalams[n]['y'])) if inside else None
+    pages = {}
+    for i in sorted(book.index):
+        links = []
+        for l in book.doc[i].get_links():
+            if l['kind'] != 1 or not (0 <= l['page'] < book.n):
+                continue
+            r = [round(v, 1) for v in l['from']]
+            if r[2] - r[0] < 8 or r[3] - r[1] < 8:
+                continue  # the slivers beside each cell
+            t = l['page']
+            to = l.get('to')
+            if t in book.index:
+                if t != i:
+                    links.append({'r': r, 'p': t})
+                continue
+            n = kalam_at(t, to.y if to else 0)
+            if n is not None:
+                links.append({'r': r, 'k': n})
+        # One link per place: a cell can carry the same link twice.
+        seen, uniq = set(), []
+        for l in links:
+            key = (tuple(round(v) for v in l['r']), l.get('p'), l.get('k'))
+            if key not in seen:
+                seen.add(key)
+                uniq.append(l)
+        # A short title links only its own word (یٰس) and its page number
+        # another cell: the row between them opens it too, when no other link
+        # is in the way.
+        def overlap(a, b):
+            return min(a[2], b[2]) - max(a[0], b[0]) > 0.5 and min(a[3], b[3]) - max(a[1], b[1]) > 0.5
+        merged = []
+        for l in uniq:
+            if 'k' in l:
+                row = next((m for m in merged if m.get('k') == l['k'] and min(m['r'][3], l['r'][3]) - max(m['r'][1], l['r'][1]) > 0.6 * min(m['r'][3] - m['r'][1], l['r'][3] - l['r'][1])), None)
+                if row:
+                    r = [min(row['r'][0], l['r'][0]), min(row['r'][1], l['r'][1]), max(row['r'][2], l['r'][2]), max(row['r'][3], l['r'][3])]
+                    if not any(overlap(r, o['r']) for o in uniq if (o.get('k'), o.get('p')) != (l['k'], None)):
+                        row['r'] = r
+                        continue
+            merged.append(dict(l))
+        rect = book.doc[i].rect
+        pages[i] = {'w': round(rect.width, 1), 'h': round(rect.height, 1), 'l': merged}
+    sections = [{'p': first - 1, 'k': kind, 'g': label} for first, kind, label in GROUPS]
+    return {'start': 0, 'pages': pages, 'sections': sections}
+
+
 def print_groups(plan, couplets=False):
     """Each verse's print group (src/library/geometry.ts stanzasOf): chosen
     verses of one group print as one stanza, at line pitch. Single rows of
@@ -1112,7 +1246,8 @@ def finalize():
         # The verses older library versions numbered, frozen from the library
         # this replaces, so a booklet keeps exactly the verses it chose:
         # `l3` version 3's, `l2` version 2's (`o`: what version 1 ids leave out).
-        prev = before['kalams'][len(kalams)] if before and len(before['kalams']) == len(A['kalams']) else None
+        # (Kalams are only ever added at the end, so earlier ones keep their place.)
+        prev = before['kalams'][len(kalams)] if before and len(kalams) < len(before['kalams']) <= len(A['kalams']) else None
         if prev:
             own = lambda e, keys=('st', 'g'): {x: e[x] for x in keys if x in e}
             l3 = prev.get('l3') if before['v'] >= 4 else None
@@ -1148,11 +1283,16 @@ def finalize():
         json.dump(lib, f, separators=(',', ':'), ensure_ascii=False)
     with open(os.path.join(OUT_PUBLIC, 'index.json'), 'w') as f:
         json.dump({'v': 4, 'sha': digest, 'build': build, 'kalams': index}, f, separators=(',', ':'), ensure_ascii=False)
+    with open(os.path.join(OUT_PUBLIC, 'contents.json'), 'w') as f:
+        json.dump(contents(Book(SRC), A['kalams']), f, separators=(',', ':'), ensure_ascii=False)
     print(len(kalams), 'kalams;', sum(1 for i in index if not i['t']), 'without a title', file=sys.stderr)
 
 
 if __name__ == '__main__':
     if sys.argv[1:] == ['--finalize']:
+        finalize()
+    elif sys.argv[1:] == ['--extras']:
+        extras()
         finalize()
     else:
         main()

@@ -12,11 +12,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import sharp from 'sharp';
-import { blockOf, blockRequest, LIBRARY_ID, planIds, previewRequest, type Library, type RenderRequest } from '../src/library/geometry';
+import { blockOf, blockRequest, LIBRARY_ID, pageRequest, planIds, previewRequest, type Library, type RenderRequest } from '../src/library/geometry';
 import { renderPixels } from '../src/library/render';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LIBRARY_FILE = path.join(ROOT, 'server/library/library.json');
+const CONTENTS_FILE = path.join(ROOT, 'public/library/contents.json');
 
 let library: Library | null | undefined;
 const load = (): Library | null => {
@@ -155,4 +156,21 @@ export async function libraryPreview(n: number, what: 'title' | [number, number]
   return what === 'title'
     ? image.trim({ background: '#ffffff', threshold: 40 }).png().toBuffer()
     : image.trim({ background: '#ffffff', threshold: 30 }).png({ palette: true, quality: 90 }).toBuffer();
+}
+
+/** The PDF's index pages (public/library/contents.json), for the library browser. */
+let contents: Record<string, { w: number; h: number }> | null = null;
+const indexPages = () => {
+  if (!contents) {
+    try { contents = (JSON.parse(readFileSync(CONTENTS_FILE, 'utf8')) as { pages: Record<string, { w: number; h: number }> }).pages; } catch { contents = {}; }
+  }
+  return contents;
+};
+
+/** One of the PDF's index pages, whole, as the PDF prints it. */
+export async function libraryPage(p: number): Promise<Buffer> {
+  const page = indexPages()[String(p)];
+  if (!load() || !page) throw new Error('No such index page.');
+  const image = await render(pageRequest(p, page.w, page.h));
+  return image.png({ palette: true, quality: 95, effort: 4 }).toBuffer();
 }

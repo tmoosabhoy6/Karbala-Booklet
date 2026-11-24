@@ -21,7 +21,7 @@ import { restorationJob, restorationStatus, startRestoration } from './restore';
 import { beforeOtherHeavyWork, heavyWaiting, heavyWork, whenHeavyWorkIsStuck } from './resources';
 import { validScript } from './lettering';
 import { durableStatus, ensureLocal, flushDurable, mirror, requireStorage, settled, squashHistory, startRepoSync, StorageUnavailable } from './durable';
-import { abortLibrary, closeLibrary, isLibraryMedia, libraryAvailable, libraryGeometry, libraryPlan, libraryPreview, librarySource } from './library';
+import { abortLibrary, closeLibrary, isLibraryMedia, libraryAvailable, libraryGeometry, libraryPage, libraryPlan, libraryPreview, librarySource } from './library';
 
 const PORT = Number(process.env.PORT ?? 3001);
 // 0.0.0.0 when hosted (or to reach it from a phone on the same Wi-Fi).
@@ -180,6 +180,12 @@ app.post('/api/library/:n/plan', route(async (req, res) => {
 app.get(/^\/api\/library\/(\d+)\/(title|verse-(\d+)(?:-(\d+))?)\.png$/, route(async (req, res) => {
   const first = Number(req.params[2]), last = req.params[3] === undefined ? first : Number(req.params[3]);
   const png = await heavyWork(() => libraryPreview(Number(req.params[0]), req.params[2] !== undefined ? [first, last] : 'title'));
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.type('png').send(png);
+}));
+// The PDF's own index pages, for browsing the library as the PDF lays it out.
+app.get(/^\/api\/library\/page-(\d+)\.png$/, route(async (req, res) => {
+  const png = await heavyWork(() => libraryPage(Number(req.params[0])));
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   res.type('png').send(png);
 }));

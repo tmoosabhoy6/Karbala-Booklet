@@ -4,7 +4,7 @@
 // the server, and verse images are cleaned here with the same code the server
 // uses (src/library/ink.ts), so the server only stores the finished files.
 import { analyzePdf } from './analyze';
-import { blockOf, blockRequest, inkBounds, layout, planIds, previewRequest, spanOf, type Library, type RenderRequest } from './geometry';
+import { blockOf, blockRequest, inkBounds, layout, pageRequest, planIds, previewRequest, spanOf, type Library, type RenderRequest } from './geometry';
 import { cleanPixels, type InkGeometry } from './ink';
 import { encodePng } from './png';
 import { renderPixels } from './render';
@@ -24,6 +24,7 @@ export type WorkerRequest =
   | { type: 'open'; source: string; geometry?: string; file: string }
   | { type: 'plan'; source: string; n: number; verses: number[] | null }
   | { type: 'preview'; source: string; n: number; what: 'title' | [number, number] }
+  | { type: 'page'; source: string; page: number; width: number; height: number }
   | { type: 'block'; source: string; id: string }
   | { type: 'blocks'; source: string; n: number; verses: number[] | null }
   | { type: 'analyze'; file: string; name: string; sha: string }
@@ -96,6 +97,10 @@ async function handle(msg: WorkerRequest, progress: (done: number, total: number
     }
     case 'plan': return planIds((await opened(msg.source)).lib, msg.n, msg.verses);
     case 'preview': return preview(await opened(msg.source), msg.n, msg.what);
+    case 'page': {
+      const request = pageRequest(msg.page, msg.width, msg.height);
+      return encodePng(await draw(await opened(msg.source), request), request.width, request.height, 3);
+    }
     case 'block': {
       const s = await opened(msg.source);
       const { k, block } = blockOf(s.lib, msg.id);
