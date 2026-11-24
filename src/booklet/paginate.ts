@@ -229,7 +229,11 @@ export function paginate(doc: Booklet): Layout {
   sections.forEach((s, si) => {
     // `index` is the section's place in the venue's template, so its edits and
     // hiding stay with it when the section before it is empty.
-    if (!doc.hiddenBars?.includes(s.index)) fpush({ kind: 'section', title: s.title, index: s.index }, F_BAR);
+    // A bar whose wording was deleted (Edit text) is left out too, rather
+    // than printing as an empty pink band.
+    const typed = doc.overrides?.[`fihrist.section.${s.index}`];
+    const blank = typed?.from === s.title && !typed.text.trim();
+    if (!blank && !doc.hiddenBars?.includes(s.index)) fpush({ kind: 'section', title: s.title, index: s.index }, F_BAR);
     if (si === 0) fpush({ kind: 'cols' }, F_COLS);
     for (const e of s.entries) {
       const kalams = e.kalams.map((k) => ({ id: k.id, name: k.name, opening: !k.name.trim() && k.blocks[0]?.kind === 'image' ? k.blocks[0] : undefined, anchor: kalamAnchor(k), page: 0 }));

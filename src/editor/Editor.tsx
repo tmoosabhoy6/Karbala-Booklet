@@ -266,9 +266,15 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
                   const o = doc.overrides?.[`fihrist.section.${si}`];
                   return o && o.from === section.title ? o.text : section.title;
                 })()}
-                hidden={!!doc.hiddenBars?.includes(si)}
+                hidden={!!doc.hiddenBars?.includes(si) || doc.overrides?.[`fihrist.section.${si}`]?.from === section.title && !doc.overrides[`fihrist.section.${si}`].text.trim()}
                 onText={(t) => textEdits.override(`fihrist.section.${si}`, section.title, t.trim() || section.title, 1)}
-                onToggle={() => toggleBar(si)}
+                onToggle={() => {
+                  // A bar emptied with Edit text comes back with its original wording.
+                  const o = doc.overrides?.[`fihrist.section.${si}`];
+                  const blank = o?.from === section.title && !o.text.trim();
+                  if (blank) textEdits.override(`fihrist.section.${si}`, section.title, section.title, 1);
+                  if (!blank || doc.hiddenBars?.includes(si)) toggleBar(si);
+                }}
               />
               {section.categories.map((category, ci) => {
                 const kalams = doc.kalams[category];
@@ -462,6 +468,8 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
 /** A section's pink bar in the fihrist: retype its wording here, or hide it
  * (on a night nobody stands, the standing part's bar). */
 function SectionBar({ title, text, hidden, onText, onToggle }: { title: string; text: string; hidden: boolean; onText: (t: string) => void; onToggle: () => void }) {
+  // Emptied on the page (Edit text): shown as the original wording, hidden.
+  text = text.trim() ? text : title;
   const [draft, setDraft] = useState(text);
   useEffect(() => setDraft(text), [text]);
   const commit = () => draft !== text && onText(draft);
