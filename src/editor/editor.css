@@ -158,6 +158,54 @@ button:disabled {
   padding: 2px 8px;
 }
 
+/* The section's pink fihrist bar: its wording is typed here, and it can be hidden. */
+.section-bar {
+  margin: 14px 0 8px;
+}
+
+.section .section-bar input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: 'Kanz al-Marjaan', serif;
+  font-size: 20px;
+  color: #7a1520;
+  text-align: center;
+  background: var(--ui-maroon-soft);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.section .section-bar input:hover,
+.section .section-bar input:focus {
+  border-color: var(--ui-line);
+  outline: none;
+}
+
+.section-bar.hidden input {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.section-bar-tools {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.section-bar-tools button.ghost {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+button.ghost.danger {
+  color: #a3212d;
+  border-color: #e3b8bc;
+}
+
 .category {
   border: 1px solid var(--ui-line);
   border-radius: 10px;
@@ -861,7 +909,8 @@ button.ghost.on {
 }
 
 .editor.najaf .hijri .t,
-.editor.najaf .section h2 {
+.editor.najaf .section h2,
+.editor.najaf .section .section-bar input {
   color: #144225;
 }
 

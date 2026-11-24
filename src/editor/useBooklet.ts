@@ -29,6 +29,7 @@ import {
   createBooklet,
   defaultPosition,
   effectiveDefaults,
+  emptyKalams,
   isBuiltinMedia,
   isLibraryMedia,
   kalamFrom,
@@ -500,6 +501,23 @@ export function useBooklet(city: City) {
     [defaults, setDoc],
   );
 
+  /** Back to zero: every kalam (defaults included), text edit, text box and
+   * section order goes; date, venue and pinned (★) defaults stay. Undo (⌘Z)
+   * brings it all back; ↺ Default buttons put defaults back one by one. */
+  const clearAll = useCallback(() => setDoc((d) => ({ version: 3, date: d.date, venue: d.venue, kalams: emptyKalams() })), [setDoc]);
+
+  /** Show or hide a section's pink bar in the fihrist. */
+  const toggleBar = useCallback(
+    (index: number) =>
+      setDoc((d) => {
+        const hidden = d.hiddenBars ?? [];
+        const next = hidden.includes(index) ? hidden.filter((i) => i !== index) : [...hidden, index].sort();
+        const { hiddenBars, ...rest } = d;
+        return next.length ? { ...rest, hiddenBars: next } : rest;
+      }),
+    [setDoc],
+  );
+
   /** Typing on the pages: edits to generated text and the free text boxes. */
   const textEdits = useMemo<TextEdits>(
     () => ({
@@ -544,7 +562,7 @@ export function useBooklet(city: City) {
     [city, setDoc],
   );
 
-  return { doc, loadError, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, pin, unpin, restoreDefault, moveSection, replaceMedia, reset, textEdits, addTextBox };
+  return { doc, loadError, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, pin, unpin, restoreDefault, moveSection, replaceMedia, reset, clearAll, toggleBar, textEdits, addTextBox };
 }
 
 export type BookletState = ReturnType<typeof useBooklet>;

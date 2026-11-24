@@ -204,8 +204,9 @@ function kalamHeight(kalam: Kalam, plan: ReturnType<typeof kalamUnits>) {
 
 export function paginate(doc: Booklet): Layout {
   const sections = sectionsOf(doc)
-    .map((s) => ({
+    .map((s, index) => ({
       title: s.title,
+      index,
       entries: s.categories
         .map((category) => ({ category, kalams: (doc.kalams[category] ?? []).filter(hasContent) }))
         .filter((e) => e.kalams.length),
@@ -226,7 +227,9 @@ export function paginate(doc: Booklet): Layout {
   const groups: FihristGroup[] = [];
   fpush({ kind: 'head' }, F_HEAD);
   sections.forEach((s, si) => {
-    fpush({ kind: 'section', title: s.title, index: si }, F_BAR);
+    // `index` is the section's place in the venue's template, so its edits and
+    // hiding stay with it when the section before it is empty.
+    if (!doc.hiddenBars?.includes(s.index)) fpush({ kind: 'section', title: s.title, index: s.index }, F_BAR);
     if (si === 0) fpush({ kind: 'cols' }, F_COLS);
     for (const e of s.entries) {
       const kalams = e.kalams.map((k) => ({ id: k.id, name: k.name, opening: !k.name.trim() && k.blocks[0]?.kind === 'image' ? k.blocks[0] : undefined, anchor: kalamAnchor(k), page: 0 }));

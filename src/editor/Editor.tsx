@@ -18,7 +18,7 @@ import './editor.css';
 
 export function Editor({ city, onCity }: { city: City; onCity: (city: City) => void }) {
   const state = useBooklet(city);
-  const { doc, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, restoreDefault, moveSection, replaceMedia, reset, textEdits, addTextBox } = state;
+  const { doc, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, restoreDefault, moveSection, replaceMedia, reset, clearAll, toggleBar, textEdits, addTextBox } = state;
   const [active, setActive] = useState<{ category: Category; id: string } | null>(null);
   const [uploads, setUploads] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<ImageBlock | null>(null);
@@ -260,7 +260,16 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
         <div className="sections">
           {sections.map((section, si) => (
             <section key={section.title} className="section">
-              <h2 dir="rtl">{section.title}</h2>
+              <SectionBar
+                title={section.title}
+                text={(() => {
+                  const o = doc.overrides?.[`fihrist.section.${si}`];
+                  return o && o.from === section.title ? o.text : section.title;
+                })()}
+                hidden={!!doc.hiddenBars?.includes(si)}
+                onText={(t) => textEdits.override(`fihrist.section.${si}`, section.title, t.trim() || section.title, 1)}
+                onToggle={() => toggleBar(si)}
+              />
               {section.categories.map((category, ci) => {
                 const kalams = doc.kalams[category];
                 const filled = kalams.filter((k) => k.blocks.length).length;
@@ -332,6 +341,16 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
               }
             >
               New booklet
+            </button>
+            <button
+              className="ghost danger"
+              title="Empty the whole booklet: every kalam (defaults too), text edits and text boxes"
+              onClick={() =>
+                confirm('Reset everything to zero? Every kalam (the defaults too), screenshot, text edit and text box is removed from this booklet. Your pinned (★) defaults are not changed, and ⌘Z / Undo brings it all back.') &&
+                clearAll()
+              }
+            >
+              Reset to zero
             </button>
             <span className="hint">Kalams with no screenshots are left out of the PDF.</span>
           </div>
@@ -436,6 +455,41 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
         />
       )}
       {restoring && <AIRestore block={restoring} onClose={() => setRestoring(null)} onUse={(meta) => { replaceMedia(meta, restoring.mediaId); setRestoring(null); }} />}
+    </div>
+  );
+}
+
+/** A section's pink bar in the fihrist: retype its wording here, or hide it
+ * (on a night nobody stands, the standing part's bar). */
+function SectionBar({ title, text, hidden, onText, onToggle }: { title: string; text: string; hidden: boolean; onText: (t: string) => void; onToggle: () => void }) {
+  const [draft, setDraft] = useState(text);
+  useEffect(() => setDraft(text), [text]);
+  const commit = () => draft !== text && onText(draft);
+  return (
+    <div className={`section-bar${hidden ? ' hidden' : ''}`}>
+      <input
+        dir="rtl"
+        value={draft}
+        title="Pink bar in the fihrist: type to change its wording (empty puts the original back)"
+        aria-label="Pink bar wording"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          else if (e.key === 'Escape') setDraft(text);
+        }}
+      />
+      <div className="section-bar-tools">
+        {text !== title && (
+          <button className="ghost" title={title} onClick={() => onText(title)}>
+            ↺ Original
+          </button>
+        )}
+        <button className={`ghost${hidden ? ' on' : ''}`} onClick={onToggle} title={hidden ? 'Put this pink bar back in the fihrist' : 'Leave this pink bar out of the fihrist (its kalams stay)'}>
+          {hidden ? 'Show pink bar' : 'Hide pink bar'}
+        </button>
+        {hidden && <span className="hint">Not in the fihrist</span>}
+      </div>
     </div>
   );
 }

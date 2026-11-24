@@ -116,6 +116,10 @@ export interface Booklet {
   textBoxes?: TextBox[];
   /** Category order per venue, one list per section (see sectionsOf). */
   order?: Partial<Record<Venue, Category[][]>>;
+  /** Sections (by their place in the venue's template) whose fihrist bar is
+   * left out, e.g. the standing part's bar on a night nobody stands. Their
+   * kalams stay, listed under the bar above them. */
+  hiddenBars?: number[];
 }
 
 /** Text box colours: the booklet's black, heading maroon (Najaf: green), fihrist navy and gold. */
@@ -375,7 +379,7 @@ export const imageBlockFrom = (m: MediaMeta, extra: Partial<ImageBlock> = {}): I
   ...extra,
 });
 
-const emptyKalams = () => Object.fromEntries(ALL_CATEGORIES.map((c) => [c, [] as Kalam[]])) as Record<Category, Kalam[]>;
+export const emptyKalams = () => Object.fromEntries(ALL_CATEGORIES.map((c) => [c, [] as Kalam[]])) as Record<Category, Kalam[]>;
 export const kalamFrom = (slot: string, d: Defaults[string]): Kalam => ({ id: uid(), slot, name: d.name, blocks: cloneBlocks(d.blocks) });
 
 /** A fresh booklet for `date`/`venue`, filled with the (effective) defaults:
