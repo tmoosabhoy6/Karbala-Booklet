@@ -41,7 +41,7 @@ sharp.concurrency(1);
 
 // For the host's uptime checks; the only route open without the password.
 app.get('/api/health', (_req, res) => res.send('ok'));
-app.get('/api/version', (_req, res) => res.json({ processorVersion: PROCESSOR_VERSION, revision: process.env.RENDER_GIT_COMMIT ?? 'local', storage: durableStatus() }));
+app.get('/api/version', (_req, res) => res.json({ processorVersion: PROCESSOR_VERSION, revision: process.env.GIT_COMMIT ?? process.env.RENDER_GIT_COMMIT ?? 'local', storage: durableStatus() }));
 
 const passwordOk = (header = '') => {
   const [scheme, encoded = ''] = header.split(' ');

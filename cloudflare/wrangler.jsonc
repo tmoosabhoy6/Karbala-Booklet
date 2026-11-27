@@ -1,0 +1,30 @@
+// Cloudflare: a Worker in front of one container that runs the repository's
+// Dockerfile (the same image Render ran). Deploy from this folder with
+// `npm ci && npm run deploy` (needs Docker; see the README).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "karbala-booklet",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+  "containers": [
+    {
+      "class_name": "Booklet",
+      "image": "../Dockerfile",
+      "image_build_context": "..",
+      // 4 GiB memory, 1/2 vCPU, 8 GB disk: Chromium prints the PDF and sharp
+      // and OCR clean screenshots, which ran a 512 MB host out of memory.
+      "instance_type": "standard-1",
+      // One server holds the open booklet and its files, as on Render.
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "BOOKLET", "class_name": "Booklet" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Booklet"] }],
+  "vars": {
+    // Where GITHUB_STORAGE_TOKEN (a secret, when set) keeps the app's files.
+    "GITHUB_STORAGE_REPO": "tmoosabhoy6/Karbala-Booklet"
+  }
+}

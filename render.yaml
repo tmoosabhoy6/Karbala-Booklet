@@ -26,5 +26,6 @@ services:
         - tools/**
         - "**/*.md"
         - .claude/**
+        - cloudflare/**
         # Stored work, should it ever be kept on main (GITHUB_STORAGE_BRANCH).
         - storage/**
