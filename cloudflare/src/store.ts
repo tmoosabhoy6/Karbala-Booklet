@@ -28,6 +28,7 @@ export class Store extends DurableObject {
       CREATE TABLE IF NOT EXISTS files (name TEXT PRIMARY KEY, sha TEXT NOT NULL, size INTEGER NOT NULL, parts INTEGER NOT NULL, updated INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS parts (name TEXT NOT NULL, i INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY (name, i));
       CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS notes (k TEXT PRIMARY KEY, v TEXT NOT NULL);
     `);
     // Staging parts of uploads cut off by a restart.
     this.sql.exec(`DELETE FROM parts WHERE name LIKE '#stage:%'`);
@@ -42,6 +43,13 @@ export class Store extends DurableObject {
     const before = this.rev();
     this.sql.exec(`INSERT INTO meta (k, v) VALUES ('rev', ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v`, before + 1);
     return [before, before + 1];
+  }
+
+  /** Small notes the Worker keeps (which deploy's container is current). */
+  async note(key: string, value?: string): Promise<string | null> {
+    const before = this.sql.exec<{ v: string }>(`SELECT v FROM notes WHERE k = ?`, key).toArray()[0]?.v ?? null;
+    if (value !== undefined) this.sql.exec(`INSERT INTO notes (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v`, key, value);
+    return before;
   }
 
   async fetch(request: Request): Promise<Response> {

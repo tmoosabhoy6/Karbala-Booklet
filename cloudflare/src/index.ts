@@ -22,33 +22,19 @@ export class Booklet extends Container<Env> {
   // On SIGTERM the server first finishes its storage uploads.
   sleepAfter = '15m';
 
-  /** A container started from an older deploy is stopped (SIGTERM: the
-   * server first finishes its storage uploads), so this visit starts the new
-   * one, instead of waiting for it to sleep, which an open editor (it checks
-   * in every minute) can put off for days. Other visits wait meanwhile. */
-  async ensureCurrent(): Promise<void> {
-    const current = this.env.GIT_COMMIT ?? '';
-    if (!this.ctx.container?.running) {
-      // Not running: the container about to start is the current deploy.
-      await this.ctx.storage.put('commit', current);
-      // The object before this one ("main", until 2026-11-28) may still hold
-      // the one container allowed, on its old code: it is stopped once.
-      if (!(await this.ctx.storage.get<boolean>('retired-main'))) {
-        await this.env.BOOKLET.getByName('main').destroy().catch(() => undefined);
-        await this.ctx.storage.put('retired-main', true);
-      }
-      return;
-    }
-    if ((await this.ctx.storage.get<string>('commit')) === current) return;
-    // At most 25 s: a Durable Object may block for 30 s.
+  /** The first visit to this deploy's object stops the container of the
+   * deploy before (SIGTERM: its server first finishes its storage uploads,
+   * which this one brings down at its next sync), so this deploy's starts. */
+  async takeOver(name: string): Promise<void> {
+    if (await this.ctx.storage.get<boolean>('current')) return;
     await this.ctx.blockConcurrencyWhile(async () => {
-      await this.ctx.storage.put('commit', current);
-      await this.stop();
-      for (let i = 0; i < 25 && this.ctx.container?.running; i++) await new Promise((r) => setTimeout(r, 1000));
+      if (await this.ctx.storage.get<boolean>('current')) return;
+      const before = await this.env.STORE.getByName('main').note('container', name);
+      // Objects of the deploys before this scheme: "main", then "booklet".
+      const previous = before && before !== name ? [before] : before ? [] : ['main', 'booklet'];
+      for (const old of previous) await this.env.BOOKLET.getByName(old).stop().catch(() => undefined);
+      await this.ctx.storage.put('current', true);
     });
-    // This object may still run the older deploy's code: reset it, so the
-    // container starts from the new code (its storage route included).
-    this.ctx.abort('Restarting on the new deploy.');
   }
 
   constructor(ctx: DurableObjectState<{}>, env: Env) {
@@ -69,19 +55,18 @@ Booklet.outboundByHost = {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // "booklet": a new name on 2026-11-28, so its code is the deployed one
-    // (the old "main" object kept running old code beside its container).
-    const booklet = env.BOOKLET.getByName('booklet');
-    // Never in the way of a visit: at worst the old deploy answers.
-    // A reset (new deploy) answers with an error: the next call reaches the new object.
-    await booklet.ensureCurrent().catch((error) => console.log('ensureCurrent:', String(error)));
-    const fresh = env.BOOKLET.getByName('booklet');
+    // One object per deploy: an object keeps the code it started with while
+    // its container runs (an open editor keeps it running), so a new deploy
+    // gets a new object, which takes over from the one before.
+    const name = `booklet-${(env.GIT_COMMIT ?? 'dev').slice(0, 12)}`;
+    const booklet = env.BOOKLET.getByName(name);
+    await booklet.takeOver(name).catch((error) => console.error('takeOver failed:', String(error)));
     // A cold start pulls a large image (Chromium): wait longer than the
     // library's default 8 s + 20 s before giving up.
-    await fresh.startAndWaitForPorts({
+    await booklet.startAndWaitForPorts({
       ports: 10000,
       cancellationOptions: { instanceGetTimeoutMS: 120_000, portReadyTimeoutMS: 120_000 },
     });
-    return fresh.fetch(request);
+    return booklet.fetch(request);
   },
 } satisfies ExportedHandler<Env>;
