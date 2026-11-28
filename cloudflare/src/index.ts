@@ -1,8 +1,14 @@
-import { Container } from '@cloudflare/containers';
+import { Container, ContainerProxy } from '@cloudflare/containers';
+import { Store } from './store';
+
+export { ContainerProxy, Store };
 
 interface Env {
   BOOKLET: DurableObjectNamespace<Booklet>;
+  STORE: DurableObjectNamespace<Store>;
   GIT_COMMIT?: string;
+  /** http://store.internal: where the server keeps its files (store.ts). */
+  STORE_URL?: string;
   GITHUB_STORAGE_REPO?: string;
   // Secrets (`npx wrangler secret put NAME`), all optional.
   APP_PASSWORD?: string;
@@ -15,6 +21,12 @@ export class Booklet extends Container<Env> {
   // Like Render's free plan, it sleeps when idle; the next visit wakes it.
   // On SIGTERM the server first finishes its storage uploads.
   sleepAfter = '15m';
+
+  // The server's storage requests (STORE_URL) go to the Store Durable
+  // Object; nothing else of the container's traffic is touched.
+  static outboundByHost = {
+    'store.internal': (request: Request, env: Env) => env.STORE.getByName('main').fetch(request),
+  };
 
   constructor(ctx: DurableObjectState<{}>, env: Env) {
     super(ctx, env);

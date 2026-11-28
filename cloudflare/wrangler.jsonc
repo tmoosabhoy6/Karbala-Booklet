@@ -20,11 +20,21 @@
     }
   ],
   "durable_objects": {
-    "bindings": [{ "name": "BOOKLET", "class_name": "Booklet" }]
+    "bindings": [
+      { "name": "BOOKLET", "class_name": "Booklet" },
+      // The app's files (src/store.ts), reached by the container as STORE_URL.
+      { "name": "STORE", "class_name": "Store" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Booklet"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Booklet"] },
+    { "tag": "v2", "new_sqlite_classes": ["Store"] }
+  ],
   "vars": {
-    // Where GITHUB_STORAGE_TOKEN (a secret, when set) keeps the app's files.
+    // The server keeps its files in the Store Durable Object (src/store.ts),
+    // which only the container reaches, at this address.
+    "STORE_URL": "http://store.internal",
+    // Used instead only when STORE_URL is removed and GITHUB_STORAGE_TOKEN is set.
     "GITHUB_STORAGE_REPO": "tmoosabhoy6/Karbala-Booklet"
   }
 }

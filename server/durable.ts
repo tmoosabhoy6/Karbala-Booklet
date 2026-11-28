@@ -1,8 +1,10 @@
-// The app's database is a folder in its GitHub repository: every file the
-// server keeps under data/ (pinned defaults, the open booklets, screenshots,
-// added kalam PDFs) is committed there, and the server keeps itself in step
-// with that folder, so the free host's wiped disk (every restart) loses
-// nothing and every device sees the same work.
+// The app's database: every file the server keeps under data/ (pinned
+// defaults, the open booklets, screenshots, added kalam PDFs) is copied to
+// durable storage, and the server keeps itself in step with it, so a wiped
+// disk (every restart or sleep) loses nothing and every device sees the same
+// work. On Cloudflare that storage is the Store Durable Object (STORE_URL,
+// see cloudflareStore below); elsewhere it can be a folder in the GitHub
+// repository (GITHUB_STORAGE_TOKEN, described here).
 //
 //  - App → repo: files written under data/ are committed together, in one
 //    commit, a few seconds after they stop changing (on shutdown, at once).
@@ -250,7 +252,71 @@ function github(): Backend | null {
   };
 }
 
-const backend = github();
+// ---- Cloudflare: the Store Durable Object (cloudflare/src/store.ts) ----
+// STORE_URL (http://store.internal on Cloudflare) is answered by the Worker,
+// for this container only: private, and no token to set up or expire.
+function cloudflareStore(): Backend | null {
+  const base = (process.env.STORE_URL ?? '').replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(base)) return null;
+  const file = (name: string) => `${base}/file/${segments(name)}`;
+  const failed = async (res: Response) => new Error(`Store ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+  /** Git's blob sha of a file on disk, read a piece at a time. */
+  const shaOfFile = async (name: string) => {
+    const size = (await stat(name)).size;
+    const hash = createHash('sha1').update(`blob ${size}\0`);
+    for await (const chunk of createReadStream(name)) hash.update(chunk as Buffer);
+    return { sha: hash.digest('hex'), size };
+  };
+  return {
+    where: `cloudflare:${base}`,
+    quiet: 1500,
+    async list(since) {
+      const res = await fetch(`${base}/list${since ? `?since=${encodeURIComponent(since)}` : ''}`, { signal: AbortSignal.timeout(60_000) });
+      if (!res.ok) throw await failed(res);
+      const body = (await res.json()) as { head: string; unchanged?: boolean; files?: [string, string][] };
+      if (body.unchanged) return null;
+      return { head: body.head, files: new Map(body.files ?? []) };
+    },
+    async download(name, to) {
+      const res = await fetch(file(name), { signal: AbortSignal.timeout(300_000) });
+      if (res.status === 404) return false;
+      if (!res.ok || !res.body) throw await failed(res);
+      await mkdir(path.dirname(to), { recursive: true });
+      await writeFile(to, res.body as unknown as AsyncIterable<Uint8Array>);
+      return true;
+    },
+    async commit(changes) {
+      const shas = new Map<string, string | null>();
+      let parent: string | null = null, head = '';
+      for (const { name, entry } of changes) {
+        let res: Response;
+        if (entry.deleted) res = await fetch(file(name), { method: 'DELETE', signal: AbortSignal.timeout(60_000) });
+        else if (entry.data) {
+          res = await fetch(file(name), { method: 'PUT', signal: AbortSignal.timeout(120_000), headers: { 'x-sha': blobSha(entry.data), 'Content-Length': String(entry.data.length) }, body: entry.data });
+        } else {
+          // Large files are streamed from disk.
+          const { sha, size } = await shaOfFile(entry.file!);
+          res = await fetch(file(name), {
+            method: 'PUT', signal: AbortSignal.timeout(600_000), headers: { 'x-sha': sha, 'Content-Length': String(size) },
+            body: createReadStream(entry.file!) as unknown as BodyInit, duplex: 'half',
+          } as RequestInit);
+        }
+        if (!res.ok) throw await failed(res);
+        const done = (await res.json()) as { parent: string; head: string; sha: string | null };
+        parent ??= done.parent;
+        head = done.head;
+        shas.set(name, done.sha);
+      }
+      return { head, parent: parent ?? head, shas };
+    },
+    // Nothing piles up: a rewritten file replaces the old one.
+    async squash() { return null; },
+  };
+}
+
+// The Cloudflare store when the app runs there, else a GitHub folder when a
+// token is set, else nothing beyond this server's disk.
+const backend = cloudflareStore() ?? github();
 export const durable = !!backend;
 
 // ---- state ----
