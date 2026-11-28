@@ -12,11 +12,13 @@ interface Props {
   onClose: () => void;
   /** Chosen verses in order; null = the whole kalam. */
   onAdd: (verses: number[] | null) => void;
+  /** Quick add: the section it goes into, which can be changed here. */
+  target?: { value: string; options: { value: string; label: string }[]; onChange: (value: string) => void };
 }
 
 /** Any library kalam: see its verses and choose which print.
  * Click a verse to choose it; Shift-click chooses everything in between. */
-export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
+export function VersePicker({ hit, replacing, onClose, onAdd, target }: Props) {
   const count = hit.entry.v;
   // Each item is one verse, or a couplet of `per` verses chosen together.
   const per = Math.max(1, hit.entry.c ?? 1);
@@ -98,6 +100,18 @@ export function VersePicker({ hit, replacing, onClose, onAdd }: Props) {
           })}
         </ol>
         <footer className="verse-foot">
+          {target && (
+            <label className="verse-target">
+              Add to
+              <select value={target.value} onChange={(e) => target.onChange(e.target.value)}>
+                {target.options.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button className="ghost" onClick={() => onAdd(null)}>{replacing ? 'Replace with' : 'Add'} whole kalam</button>
           <button className="primary" disabled={!chosen.size} onClick={() => onAdd(list)}>
             {replacing ? 'Replace with' : 'Add'} {Math.ceil(chosen.size / per) || ''} {per > 1 ? 'couplet' : 'verse'}{Math.ceil(chosen.size / per) === 1 ? '' : 's'}

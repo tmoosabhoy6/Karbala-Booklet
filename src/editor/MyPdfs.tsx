@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supported } from '../library/client';
 import { addUserPdf, syncUserPdfs, editKalams, listUserPdfs, nameKalams, onUserChange, removeUserPdf, renameUserPdf, userKalams, type UserKalam, type UserPdf } from '../library/user';
 import { LibImage } from './LibImage';
+import { Icon } from './Icon';
 
 /** PDFs of kalams added on this device: upload one, and its kalams are found,
  * split into verses and searchable from every search box, like Zikre Husain. */
@@ -20,7 +21,14 @@ export function MyPdfs() {
   }, []);
   useEffect(() => { void refresh(); return onUserChange(() => void refresh()); }, [refresh]);
   // PDFs added on your other devices come here (and this device's go there).
-  useEffect(() => { if (supported) void syncUserPdfs(); }, []);
+  useEffect(() => {
+    if (!supported) return;
+    void syncUserPdfs();
+    const back = () => { if (document.visibilityState === 'visible') void syncUserPdfs(); };
+    document.addEventListener('visibilitychange', back);
+    const t = setInterval(back, 120_000);
+    return () => { document.removeEventListener('visibilitychange', back); clearInterval(t); };
+  }, []);
 
   const add = async (file: File) => {
     setReading({ name: file.name, done: 0, total: 0 });
@@ -51,14 +59,15 @@ export function MyPdfs() {
             </small>
           </div>
           <button className="ghost" onClick={() => setNaming(p)}>
-            Name kalams
+            <Icon name="pencil" size={14} /> Name kalams
           </button>
           <button
-            className="ghost"
-            title="Remove this PDF from this device (kalams already in a booklet stay)"
-            onClick={() => confirm(`Remove “${p.name}” from this device? Kalams already added to a booklet stay.`) && void removeUserPdf(p.key)}
+            className="icon-btn"
+            title="Remove this PDF from every device (kalams already in a booklet stay)"
+            aria-label={`Remove ${p.name}`}
+            onClick={() => confirm(`Remove “${p.name}” from every device? Kalams already added to a booklet stay.`) && void removeUserPdf(p.key)}
           >
-            ✕
+            <Icon name="trash" size={15} />
           </button>
         </div>
       ))}
@@ -68,7 +77,7 @@ export function MyPdfs() {
         </div>
       )}
       <button className="add" disabled={!!reading} onClick={() => input.current?.click()}>
-        + Add PDFs of kalams
+        <Icon name="file" size={15} /> Add PDFs of kalams
       </button>
       <input
         ref={input}

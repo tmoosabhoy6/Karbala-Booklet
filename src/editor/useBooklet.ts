@@ -18,6 +18,7 @@ import {
   Category,
   City,
   Defaults,
+  ExtraSection,
   Kalam,
   MediaMeta,
   TEXT_COLORS,
@@ -416,7 +417,7 @@ export function useBooklet(city: City) {
   }, [changed]);
 
   const updateKalams = useCallback(
-    (category: Category, fn: (ks: Kalam[]) => Kalam[]) => setDoc((d) => ({ ...d, kalams: { ...d.kalams, [category]: fn(d.kalams[category]) } })),
+    (category: Category, fn: (ks: Kalam[]) => Kalam[]) => setDoc((d) => ({ ...d, kalams: { ...d.kalams, [category]: fn(d.kalams[category] ?? []) } })),
     [setDoc],
   );
 
@@ -495,16 +496,58 @@ export function useBooklet(city: City) {
     [own, persistDefaults, setDoc],
   );
 
-  // The section order is kept like the cover and fihrist wording.
+  // The section order and added sections are kept like the cover and fihrist wording.
   const reset = useCallback(
-    (venue: Venue) => setDoc((d) => ({ ...createBooklet(d.date, venue, defaults), overrides: templateOverrides(d.overrides), order: d.order })),
+    (venue: Venue) =>
+      setDoc((d) => {
+        const fresh = createBooklet(d.date, venue, defaults);
+        for (const e of d.extra ?? []) fresh.kalams[e.category] ??= [];
+        return { ...fresh, overrides: templateOverrides(d.overrides), order: d.order, ...(d.extra?.length ? { extra: d.extra } : {}) };
+      }),
     [defaults, setDoc],
   );
 
   /** Back to zero: every kalam (defaults included), text edit, text box and
-   * section order goes; date, venue and pinned (★) defaults stay. Undo (⌘Z)
-   * brings it all back; ↺ Default buttons put defaults back one by one. */
-  const clearAll = useCallback(() => setDoc((d) => ({ version: 3, date: d.date, venue: d.venue, kalams: emptyKalams() })), [setDoc]);
+   * section order goes; date, venue, added sections (emptied) and pinned (★)
+   * defaults stay. Undo (⌘Z) brings it all back; ↺ Default buttons put
+   * defaults back one by one. */
+  const clearAll = useCallback(
+    () =>
+      setDoc((d) => {
+        const kalams = emptyKalams();
+        for (const e of d.extra ?? []) kalams[e.category] = [];
+        return { version: 3, date: d.date, venue: d.venue, kalams, ...(d.extra?.length ? { extra: d.extra } : {}) };
+      }),
+    [setDoc],
+  );
+
+  /** Add a section at the end of a part (Add section). */
+  const addSection = useCallback(
+    (section: ExtraSection) =>
+      setDoc((d) => ({
+        ...d,
+        extra: [...(d.extra ?? []).filter((e) => e.category !== section.category), section],
+        kalams: { ...d.kalams, [section.category]: d.kalams[section.category] ?? [] },
+      })),
+    [setDoc],
+  );
+  /** Rename one of your own sections. */
+  const renameSection = useCallback(
+    (category: Category, label: string, hint: string) =>
+      setDoc((d) => ({ ...d, extra: (d.extra ?? []).map((e) => (e.category === category ? { ...e, label, hint } : e)) })),
+    [setDoc],
+  );
+  /** Take an added section (and its kalams) out of the booklet; Undo brings it back. */
+  const removeSection = useCallback(
+    (category: Category) =>
+      setDoc((d) => {
+        const extra = (d.extra ?? []).filter((e) => e.category !== category);
+        const { [category]: _gone, ...kalams } = d.kalams;
+        const { extra: _e, ...rest } = d;
+        return { ...rest, ...(extra.length ? { extra } : {}), kalams: kalams as Booklet['kalams'] };
+      }),
+    [setDoc],
+  );
 
   /** Show or hide a section's pink bar in the fihrist. */
   const toggleBar = useCallback(
@@ -562,7 +605,7 @@ export function useBooklet(city: City) {
     [city, setDoc],
   );
 
-  return { doc, loadError, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, pin, unpin, restoreDefault, moveSection, replaceMedia, reset, clearAll, toggleBar, textEdits, addTextBox };
+  return { doc, loadError, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, pin, unpin, restoreDefault, moveSection, replaceMedia, reset, clearAll, toggleBar, textEdits, addTextBox, addSection, renameSection, removeSection };
 }
 
 export type BookletState = ReturnType<typeof useBooklet>;

@@ -6,6 +6,7 @@ import { BookletState, sameBlocks } from './useBooklet';
 import { LibrarySearch } from './LibrarySearch';
 import { useAiReady } from './AIRestore';
 import type { LibraryHit } from './library';
+import { Icon } from './Icon';
 
 interface Props {
   category: Category;
@@ -79,26 +80,28 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
         />
         {pinned && !pinStale && <span className="default-tag" title="Starts every new booklet (★ to unpin)">Default</span>}
         <div className="kalam-tools">
-          <button title="Move up" disabled={index === 0} onClick={() => updateKalams(category, (ks) => move(ks, index, index - 1))}>
-            ↑
+          <button title="Move up" aria-label="Move kalam up" disabled={index === 0} onClick={() => updateKalams(category, (ks) => move(ks, index, index - 1))}>
+            <Icon name="up" size={14} />
           </button>
-          <button title="Move down" disabled={index === count - 1} onClick={() => updateKalams(category, (ks) => move(ks, index, index + 1))}>
-            ↓
+          <button title="Move down" aria-label="Move kalam down" disabled={index === count - 1} onClick={() => updateKalams(category, (ks) => move(ks, index, index + 1))}>
+            <Icon name="down" size={14} />
           </button>
           <button
             className={`pin${pinned ? ' on' : ''}${pinStale ? ' stale' : ''}`}
+            aria-pressed={!!pinned}
             title={pinned ? (pinStale ? 'Pinned default differs: click to update it' : 'Default for new booklets: click to unpin') : 'Pin as default for new booklets'}
             onClick={() => (pinned && !pinStale ? unpin(kalam.slot!) : pin(category, kalam))}
           >
-            {pinned ? '★' : '☆'}
+            <Icon name="star" size={15} filled={!!pinned} />
           </button>
           <button
             title="Remove kalam from this booklet"
+            aria-label="Remove kalam"
             onClick={() => {
               if (!kalam.blocks.length || confirm('Remove this kalam and its screenshots from this booklet?')) updateKalams(category, (ks) => ks.filter((k) => k.id !== kalam.id));
             }}
           >
-            ✕
+            <Icon name="x" size={14} />
           </button>
         </div>
       </div>
@@ -167,8 +170,8 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
                   {/* Built-in default pages are cleaned with the app and shared: no crop/erase or AI. */}
                   {!isBuiltinMedia(b.mediaId) && (
                     <>
-                      <button title="Crop / erase marks" onClick={() => onEditImage(b)}>
-                        ✎
+                      <button title="Crop / erase marks" aria-label="Crop or erase marks" onClick={() => onEditImage(b)}>
+                        <Icon name="crop" size={14} />
                       </button>
                       {/* Every screenshot is already printed in HD from its own pixels. An AI
                           redraw can change a word or a dot, so it is offered only when set up. */}
@@ -178,20 +181,22 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
                   <button
                     title="Smaller text"
                     onClick={() => setBlocks((bs) => bs.map((x) => (x.id === b.id && x.kind === 'image' ? { ...x, scale: Math.max(0.5, +(x.scale - 0.05).toFixed(2)) } : x)))}
+                    aria-label="Smaller text"
                   >
-                    −
+                    <Icon name="minus" size={14} />
                   </button>
                   <span className="scale">{Math.round(b.scale * 100)}%</span>
                   <button
                     title="Larger text"
                     onClick={() => setBlocks((bs) => bs.map((x) => (x.id === b.id && x.kind === 'image' ? { ...x, scale: Math.min(1.6, +(x.scale + 0.05).toFixed(2)) } : x)))}
+                    aria-label="Larger text"
                   >
-                    +
+                    <Icon name="plus" size={14} />
                   </button>
                 </>
               )}
-              <button title="Remove" onClick={() => setBlocks((bs) => bs.filter((x) => x.id !== b.id))}>
-                ✕
+              <button title="Remove" aria-label="Remove" onClick={() => setBlocks((bs) => bs.filter((x) => x.id !== b.id))}>
+                <Icon name="x" size={14} />
               </button>
             </div>
             {b.kind === 'image' && !!b.warnings?.length && <small className="image-warning">{b.warnings.join(' ')}</small>}
@@ -209,6 +214,8 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
         )}
       </div>
 
+      {active || dragOver ? (
+        <div className="kalam-tools-area">
       {/* Defaults and filled cards too: a pick replaces what the card has (see the verse picker). */}
       {!fetching && (
         <LibrarySearch
@@ -240,8 +247,18 @@ export function KalamCard({ category, kalam, index, count, active, state, defaul
         />
       </div>
       <button className="link" onClick={() => setBlocks((bs) => [...bs, { kind: 'text', id: uid(), text: '', sizePt: 20 }])}>
-        + Typed text
+        <Icon name="type" size={13} /> Typed text
       </button>
+        </div>
+      ) : (
+        !kalam.blocks.length &&
+        !uploads &&
+        !fetching && (
+          <button className="kalam-empty" onClick={onActivate}>
+            Empty, so it won’t print · click to fill it
+          </button>
+        )
+      )}
     </div>
   );
 }

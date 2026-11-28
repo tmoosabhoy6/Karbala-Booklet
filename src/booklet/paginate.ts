@@ -1,5 +1,5 @@
 // Lays the booklet's content out onto A4 pages. All units are PDF points.
-import { Block, Booklet, BoxAnchor, CATEGORY_FLOW, CATEGORY_LABEL, Category, ImageBlock, Kalam, TextBox, sectionsOf } from './model';
+import { Block, Booklet, BoxAnchor, Category, ImageBlock, Kalam, TextBox, categoryFlow, categoryLabel, sectionsOf } from './model';
 
 export const PAGE = { width: 595.32, height: 841.92 };
 export const CONTENT = { left: 72, right: 523.32, top: 66, bottom: 780 };
@@ -43,6 +43,8 @@ export type PlacedItem =
 
 export interface FihristGroup {
   category: Category;
+  /** The section's heading in the ترتيب column. */
+  label: string;
   anchor: string;
   /** False on a continuation chunk, where the label is repeated lightly. */
   first: boolean;
@@ -237,7 +239,7 @@ export function paginate(doc: Booklet): Layout {
     if (si === 0) fpush({ kind: 'cols' }, F_COLS);
     for (const e of s.entries) {
       const kalams = e.kalams.map((k) => ({ id: k.id, name: k.name, opening: !k.name.trim() && k.blocks[0]?.kind === 'image' ? k.blocks[0] : undefined, anchor: kalamAnchor(k), page: 0 }));
-      const group: FihristGroup = { category: e.category, anchor: kalams[0].anchor, first: true, kalams };
+      const group: FihristGroup = { category: e.category, label: categoryLabel(doc, e.category), anchor: kalams[0].anchor, first: true, kalams };
       groups.push(group);
       fpush({ kind: 'group', group }, kalams.length * F_ROW);
     }
@@ -406,7 +408,7 @@ export function paginate(doc: Booklet): Layout {
     if (withHeading) {
       // Keep the heading with the first stanza.
       if (!fits(HEADING_H + openingHeight(kalam, plan)) && cur?.items.length) newPage();
-      place({ kind: 'heading', label: CATEGORY_LABEL[category], anchor }, HEADING_H);
+      place({ kind: 'heading', label: categoryLabel(doc, category), anchor }, HEADING_H);
       anchorPage.set(anchor, pageNo);
     }
     prevUnit = null;
@@ -446,7 +448,7 @@ export function paginate(doc: Booklet): Layout {
 
   for (const s of sections) {
     for (const e of s.entries) {
-      const flow = CATEGORY_FLOW[e.category] === 'flow';
+      const flow = categoryFlow(e.category) === 'flow';
       e.kalams.forEach((kalam, i) => {
         kalamId = kalam.id;
         if (flow && i > 0) {

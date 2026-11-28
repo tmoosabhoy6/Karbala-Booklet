@@ -10,7 +10,24 @@ import { LIBRARY_ID } from '../library/geometry';
 export type City = 'karbala' | 'najaf';
 export type Venue = 'haram' | 'najmi' | 'najaf';
 
-export type Category = 'quran' | 'qasida' | 'naat' | 'manqabat' | 'marathi' | 'nasihat' | 'salam' | 'noha' | 'matam' | 'dua' | 'salamArz' | 'ratha' | 'madh';
+export type BuiltinCategory = 'quran' | 'qasida' | 'naat' | 'manqabat' | 'marathi' | 'nasihat' | 'salam' | 'noha' | 'matam' | 'dua' | 'salamArz' | 'ratha' | 'madh';
+/** A built-in kind of kalam, or a section added to the booklet (`c-<id>`, see ExtraSection). */
+export type Category = BuiltinCategory | `c-${string}`;
+
+/**
+ * A section added with "Add section": a built-in kind the venue's template
+ * lacks (Dua in Najaf), or one of your own with its own heading. It goes at
+ * the end of part `part` (0 seated, 1 standing) and moves with ↑ ↓ like the
+ * others. Kept by New booklet, like the section order.
+ */
+export interface ExtraSection {
+  category: Category;
+  part: number;
+  /** Heading on its pages and in the fihrist (own sections only). */
+  label?: string;
+  /** Its name in the editor (own sections only). */
+  hint?: string;
+}
 
 export interface ImageBlock {
   kind: 'image';
@@ -120,6 +137,8 @@ export interface Booklet {
    * left out, e.g. the standing part's bar on a night nobody stands. Their
    * kalams stay, listed under the bar above them. */
   hiddenBars?: number[];
+  /** Sections added to this booklet (Add section). */
+  extra?: ExtraSection[];
 }
 
 /** Text box colours: the booklet's black, heading maroon (Najaf: green), fihrist navy and gold. */
@@ -143,7 +162,7 @@ export const templateOverrides = (o: Booklet['overrides'] = {}) =>
 export type Defaults = Record<string, { category: Category; name: string; blocks: Block[]; off?: boolean }>;
 
 /** Heading used on the content page and in the fihrist's ترتيب column. */
-export const CATEGORY_LABEL: Record<Category, string> = {
+export const CATEGORY_LABEL: Record<BuiltinCategory, string> = {
   quran: 'القرآن الكريم',
   qasida: 'القصيدة المباركة',
   naat: 'النعت',
@@ -159,7 +178,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   madh: 'مدح',
 };
 
-export const CATEGORY_HINT: Record<Category, string> = {
+export const CATEGORY_HINT: Record<BuiltinCategory, string> = {
   quran: 'Quran Kareem (optional)',
   qasida: 'Qasida Mubaraka (optional)',
   naat: 'Naat (optional)',
@@ -180,7 +199,7 @@ export const CATEGORY_HINT: Record<Category, string> = {
  * under one heading (Marathi). `page`: each kalam starts a new page with its
  * own heading and ends with the ornament.
  */
-export const CATEGORY_FLOW: Record<Category, 'flow' | 'page'> = {
+export const CATEGORY_FLOW: Record<BuiltinCategory, 'flow' | 'page'> = {
   quran: 'page',
   qasida: 'page',
   naat: 'page',
@@ -234,13 +253,30 @@ export const CITIES: Record<City, { label: string; venues: Venue[] }> = {
 
 export const cityOf = (venue: Venue): City => VENUES[venue]?.city ?? 'karbala';
 
-export const ALL_CATEGORIES: Category[] = ['quran', 'qasida', 'naat', 'manqabat', 'marathi', 'nasihat', 'salam', 'noha', 'matam', 'dua', 'salamArz', 'ratha', 'madh'];
+export const ALL_CATEGORIES: BuiltinCategory[] = ['quran', 'qasida', 'naat', 'manqabat', 'marathi', 'nasihat', 'salam', 'noha', 'matam', 'dua', 'salamArz', 'ratha', 'madh'];
+
+const extraOf = (doc: Pick<Booklet, 'extra'>, c: Category) => doc.extra?.find((e) => e.category === c);
+const isBuiltin = (c: Category): c is BuiltinCategory => c in CATEGORY_LABEL;
+/** A section's heading (pages and fihrist). */
+export const categoryLabel = (doc: Pick<Booklet, 'extra'>, c: Category) => extraOf(doc, c)?.label ?? (isBuiltin(c) ? CATEGORY_LABEL[c] : '');
+/** A section's name in the editor, with its note, e.g. "Quran Kareem (optional)". */
+export const categoryHint = (doc: Pick<Booklet, 'extra'>, c: Category) => extraOf(doc, c)?.hint || (isBuiltin(c) ? CATEGORY_HINT[c] : categoryLabel(doc, c));
+/** Its name alone, e.g. "Quran Kareem". */
+export const categoryName = (doc: Pick<Booklet, 'extra'>, c: Category) => categoryHint(doc, c).replace(/ \(.*\)$/, '');
+export const categoryFlow = (c: Category) => (isBuiltin(c) ? CATEGORY_FLOW[c] : 'page');
+export const isOwnSection = (c: Category) => c.startsWith('c-');
 
 /** The venue's sections in the booklet's own category order (↑ ↓ in the
  * editor). A category missing from a saved order (added to the template
  * since) takes its template place after its predecessor. */
-export function sectionsOf(doc: Pick<Booklet, 'venue' | 'order'>): { title: string; categories: Category[] }[] {
-  const template = VENUES[doc.venue].sections;
+export function sectionsOf(doc: Pick<Booklet, 'venue' | 'order' | 'extra'>): { title: string; categories: Category[] }[] {
+  const base = VENUES[doc.venue].sections;
+  // Added sections join the end of their part.
+  const inTemplate = new Set<Category>(base.flatMap((s) => s.categories));
+  const template = base.map((s, i) => ({
+    title: s.title,
+    categories: [...s.categories, ...(doc.extra ?? []).filter((e) => Math.min(e.part, base.length - 1) === i && !inTemplate.has(e.category)).map((e) => e.category)],
+  }));
   const saved = doc.order?.[doc.venue];
   if (!saved || saved.length !== template.length) return template;
   const known = template.flatMap((s) => s.categories);
@@ -388,8 +424,9 @@ export const kalamFrom = (slot: string, d: Defaults[string]): Kalam => ({ id: ui
  * regular Salam) in its category. */
 export function createBooklet(date: string, venue: Venue, defaults: Defaults): Booklet {
   const kalams = emptyKalams();
-  for (const slot of BUILTIN_SLOTS) if (defaults[slot]) kalams[defaults[slot].category].push(kalamFrom(slot, defaults[slot]));
-  for (const [slot, d] of Object.entries(defaults)) if (!BUILTIN_SLOTS.includes(slot)) kalams[d.category].push(kalamFrom(slot, d));
+  for (const slot of BUILTIN_SLOTS) if (defaults[slot]) (kalams[defaults[slot].category] ??= []).push(kalamFrom(slot, defaults[slot]));
+  // A kalam pinned in an added section fills it when the section is there (New booklet keeps it).
+  for (const [slot, d] of Object.entries(defaults)) if (!BUILTIN_SLOTS.includes(slot)) (kalams[d.category] ??= []).push(kalamFrom(slot, d));
   return { version: 3, date, venue, kalams };
 }
 

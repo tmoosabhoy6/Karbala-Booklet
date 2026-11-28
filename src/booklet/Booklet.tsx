@@ -1,7 +1,7 @@
 import { arabicNumber, dateLine, raatTitle } from '../lib/hijri';
 import { createContext, useContext, useMemo } from 'react';
 import { EditContext, Editable, TextBoxView, TextEdits } from './Editable';
-import { Booklet as Doc, CATEGORY_LABEL, City, ImageBlock, TEXT_COLORS, VENUES, cityOf } from './model';
+import { Booklet as Doc, City, ImageBlock, TEXT_COLORS, VENUES, cityOf } from './model';
 import { FihristItem, Layout, PAGE, Page, PlacedItem, imageWidthPt, placeBoxes, ptPerPx } from './paginate';
 import './booklet.css';
 import { mediaSrc, openingSrc } from './media';
@@ -118,7 +118,7 @@ function FihristEntry({ item }: { item: FihristItem }) {
       return (
         <div className="group">
           <a className={`tartib${g.first ? '' : ' cont'}`} href={`#${g.anchor}`}>
-            <Editable id={`fihrist.cat.${g.category}`} text={CATEGORY_LABEL[g.category]} />
+            <Editable id={`fihrist.cat.${g.category}`} text={g.label} />
           </a>
           <div>
             {g.kalams.map((k) => (

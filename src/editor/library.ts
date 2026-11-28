@@ -37,6 +37,12 @@ const KIND_CATEGORIES: Record<string, Category[]> = {
   kalam: [],
 };
 
+/** The section a kalam most likely belongs in, of those the booklet has
+ * (Quick add); `fallback` when its kind says nothing (your PDFs, a plain kalam). */
+export function suggestCategory(hit: LibraryHit, available: Category[], fallback: Category): Category {
+  return (KIND_CATEGORIES[hit.entry.k] ?? []).find((c) => available.includes(c)) ?? (available.includes(fallback) ? fallback : available[0]);
+}
+
 export const KIND_LABEL: Record<string, string> = {
   marathi: 'Marsiya', naat: 'Naat', manqabat: 'Manqabat', qasida: 'Qasida', nasihat: 'Nasihat',
   salam: 'Salam', noha: 'Noha', madh: 'Madh', dua: 'Iltija', kalam: 'Kalam',

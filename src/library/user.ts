@@ -95,7 +95,8 @@ async function sendRemoval(key: string, at: number) {
 let syncing: Promise<void> | null = null;
 /** Bring this device's PDFs in line with the server's: PDFs added or named
  * on another device come here; PDFs only here (added before sharing, or
- * offline) go there; removed ones go. Once per page load. */
+ * offline) go there; removed ones go. One sync at a time; MyPdfs runs it
+ * when the editor opens and whenever it comes back into view. */
 export function syncUserPdfs(): Promise<void> {
   return syncing ??= (async () => {
     const res = await fetch('/api/pdfs', { cache: 'no-store' }).catch(() => null);
@@ -144,7 +145,7 @@ export function syncUserPdfs(): Promise<void> {
       try { if (await reanalyze(p.key)) touched = true; } catch (error) { console.warn(`“${p.name}” could not be read again:`, error); }
     }
     if (touched) changed();
-  })().catch((error) => console.warn('PDF sync failed:', error));
+  })().catch((error) => console.warn('PDF sync failed:', error)).finally(() => { syncing = null; });
 }
 
 /** Read a PDF again when an older analyzer read it. Each new kalam keeps the

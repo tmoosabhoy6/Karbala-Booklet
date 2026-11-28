@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookletView } from '../booklet/Booklet';
 import { stripMarkup } from '../booklet/RichText';
-import { Block, CATEGORY_HINT, CATEGORY_LABEL, CITIES, Category, City, ImageBlock, VENUES, imageBlockFrom, sectionsOf, uid } from '../booklet/model';
+import { ALL_CATEGORIES, Block, CATEGORY_HINT, CATEGORY_LABEL, CITIES, Category, City, ExtraSection, ImageBlock, VENUES, categoryHint, categoryLabel, categoryName, imageBlockFrom, isOwnSection, sectionsOf, uid } from '../booklet/model';
 import { anchorAt, paginate, placeBoxes } from '../booklet/paginate';
 import { dateLine, raatTitle, raatTitleLatin } from '../lib/hijri';
 import { ImageEditor } from './ImageEditor';
@@ -11,20 +11,26 @@ import { api } from './api';
 import { AIRestore } from './AIRestore';
 import { LibrarySearch } from './LibrarySearch';
 import { VersePicker } from './VersePicker';
-import type { LibraryHit } from './library';
+import { suggestCategory, type LibraryHit } from './library';
+import { Icon } from './Icon';
 import { MyPdfs } from './MyPdfs';
 import { prefetchZh, userVerses, zhPlan } from '../library/client';
 import './editor.css';
 
 export function Editor({ city, onCity }: { city: City; onCity: (city: City) => void }) {
   const state = useBooklet(city);
-  const { doc, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, restoreDefault, moveSection, replaceMedia, reset, clearAll, toggleBar, textEdits, addTextBox } = state;
+  const { doc, setDoc, defaults, builtin, status, undo, redo, updateKalams, updateKalam, restoreDefault, moveSection, replaceMedia, reset, clearAll, toggleBar, textEdits, addTextBox, addSection, renameSection, removeSection } = state;
   const [active, setActive] = useState<{ category: Category; id: string } | null>(null);
   const [uploads, setUploads] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<ImageBlock | null>(null);
   const [restoring, setRestoring] = useState<ImageBlock | null>(null);
   // A library kalam waiting for its verses to be chosen; `replace` when it goes into a filled card.
-  const [picking, setPicking] = useState<{ category: Category; kalamId?: string; replace: boolean; hit: LibraryHit } | null>(null);
+  const [picking, setPicking] = useState<{ category: Category; kalamId?: string; replace: boolean; hit: LibraryHit; quick?: boolean } | null>(null);
+  // Empty sections show one line until opened; `renaming`: one of your own sections.
+  const [opened, setOpened] = useState<Set<Category>>(new Set());
+  const [renaming, setRenaming] = useState<Category | null>(null);
+  // Quick add's last section, for kalams whose kind says nothing.
+  const [lastQuick, setLastQuick] = useState<Category>('marathi');
   const [fetching, setFetching] = useState<Record<string, number>>({});
   // A4 is 794 CSS px wide: start narrow screens zoomed to fit.
   const [zoom, setZoom] = useState(() => Math.max(0.3, Math.min(0.8, +((innerWidth - 32) / 794).toFixed(2))));
@@ -128,6 +134,13 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
     setPicking({ category, kalamId, replace, hit });
   };
 
+  /** Quick add: the picker opens with the section the kalam's kind suggests. */
+  const quickAdd = (hit: LibraryHit) => {
+    if (!doc) return;
+    const available = sectionsOf(doc).flatMap((s) => s.categories);
+    setPicking({ category: suggestCategory(hit, available, lastQuick), replace: false, hit, quick: true });
+  };
+
   // ⌘V pastes screenshots into the selected kalam; ⌘Z / ⇧⌘Z undo and redo.
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
@@ -220,23 +233,23 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
       </nav>
       <aside className="inputs">
         <header className="inputs-head">
+          <div className="row">
+            <h1>Matam Majlis Booklet</h1>
+            <span className={`saved ${status.state === 'retrying' ? 'bad' : status.state === 'saved' && !status.failing ? 'ok' : 'busy'}`} title={savedTitle} role="status">
+              {savedLabel}
+            </span>
+          </div>
           {/* Each city is its own workspace: its own booklet, defaults and artwork. */}
-          <div className="seg city">
+          <div className="seg city" role="tablist" aria-label="City">
             {(Object.keys(CITIES) as City[]).map((c) => (
-              <button key={c} className={city === c ? 'on' : ''} onClick={() => onCity(c)}>
+              <button key={c} role="tab" aria-selected={city === c} className={city === c ? 'on' : ''} onClick={() => onCity(c)}>
                 {CITIES[c].label}
               </button>
             ))}
           </div>
-          <div className="row">
-            <h1>Matam Majlis Booklet</h1>
-            <span className={`saved${status.state === 'saved' && !status.failing ? '' : ' saving'}`} title={savedTitle} role="status">
-              {savedLabel}
-            </span>
-          </div>
           <div className="row two">
-            <label>
-              Majlis date (evening)
+            <label className="date">
+              <span>Majlis date (evening)</span>
               <input type="date" value={doc.date} onChange={(e) => e.target.value && setDoc((x) => ({ ...x, date: e.target.value }))} />
             </label>
             <div className="hijri" dir="rtl">
@@ -245,9 +258,9 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
             </div>
           </div>
           {CITIES[city].venues.length > 1 ? (
-            <div className="seg venue">
+            <div className="seg venue" role="radiogroup" aria-label="Venue">
               {CITIES[city].venues.map((v) => (
-                <button key={v} className={doc.venue === v ? 'on' : ''} onClick={() => setDoc((x) => ({ ...x, venue: v }))}>
+                <button key={v} role="radio" aria-checked={doc.venue === v} className={doc.venue === v ? 'on' : ''} onClick={() => setDoc((x) => ({ ...x, venue: v }))}>
                   {VENUES[v].label}
                 </button>
               ))}
@@ -258,6 +271,8 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
         </header>
 
         <div className="sections">
+          {/* One search for every section: the kalam goes where its kind belongs (changeable in the picker). */}
+          <LibrarySearch className="quick-add" placeholder="Quick add: first words…" onPick={quickAdd} />
           {sections.map((section, si) => (
             <section key={section.title} className="section">
               <SectionBar
@@ -277,72 +292,133 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
                 }}
               />
               {section.categories.map((category, ci) => {
-                const kalams = doc.kalams[category];
+                const kalams = doc.kalams[category] ?? [];
                 const filled = kalams.filter((k) => k.blocks.length).length;
                 // Built-in defaults removed from this booklet can be put back.
                 const missing = Object.entries(builtin).filter(([slot, d]) => d.category === category && !kalams.some((k) => k.slot === slot));
+                const isOpen = kalams.length > 0 || opened.has(category);
+                const [name, note] = splitHint(categoryHint(doc, category));
+                const extra = doc.extra?.find((e) => e.category === category);
                 return (
-                  <div className="category" key={category}>
+                  <div className={`category${isOpen ? ' open' : ''}${kalams.length ? '' : ' empty'}`} key={category} id={`c-${category}`}>
                     <div className="category-head">
                       <span className="ar" dir="rtl">
-                        {CATEGORY_LABEL[category]}
+                        {categoryLabel(doc, category)}
                       </span>
-                      <span className="en">{CATEGORY_HINT[category]}</span>
-                      <span className={`count${filled ? '' : ' none'}`} title="Kalams that will print">
-                        {filled}
+                      <span className="en">
+                        {name}
+                        {note && <small>{note}</small>}
                       </span>
+                      {filled > 0 && (
+                        <span className="count" title={`${filled} kalam${filled === 1 ? '' : 's'} will print`}>
+                          {filled}
+                        </span>
+                      )}
                       <span className="category-tools">
-                        <button title="Move this section up" disabled={si === 0 && ci === 0} onClick={() => moveSection(category, -1)}>
-                          ↑
+                        {extra && isOwnSection(category) && (
+                          <button title="Rename this section" aria-label="Rename this section" onClick={() => setRenaming(category)}>
+                            <Icon name="pencil" size={14} />
+                          </button>
+                        )}
+                        {extra && (
+                          <button
+                            title="Take this section out of the booklet"
+                            aria-label="Remove this section"
+                            onClick={() => (!kalams.length || confirm(`Take “${name}” and its ${kalams.length} kalam(s) out of the booklet? Undo (⌘Z) brings it back.`)) && removeSection(category)}
+                          >
+                            <Icon name="trash" size={14} />
+                          </button>
+                        )}
+                        <button title="Move this section up" aria-label="Move this section up" disabled={si === 0 && ci === 0} onClick={() => moveSection(category, -1)}>
+                          <Icon name="up" size={14} />
                         </button>
-                        <button title="Move this section down" disabled={si === sections.length - 1 && ci === section.categories.length - 1} onClick={() => moveSection(category, 1)}>
-                          ↓
+                        <button title="Move this section down" aria-label="Move this section down" disabled={si === sections.length - 1 && ci === section.categories.length - 1} onClick={() => moveSection(category, 1)}>
+                          <Icon name="down" size={14} />
                         </button>
                       </span>
+                      {!isOpen && (
+                        <button className="add-inline" onClick={() => setOpened((o) => new Set(o).add(category))}>
+                          <Icon name="plus" size={14} /> Add
+                        </button>
+                      )}
                     </div>
-                    {kalams.map((k, i) => (
-                      <KalamCard
-                        key={k.id}
-                        category={category}
-                        kalam={k}
-                        index={i}
-                        count={kalams.length}
-                        active={active?.id === k.id}
-                        state={state}
-                        defaults={defaults}
-                        onActivate={() => activate(category, k.id)}
-                        onEditImage={setEditing}
-                        onRestoreImage={setRestoring}
-                        uploads={uploads[k.id] ?? 0}
-                        fetching={fetching[k.id] ?? 0}
-                        onUpload={(files) => upload(category, k.id, files)}
-                        onLibrary={(hit) => pickFromLibrary(category, hit, k.id)}
+                    {renaming === category && extra && (
+                      <SectionForm
+                        initial={{ label: extra.label ?? '', hint: extra.hint ?? '' }}
+                        submit="Rename"
+                        onCancel={() => setRenaming(null)}
+                        onSubmit={(label, hint) => {
+                          renameSection(category, label, hint);
+                          setRenaming(null);
+                        }}
                       />
-                    ))}
-                    <LibrarySearch
-                      category={category}
-                      placeholder={`Add ${CATEGORY_HINT[category].replace(/ \(.*\)$/, '')} from Zikre Husain: type its first words`}
-                      onPick={(hit) => pickFromLibrary(category, hit)}
-                    />
-                    <button className="add" onClick={() => addKalam(category)}>
-                      + Add {CATEGORY_HINT[category].replace(/ \(.*\)$/, '')}
-                    </button>
-                    {missing.map(([slot, d]) => (
-                      <button key={slot} className="add restore" title="Put this default back into the booklet" onClick={() => restoreDefault(slot)}>
-                        ↺ Default: <bdi>{d.name}</bdi>
-                      </button>
-                    ))}
+                    )}
+                    {isOpen && (
+                      <>
+                        {kalams.map((k, i) => (
+                          <KalamCard
+                            key={k.id}
+                            category={category}
+                            kalam={k}
+                            index={i}
+                            count={kalams.length}
+                            active={active?.id === k.id}
+                            state={state}
+                            defaults={defaults}
+                            onActivate={() => activate(category, k.id)}
+                            onEditImage={setEditing}
+                            onRestoreImage={setRestoring}
+                            uploads={uploads[k.id] ?? 0}
+                            fetching={fetching[k.id] ?? 0}
+                            onUpload={(files) => upload(category, k.id, files)}
+                            onLibrary={(hit) => pickFromLibrary(category, hit, k.id)}
+                          />
+                        ))}
+                        <div className="category-add">
+                          <LibrarySearch
+                            category={category}
+                            autoFocus={!kalams.length}
+                            placeholder={`Add ${name}: type its first words`}
+                            onPick={(hit) => pickFromLibrary(category, hit)}
+                          />
+                          <div className="category-add-row">
+                            <button className="chip" onClick={() => addKalam(category)} title="An empty kalam to fill with screenshots or typed text">
+                              <Icon name="image" size={14} /> Screenshots or typed text
+                            </button>
+                            {missing.map(([slot, d]) => (
+                              <button key={slot} className="chip" title="Put this default back into the booklet" onClick={() => restoreDefault(slot)}>
+                                <Icon name="restore" size={14} /> Default: <bdi>{d.name}</bdi>
+                              </button>
+                            ))}
+                            {!kalams.length && (
+                              <button className="chip quiet" onClick={() => setOpened((o) => { const n = new Set(o); n.delete(category); return n; })}>
+                                Close
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
+              <AddSection
+                missing={ALL_CATEGORIES.filter((c) => !sections.some((s) => s.categories.includes(c)))}
+                onAdd={(extra) => {
+                  addSection({ ...extra, part: si });
+                  setOpened((o) => new Set(o).add(extra.category));
+                  setTimeout(() => document.getElementById(`c-${extra.category}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+                }}
+              />
             </section>
           ))}
           <MyPdfs />
           <div className="footer-tools">
+            <span className="hint">Kalams with nothing in them are left out of the PDF.</span>
             <button
               className="ghost"
               onClick={() =>
-                confirm('Start a new booklet? Screenshots, page headings, page-number edits and text boxes are cleared; pinned (★) defaults and your cover/fihrist wording are kept.') &&
+                confirm('Start a new booklet? Screenshots, page headings, page-number edits and text boxes are cleared; pinned (★) defaults, sections you added and your cover/fihrist wording are kept.') &&
                 reset(doc.venue)
               }
             >
@@ -352,13 +428,12 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
               className="ghost danger"
               title="Empty the whole booklet: every kalam (defaults too), text edits and text boxes"
               onClick={() =>
-                confirm('Reset everything to zero? Every kalam (the defaults too), screenshot, text edit and text box is removed from this booklet. Your pinned (★) defaults are not changed, and ⌘Z / Undo brings it all back.') &&
+                confirm('Reset everything to zero? Every kalam (the defaults too), screenshot, text edit and text box is removed from this booklet. Sections you added stay, empty. Your pinned (★) defaults are not changed, and ⌘Z / Undo brings it all back.') &&
                 clearAll()
               }
             >
               Reset to zero
             </button>
-            <span className="hint">Kalams with no screenshots are left out of the PDF.</span>
           </div>
           {hiddenBoxes.length > 0 && (
             <div className="hidden-boxes" role="status">
@@ -380,11 +455,21 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
 
       <main className="preview">
         <div className="preview-bar">
-          <span className="pages-count">{pageCount} pages</span>
-          <label className="zoom">
-            Zoom
-            <input type="range" min={0.3} max={1.4} step={0.05} value={zoom} onChange={(e) => setZoom(+e.target.value)} />
+          <span className="pages-count">
+            <b>{pageCount}</b> pages
+          </span>
+          <label className="zoom" title="Zoom">
+            <Icon name="zoom" size={15} />
+            <input type="range" min={0.3} max={1.4} step={0.05} value={zoom} aria-label="Zoom" onChange={(e) => setZoom(+e.target.value)} />
           </label>
+          <div className="bar-group">
+            <button className="icon-btn" onClick={undo} title="Undo (⌘Z)" aria-label="Undo">
+              <Icon name="undo" />
+            </button>
+            <button className="icon-btn" onClick={redo} title="Redo (⇧⌘Z)" aria-label="Redo">
+              <Icon name="redo" />
+            </button>
+          </div>
           <button
             className={`ghost${typing ? ' on' : ''}`}
             title="Click any text on the pages (titles, fihrist, headings, page numbers) to retype it"
@@ -393,21 +478,15 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
               setPlacing(false);
             }}
           >
-            {typing ? '✓ Done editing' : '✎ Edit text'}
+            <Icon name={typing ? 'check' : 'pencil'} size={15} /> {typing ? 'Done editing' : 'Edit text'}
           </button>
           {typing && (
             <button className={`ghost${placing ? ' on' : ''}`} title="Then click on a page where the text should go" onClick={() => setPlacing(!placing)}>
-              {placing ? 'Click on a page… (Esc)' : '+ Text box'}
+              <Icon name="type" size={15} /> {placing ? 'Click on a page… (Esc)' : 'Text box'}
             </button>
           )}
-          <button className="ghost" onClick={undo} title="Undo (⌘Z)">
-            ↶
-          </button>
-          <button className="ghost" onClick={redo} title="Redo (⇧⌘Z)">
-            ↷
-          </button>
           <button className="primary" onClick={exportPdf} disabled={busy || [...Object.values(uploads), ...Object.values(fetching)].some((n) => n > 0)}>
-            {busy ? 'Building PDF…' : 'Download PDF'}
+            {busy ? <span className="spinner light" /> : <Icon name="download" size={15} />} {busy ? 'Building PDF…' : 'Download PDF'}
           </button>
         </div>
         {ready && (
@@ -416,8 +495,8 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
             <a className="primary" href={ready.url} download={ready.filename} onClick={() => setTimeout(() => setReady(null), 1000)}>
               Save {ready.filename}
             </a>
-            <button className="ghost" onClick={() => setReady(null)} aria-label="Close">
-              ✕
+            <button className="icon-btn" onClick={() => setReady(null)} aria-label="Close">
+              <Icon name="x" />
             </button>
           </div>
         )}
@@ -453,9 +532,22 @@ export function Editor({ city, onCity }: { city: City; onCity: (city: City) => v
         <VersePicker
           hit={picking.hit}
           replacing={picking.replace}
+          target={
+            picking.quick
+              ? {
+                  value: picking.category,
+                  options: sections.flatMap((s) => s.categories).map((c) => ({ value: c, label: categoryName(doc, c) })),
+                  onChange: (c) => {
+                    setPicking({ ...picking, category: c as Category });
+                    setLastQuick(c as Category);
+                  },
+                }
+              : undefined
+          }
           onClose={() => setPicking(null)}
           onAdd={(verses) => {
             void addFromLibrary(picking.category, picking.hit, verses, picking.kalamId, picking.replace);
+            if (picking.quick) setTimeout(() => document.getElementById(`c-${picking.category}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
             setPicking(null);
           }}
         />
@@ -489,14 +581,104 @@ function SectionBar({ title, text, hidden, onText, onToggle }: { title: string; 
       />
       <div className="section-bar-tools">
         {text !== title && (
-          <button className="ghost" title={title} onClick={() => onText(title)}>
-            ↺ Original
+          <button className="bar-tool" title={title} onClick={() => onText(title)}>
+            <Icon name="restore" size={13} /> Original
           </button>
         )}
-        <button className={`ghost${hidden ? ' on' : ''}`} onClick={onToggle} title={hidden ? 'Put this pink bar back in the fihrist' : 'Leave this pink bar out of the fihrist (its kalams stay)'}>
-          {hidden ? 'Show pink bar' : 'Hide pink bar'}
+        <button className={`bar-tool${hidden ? ' on' : ''}`} onClick={onToggle} title={hidden ? 'Put this pink bar back in the fihrist' : 'Leave this pink bar out of the fihrist (its kalams stay)'}>
+          <Icon name={hidden ? 'eye' : 'eyeOff'} size={13} /> {hidden ? 'Show pink bar' : 'Hide pink bar'}
         </button>
         {hidden && <span className="hint">Not in the fihrist</span>}
+      </div>
+    </div>
+  );
+}
+
+/** "Quran Kareem (optional)" → ["Quran Kareem", "optional"]. */
+const splitHint = (hint: string): [string, string] => {
+  const m = /^(.*?) \((.*)\)$/.exec(hint);
+  return m ? [m[1], m[2]] : [hint, ''];
+};
+
+/** A section of your own: its heading as printed, and its name in the editor. */
+function SectionForm({ initial, submit, onSubmit, onCancel }: { initial?: { label: string; hint: string }; submit: string; onSubmit: (label: string, hint: string) => void; onCancel: () => void }) {
+  const [label, setLabel] = useState(initial?.label ?? '');
+  const [hint, setHint] = useState(initial?.hint ?? '');
+  const ok = label.trim().length > 0;
+  return (
+    <form
+      className="section-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ok) onSubmit(label.trim(), hint.trim());
+      }}
+      onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+    >
+      <label>
+        <span>Heading, as printed</span>
+        <input className="ar-input" dir="rtl" autoFocus value={label} placeholder="مناجات" onChange={(e) => setLabel(e.target.value)} />
+      </label>
+      <label>
+        <span>Name in the editor</span>
+        <input value={hint} placeholder="e.g. Munajat" onChange={(e) => setHint(e.target.value)} />
+      </label>
+      <div className="section-form-row">
+        <button type="button" className="ghost" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="submit" className="primary" disabled={!ok}>
+          {submit}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** "+ Add section" at the end of each part: a kind this booklet lacks, or one of your own. */
+function AddSection({ missing, onAdd }: { missing: Category[]; onAdd: (section: Omit<ExtraSection, 'part'>) => void }) {
+  const [open, setOpen] = useState<false | 'pick' | 'own'>(false);
+  if (!open)
+    return (
+      <button className="add-section" onClick={() => setOpen(missing.length ? 'pick' : 'own')}>
+        <Icon name="plus" size={15} /> Add section
+      </button>
+    );
+  if (open === 'own')
+    return (
+      <SectionForm
+        submit="Add section"
+        onCancel={() => setOpen(false)}
+        onSubmit={(label, hint) => {
+          onAdd({ category: `c-${uid()}`, label, hint });
+          setOpen(false);
+        }}
+      />
+    );
+  return (
+    <div className="section-form">
+      <span className="section-form-title">Add a section</span>
+      <div className="category-add-row">
+        {missing.map((c) => (
+          <button
+            key={c}
+            className="chip"
+            onClick={() => {
+              onAdd({ category: c });
+              setOpen(false);
+            }}
+          >
+            <span className="ar" dir="rtl">
+              {CATEGORY_LABEL[c as keyof typeof CATEGORY_LABEL]}
+            </span>
+            {splitHint(CATEGORY_HINT[c as keyof typeof CATEGORY_HINT])[0]}
+          </button>
+        ))}
+        <button className="chip" onClick={() => setOpen('own')}>
+          <Icon name="pencil" size={14} /> Your own heading…
+        </button>
+        <button className="chip quiet" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
       </div>
     </div>
   );

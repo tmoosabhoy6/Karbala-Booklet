@@ -4,15 +4,19 @@ import { KIND_LABEL, LibraryHit, searchLibrary } from './library';
 import { LibImage } from './LibImage';
 import { LibraryBrowser } from './LibraryBrowser';
 import { onUserChange } from '../library/user';
+import { Icon } from './Icon';
 
 interface Props {
-  category: Category;
+  /** Ranks kalams of this kind first; none for Quick add. */
+  category?: Category;
   placeholder: string;
   onPick: (hit: LibraryHit) => void;
+  autoFocus?: boolean;
+  className?: string;
 }
 
 /** Type a kalam's opening words in English letters; the list narrows as you type. */
-export function LibrarySearch({ category, placeholder, onPick }: Props) {
+export function LibrarySearch({ category, placeholder, onPick, autoFocus, className = '' }: Props) {
   const [text, setText] = useState('');
   const [hits, setHits] = useState<LibraryHit[]>([]);
   // The text `hits` were found for (the search waits for typing to pause).
@@ -51,10 +55,14 @@ export function LibrarySearch({ category, placeholder, onPick }: Props) {
 
   const showing = open && text.trim().length > 0;
   return (
-    <div className={`lib-search${showing ? ' open' : ''}`} ref={box} onMouseDown={(e) => e.stopPropagation()}>
-      <span className="lib-icon" aria-hidden>⌕</span>
+    <div className={`lib-search${showing ? ' open' : ''} ${className}`} ref={box} onMouseDown={(e) => e.stopPropagation()}>
+      <span className="lib-icon" aria-hidden>
+        <Icon name="search" size={15} />
+      </span>
       <input
+        autoFocus={autoFocus}
         value={text}
+        aria-label={placeholder}
         placeholder={placeholder}
         spellCheck={false}
         autoComplete="off"
@@ -73,7 +81,7 @@ export function LibrarySearch({ category, placeholder, onPick }: Props) {
         }}
       />
       <button type="button" className="lib-browse" title="Browse Zikre Husain by its own index, section by section" onClick={() => { setOpen(false); setBrowsing(true); }}>
-        Browse
+        <Icon name="book" size={15} /> Browse
       </button>
       {browsing && <LibraryBrowser onClose={() => setBrowsing(false)} onPick={(hit) => { setBrowsing(false); pick(hit); }} />}
       {showing && (
