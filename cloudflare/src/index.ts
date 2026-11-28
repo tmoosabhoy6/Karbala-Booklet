@@ -28,6 +28,22 @@ export class Booklet extends Container<Env> {
     'store.internal': (request: Request, env: Env) => env.STORE.getByName('main').fetch(request),
   };
 
+  /** A container started from an older deploy is stopped (SIGTERM: the
+   * server first finishes its storage uploads), so this visit starts the new
+   * one, instead of waiting for it to sleep, which an open editor (it checks
+   * in every minute) can put off for days. Other visits wait meanwhile. */
+  async ensureCurrent(): Promise<void> {
+    const current = this.env.GIT_COMMIT ?? '';
+    // Not running: the container about to start is the current deploy.
+    if (!this.ctx.container?.running) return void (await this.ctx.storage.put('commit', current));
+    if ((await this.ctx.storage.get<string>('commit')) === current) return;
+    await this.ctx.blockConcurrencyWhile(async () => {
+      await this.ctx.storage.put('commit', current);
+      await this.stop();
+      for (let i = 0; i < 60 && this.ctx.container?.running; i++) await new Promise((r) => setTimeout(r, 1000));
+    });
+  }
+
   constructor(ctx: DurableObjectState<{}>, env: Env) {
     super(ctx, env);
     // Every text variable and secret of the Worker (not its bindings) is the
@@ -39,6 +55,7 @@ export class Booklet extends Container<Env> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const booklet = env.BOOKLET.getByName('main');
+    await booklet.ensureCurrent();
     // A cold start pulls a large image (Chromium): wait longer than the
     // library's default 8 s + 20 s before giving up.
     await booklet.startAndWaitForPorts({
